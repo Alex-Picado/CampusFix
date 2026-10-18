@@ -4,10 +4,10 @@
 
 Esta integración conecta los controladores existentes con los formularios de
 inicio de sesión, registro y recuperación del perfil pendiente. También permite
-consultar el perfil autenticado y cerrar sesión.
+consultar el perfil autenticado, actualizar el nombre y cerrar sesión.
 
-La edición del nombre, la administración de roles y la preparación del primer
-administrador se completarán en bloques posteriores. Ver un menú administrativo
+La administración de roles y la preparación del primer administrador se
+completarán en bloques posteriores. Ver un menú administrativo
 no implica que sus funciones pendientes estén implementadas.
 
 ## Configuración necesaria
@@ -73,6 +73,30 @@ Se oculta el contenido privado y se ofrece «Reintentar», que reinicia las escu
 con `SessionController.start`. El usuario también puede cerrar sesión. Una
 actualización de rol cambia el menú y abandona una vista que ya no corresponda.
 
+## Actualización del perfil
+
+`SessionGate` proporciona un `ProfileController` asociado al identificador de la
+cuenta autenticada. El alcance se mantiene durante los cambios del mismo perfil
+y se elimina al abandonar la sesión o cambiar de cuenta.
+
+El recorrido de guardado es `ProfileScreen → ProfileController → UserRepository
+→ UserService → Firestore`. El repositorio valida el identificador y el nombre,
+elimina espacios exteriores del nombre y el servicio actualiza únicamente
+`fullName` del documento existente. El correo, identificador y rol se conservan.
+La escucha existente de `SessionController` recibe el perfil actualizado.
+
+- El nombre es obligatorio. El formulario no envía un valor vacío ni un nombre
+  que, después de eliminar espacios exteriores, sea igual al observado.
+- Mientras se guarda, se deshabilitan el campo y el botón para evitar duplicados.
+- La confirmación «Nombre actualizado» se muestra cuando la operación termina
+  correctamente y el formulario continúa montado.
+- Si falla el guardado, el borrador permanece disponible para corregirlo o reintentar.
+  Las actualizaciones observadas y las reversiones de escrituras rechazadas no
+  sustituyen ese borrador.
+- Un formulario sin cambios pendientes sigue los nombres recibidos por la escucha.
+- El cierre de sesión elimina el controlador y el formulario de esa cuenta. Una
+  operación anterior que termine después no muestra una confirmación en otra cuenta.
+
 ## Permisos
 
 Todos los registros normales reciben el rol `reporter` definido por el repositorio.
@@ -90,12 +114,14 @@ Las pruebas de widgets usan los controladores reales con repositorios locales
 controlables. No crean cuentas en Firebase ni prueban las reglas desplegadas.
 Cubren formularios inválidos, errores de acceso, envíos repetidos, registro,
 recuperación del perfil, cierre de sesión, fallos de observación, menú por rol,
-cambio de rol y navegación en tablet.
+cambio de rol y navegación en tablet. Las pruebas de edición de perfil también
+cubren nombres vacíos, envíos repetidos, conservación del correo y rol, recuperación
+tras escrituras rechazadas y aislamiento de una operación al cambiar de cuenta.
 
 Resultados de esta integración:
 
 - `flutter analyze --no-pub`: sin problemas.
-- `flutter test --no-pub`: 18 pruebas aprobadas, incluidas las de modelos existentes.
+- `flutter test --no-pub`: 22 pruebas aprobadas, incluidas las de modelos existentes.
 - `flutter build web --no-pub`: compilación completada.
 - Navegador a 1280 × 720: formularios de ingreso y registro revisados visualmente.
 - Tablet de 768 × 1024: navegación y cierre del menú verificados por prueba de widgets.
@@ -104,9 +130,11 @@ La comprobación con el proyecto Firebase real queda como prueba manual:
 
 1. Crear una cuenta desde «Registrate» y verificar que abre Inicio.
 2. Consultar Mi perfil y comprobar el rol Reportante.
-3. Recargar y comprobar la recuperación de la sesión.
-4. Salir, entrar con la misma cuenta y verificar un intento con contraseña incorrecta.
-5. Comprobar en Firestore el documento `users/{uid}` y sus campos.
+3. Cambiar el nombre, guardar y comprobarlo después de recargar.
+4. Comprobar la recuperación de la sesión al recargar.
+5. Salir, entrar con la misma cuenta y verificar un intento con contraseña incorrecta.
+6. Comprobar en Firestore el documento `users/{uid}`: cambia `fullName` y se
+   mantienen el correo y el rol.
 
 No se deben adjuntar contraseñas a capturas o documentación. La prueba de tres
 roles y las pruebas de reglas se completarán al implementar su administración.

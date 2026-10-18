@@ -6,6 +6,8 @@ import '../../features/auth/models/session_status.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/complete_profile_screen.dart';
 import '../../features/auth/screens/session_failure_screen.dart';
+import '../../features/users/controllers/profile_controller.dart';
+import '../../features/users/repositories/user_repository.dart';
 import 'campus_shell.dart';
 
 /// Selects the visible screen from authentication and profile observation.
@@ -29,7 +31,14 @@ class SessionGate extends StatelessWidget {
       case SessionStatus.authenticated:
         final profile = session.profile;
         if (profile != null) {
-          return CampusShell(key: ValueKey(profile.id), profile: profile);
+          return ChangeNotifierProvider<ProfileController>(
+            key: ValueKey(profile.id),
+            create: (context) => ProfileController(
+              userRepository: context.read<UserRepository>(),
+              userId: profile.id,
+            ),
+            child: CampusShell(profile: profile),
+          );
         }
         return const _SessionLoadingScreen();
       case SessionStatus.loading:

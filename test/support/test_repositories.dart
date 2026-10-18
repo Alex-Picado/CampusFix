@@ -10,6 +10,8 @@ class TestUserRepository implements UserRepository {
   final profiles = <String, UserProfile>{};
   final _changes = StreamController<String>.broadcast(sync: true);
   Object? saveError;
+  Completer<void>? nameUpdateBlocker;
+  int nameUpdateCalls = 0;
 
   @override
   Future<UserProfile?> getById(String userId) async => profiles[userId];
@@ -48,6 +50,8 @@ class TestUserRepository implements UserRepository {
     required String userId,
     required String fullName,
   }) async {
+    nameUpdateCalls++;
+    await nameUpdateBlocker?.future;
     final profile = profiles[userId];
 
     if (profile == null) {

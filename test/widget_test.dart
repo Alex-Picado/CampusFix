@@ -258,6 +258,175 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('Profile saves validate names and preserve the email and role', (
+    tester,
+  ) async {
+    final app = await _mountApp(tester, role: UserRole.technician);
+    await _tap(tester, 'nav-profile');
+    expect(_profileSaveButton(tester).onPressed, isNull);
+    await _enter(tester, 'profile-name', '   ');
+    await _tap(tester, 'profile-save');
+    expect(find.text('Ingresá tu nombre completo.'), findsOneWidget);
+    expect(app.users.nameUpdateCalls, 0);
+
+    final blocker = Completer<void>();
+    app.users.nameUpdateBlocker = blocker;
+    addTearDown(() {
+      if (!blocker.isCompleted) {
+        blocker.complete();
+      }
+    });
+    await _enter(tester, 'profile-name', '  Alex actualizado  ');
+    await tester.tap(find.byKey(const ValueKey('profile-save')));
+    await tester.pump();
+    expect(_profileSaveButton(tester).onPressed, isNull);
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const ValueKey('profile-name')))
+          .enabled,
+      isFalse,
+    );
+    await tester.tap(find.byKey(const ValueKey('profile-save')));
+    expect(app.users.nameUpdateCalls, 1);
+
+    blocker.complete();
+    await tester.pumpAndSettle();
+    final saved = app.users.profiles['campus-user']!;
+    expect(saved.fullName, 'Alex actualizado');
+    expect(saved.email, 'alex@campusfix.test');
+    expect(saved.role, UserRole.technician);
+    expect(find.text('Nombre actualizado.'), findsOneWidget);
+    expect(_profileName(tester), 'Alex actualizado');
+    expect(_profileSaveButton(tester).onPressed, isNull);
+    await _tap(tester, 'nav-overview');
+    await _tap(tester, 'nav-profile');
+    expect(_profileName(tester), 'Alex actualizado');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('A rejected save preserves its draft through observed rollbacks', (
+    tester,
+  ) async {
+    final app = await _mountApp(tester, role: UserRole.reporter);
+    await _tap(tester, 'nav-profile');
+    final blocker = Completer<void>();
+    app.users.nameUpdateBlocker = blocker;
+    app.users.saveError = FirebaseException(
+      plugin: 'cloud_firestore',
+      code: 'permission-denied',
+    );
+    addTearDown(() {
+      if (!blocker.isCompleted) {
+        blocker.complete();
+      }
+    });
+    await _enter(tester, 'profile-name', 'Nombre pendiente');
+    await tester.tap(find.byKey(const ValueKey('profile-save')));
+    await tester.pump();
+    expect(app.users.nameUpdateCalls, 1);
+
+    // Simulates an optimistic snapshot followed by a rejected write's rollback.
+    app.users.put(
+      const UserProfile(
+        id: 'campus-user',
+        fullName: 'Nombre pendiente',
+        email: 'alex@campusfix.test',
+        role: UserRole.reporter,
+      ),
+    );
+    await tester.pump();
+    app.users.put(_profile(UserRole.reporter));
+    await tester.pump();
+    blocker.complete();
+    await tester.pumpAndSettle();
+    expect(_profileName(tester), 'Nombre pendiente');
+    expect(app.users.profiles['campus-user']!.fullName, 'Alex de prueba');
+    expect(
+      find.text('No tenés permiso para realizar esta acción.'),
+      findsOneWidget,
+    );
+
+    app.users.saveError = null;
+    await _tap(tester, 'profile-save');
+    expect(find.text('Nombre actualizado.'), findsOneWidget);
+    expect(app.users.profiles['campus-user']!.fullName, 'Nombre pendiente');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Observed name changes refresh only an untouched profile form', (
+    tester,
+  ) async {
+    final app = await _mountApp(tester, role: UserRole.reporter);
+    await _tap(tester, 'nav-profile');
+    app.users.put(
+      const UserProfile(
+        id: 'campus-user',
+        fullName: 'Nombre externo',
+        email: 'alex@campusfix.test',
+        role: UserRole.reporter,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(_profileName(tester), 'Nombre externo');
+
+    await _enter(tester, 'profile-name', 'Mi borrador');
+    app.users.put(_profile(UserRole.reporter));
+    await tester.pumpAndSettle();
+    expect(_profileName(tester), 'Mi borrador');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'A pending name save cannot update the next account or its screen',
+    (tester) async {
+      final app = await _mountApp(tester, role: UserRole.reporter);
+      await _tap(tester, 'nav-profile');
+      final blocker = Completer<void>();
+      app.users.nameUpdateBlocker = blocker;
+      addTearDown(() {
+        if (!blocker.isCompleted) {
+          blocker.complete();
+        }
+      });
+      await _enter(tester, 'profile-name', 'Nombre de la cuenta anterior');
+      await tester.tap(find.byKey(const ValueKey('profile-save')));
+      await tester.pump();
+    expect(app.users.nameUpdateCalls, 1);
+      await _tap(tester, 'session-sign-out');
+      expect(find.byKey(const ValueKey('auth-email')), findsOneWidget);
+
+      app.users.put(
+        const UserProfile(
+          id: 'next-account',
+          fullName: 'Otra cuenta',
+          email: 'other@campusfix.test',
+          role: UserRole.technician,
+        ),
+      );
+      app.auth.setUser('next-account');
+      await tester.pumpAndSettle();
+      await _tap(tester, 'nav-profile');
+      blocker.complete();
+      await tester.pumpAndSettle();
+      expect(_profileName(tester), 'Otra cuenta');
+      expect(app.users.profiles['next-account']!.fullName, 'Otra cuenta');
+      expect(find.text('Nombre actualizado.'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+}
+
+String _profileName(WidgetTester tester) {
+  return tester
+      .widget<TextFormField>(find.byKey(const ValueKey('profile-name')))
+      .controller!
+      .text;
+}
+
+FilledButton _profileSaveButton(WidgetTester tester) {
+  return tester.widget<FilledButton>(
+    find.byKey(const ValueKey('profile-save')),
+  );
 }
 
 /// Mounts the real application and controllers with isolated repository doubles.
@@ -307,6 +476,7 @@ Future<void> _enter(WidgetTester tester, String key, String value) async {
   final finder = find.byKey(ValueKey(key));
   await tester.ensureVisible(finder);
   await tester.enterText(finder, value);
+  await tester.pump();
 }
 
 Future<void> _tap(WidgetTester tester, String key) async {
