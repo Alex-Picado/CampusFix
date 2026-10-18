@@ -5,6 +5,7 @@ import '../../features/auth/controllers/auth_controller.dart';
 import '../../features/users/models/user_profile.dart';
 import '../../features/users/presentation/user_role_labels.dart';
 import '../../features/users/screens/profile_screen.dart';
+import '../../features/users/screens/user_management_screen.dart';
 import '../navigation/campus_destination.dart';
 import '../screens/module_preview_screen.dart';
 import '../screens/overview_screen.dart';
@@ -174,6 +175,10 @@ class _CampusShellState extends State<CampusShell> {
 
     if (_selected == CampusDestination.profile) {
       return ProfileScreen(profile: widget.profile);
+    }
+
+    if (_selected == CampusDestination.users) {
+      return UserManagementScreen(currentUserId: widget.profile.id);
     }
 
     return ModulePreviewScreen(

@@ -193,6 +193,8 @@ void main() {
           expect(find.byKey(const ValueKey('overview-page')), findsOneWidget);
         } else if (destination == CampusDestination.profile) {
           expect(find.byKey(const ValueKey('profile-page')), findsOneWidget);
+        } else if (destination == CampusDestination.users) {
+          expect(find.byKey(const ValueKey('users-page')), findsOneWidget);
         } else {
           expect(
             find.byKey(ValueKey('preview-${destination.name}')),
@@ -214,7 +216,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('overview-page')), findsOneWidget);
       expect(find.byKey(const ValueKey('nav-users')), findsNothing);
-      expect(find.byKey(const ValueKey('preview-users')), findsNothing);
+      expect(find.byKey(const ValueKey('users-page')), findsNothing);
       expect(find.byKey(const ValueKey('nav-incidents')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

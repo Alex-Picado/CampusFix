@@ -4,11 +4,12 @@
 
 Esta integración conecta los controladores existentes con los formularios de
 inicio de sesión, registro y recuperación del perfil pendiente. También permite
-consultar el perfil autenticado, actualizar el nombre y cerrar sesión.
+consultar el perfil autenticado, actualizar el nombre, cerrar sesión y administrar
+los roles de las cuentas desde Usuarios.
 
-La administración de roles y la preparación del primer administrador se
-completarán en bloques posteriores. Ver un menú administrativo
-no implica que sus funciones pendientes estén implementadas.
+La preparación del primer administrador y la comprobación con Firebase real se
+completarán en el siguiente bloque. Las vistas de los módulos de incidencias,
+indicadores y categorías todavía muestran su condición de pendientes.
 
 ## Configuración necesaria
 
@@ -97,6 +98,39 @@ La escucha existente de `SessionController` recibe el perfil actualizado.
 - El cierre de sesión elimina el controlador y el formulario de esa cuenta. Una
   operación anterior que termine después no muestra una confirmación en otra cuenta.
 
+## Administración de usuarios
+
+`CampusShell` abre `UserManagementScreen` únicamente desde el menú del administrador.
+La pantalla crea un `UserManagementController` asociado al identificador de la
+cuenta actual. Ese controlador escucha `UserRepository.watchAll`, que convierte
+los documentos en perfiles y los ordena por nombre sin distinguir mayúsculas.
+`UserService` mantiene la consulta de la colección `users`.
+
+El recorrido de escritura es `UserManagementScreen → UserManagementController →
+UserRepository.updateRole → UserService.updateRole → Firestore`. Se actualiza
+únicamente `role`, conservando nombre, correo e identificador. La lista muestra
+los cambios recibidos por la escucha; no mantiene una segunda copia editable.
+
+- Elegir un rol diferente inicia su guardado; una selección idéntica no escribe.
+- Todos los selectores se deshabilitan durante una escritura para evitar duplicados.
+- El selector de la cuenta actual está deshabilitado. El controlador también
+  rechaza quitarle el rol de administrador a esa misma cuenta.
+- Los errores de consulta y escritura se muestran por separado. Un error de
+  consulta retira la lista y ofrece Reintentar; un snapshot posterior no borra
+  un error de escritura. Otra selección permite reintentar el guardado.
+- Las confirmaciones se muestran dentro de Usuarios. Se eliminan al salir,
+  evitando trasladar nombres a una sesión o pantalla posterior.
+- Salir de Usuarios, perder el rol administrativo, cerrar sesión o cambiar de
+  cuenta elimina el controlador y cancela su suscripción. Una escritura iniciada
+  puede terminar después; su respuesta no modifica una vista que ya se eliminó.
+- El listado usa disposición horizontal en escritorio y apila los campos cuando
+  el espacio disponible es menor de 600 píxeles lógicos.
+
+La protección de la cuenta administrativa actual evita errores desde esta
+interfaz. Las reglas actuales permiten a un administrador modificar su propio
+rol; no garantizan conservar al último administrador. El primer acceso
+administrativo requiere un procedimiento aparte en Firebase, pendiente de documentar.
+
 ## Permisos
 
 Todos los registros normales reciben el rol `reporter` definido por el repositorio.
@@ -117,14 +151,19 @@ recuperación del perfil, cierre de sesión, fallos de observación, menú por r
 cambio de rol y navegación en tablet. Las pruebas de edición de perfil también
 cubren nombres vacíos, envíos repetidos, conservación del correo y rol, recuperación
 tras escrituras rechazadas y aislamiento de una operación al cambiar de cuenta.
+Las pruebas de Usuarios cubren selección de roles, bloqueo de envíos, conservación
+de identidad, errores recuperables, cancelación de consultas al salir o perder
+permisos, aislamiento entre cuentas y distribución en tablet.
 
 Resultados de esta integración:
 
 - `flutter analyze --no-pub`: sin problemas.
-- `flutter test --no-pub`: 22 pruebas aprobadas, incluidas las de modelos existentes.
+- `flutter test --no-pub`: 31 pruebas aprobadas, incluidas las de modelos existentes
+  y nueve pruebas de integración de la pantalla de Usuarios.
 - `flutter build web --no-pub`: compilación completada.
 - Navegador a 1280 × 720: formularios de ingreso y registro revisados visualmente.
-- Tablet de 768 × 1024: navegación y cierre del menú verificados por prueba de widgets.
+- Tablet de 768 × 1024: navegación, cierre del menú y distribución de Usuarios
+  verificados por pruebas de widgets.
 
 La comprobación con el proyecto Firebase real queda como prueba manual:
 
@@ -137,4 +176,5 @@ La comprobación con el proyecto Firebase real queda como prueba manual:
    mantienen el correo y el rol.
 
 No se deben adjuntar contraseñas a capturas o documentación. La prueba de tres
-roles y las pruebas de reglas se completarán al implementar su administración.
+roles y las pruebas de reglas siguen pendientes; las pruebas de interfaz con
+repositorios locales no verifican la autorización efectiva de Firestore.

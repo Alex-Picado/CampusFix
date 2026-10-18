@@ -13,6 +13,7 @@ fuentes o imágenes externas. Provider conecta las pantallas con los controlador
   fotografías, indicadores ni operaciones exitosas.
 - Acceso mediante correo y contraseña, registro y recuperación del perfil pendiente.
 - Consulta del nombre, correo y rol del perfil autenticado, y actualización del nombre.
+- Listado de cuentas y cambios de rol desde Usuarios, exclusivo del administrador.
 - Cierre de sesión y recuperación de errores de observación.
 - El menú y los accesos rápidos muestran únicamente las opciones del rol actual.
   La visibilidad del menú no sustituye las reglas de seguridad de Firestore.
@@ -41,6 +42,8 @@ fuentes o imágenes externas. Provider conecta las pantallas con los controlador
 | `CompleteProfileScreen` | Recuperación de una cuenta cuyo perfil falta. |
 | `SessionFailureScreen` | Reintento de observación y salida ante un error. |
 | `ProfileScreen` | Consulta del perfil y formulario para actualizar el nombre. |
+| `UserManagementScreen` | Consulta de cuentas y selección de roles; administra el alcance de su controlador. |
+| `UserManagementController` | Escucha de usuarios, estados de carga y cambios de rol. |
 
 `main.dart` conserva la inicialización de Firebase antes de abrir la aplicación.
 La conexión utiliza los servicios, repositorios y controladores existentes.
@@ -56,10 +59,18 @@ La conexión utiliza los servicios, repositorios y controladores existentes.
 El cambio de rol observado actualiza el menú. Si la vista seleccionada deja de
 estar disponible, se vuelve a Inicio. El cambio de cuenta reinicia la selección.
 
+Usuarios solo escucha la colección mientras esa vista administrativa está abierta.
+Al salir de ella, perder el rol o cerrar sesión se elimina su controlador y se
+cancela la escucha. Los cambios de rol se guardan al elegir una opción del selector;
+durante la escritura se deshabilitan los selectores. El rol de la cuenta actual
+permanece bloqueado en la interfaz para evitar una pérdida accidental de acceso.
+Las confirmaciones y errores aparecen dentro de la vista y desaparecen al salir.
+
 ## Funciones pendientes
 
-La administración de roles y las funciones de incidencias, fotografías, gestión,
-indicadores y categorías siguen pendientes.
+Las funciones de incidencias, fotografías, gestión, indicadores y categorías
+siguen pendientes. La preparación del primer administrador y la comprobación
+de permisos con Firebase real se completan en el siguiente bloque.
 Los módulos pendientes no muestran registros ficticios ni acciones exitosas.
 
 La configuración, el recorrido de autenticación y sus pruebas se documentan en

@@ -9,9 +9,14 @@ import 'package:campusfix/features/users/repositories/user_repository.dart';
 class TestUserRepository implements UserRepository {
   final profiles = <String, UserProfile>{};
   final _changes = StreamController<String>.broadcast(sync: true);
+  final _listErrors = StreamController<Object>.broadcast(sync: true);
   Object? saveError;
   Completer<void>? nameUpdateBlocker;
   int nameUpdateCalls = 0;
+  Completer<void>? roleUpdateBlocker;
+  int roleUpdateCalls = 0;
+  int allUsersWatchCalls = 0;
+  int activeAllUsersWatches = 0;
 
   @override
   Future<UserProfile?> getById(String userId) async => profiles[userId];
@@ -72,6 +77,8 @@ class TestUserRepository implements UserRepository {
   @override
   Stream<List<UserProfile>> watchAll() {
     return Stream<List<UserProfile>>.multi((sink) {
+      allUsersWatchCalls++;
+      activeAllUsersWatches++;
       void emitProfiles() {
         final current = profiles.values.toList();
         current.sort((first, second) {
@@ -88,7 +95,12 @@ class TestUserRepository implements UserRepository {
         onError: sink.addError,
         onDone: sink.close,
       );
-      sink.onCancel = subscription.cancel;
+      final errors = _listErrors.stream.listen(sink.addError);
+      sink.onCancel = () {
+        activeAllUsersWatches--;
+        subscription.cancel().ignore();
+        errors.cancel().ignore();
+      };
     });
   }
 
@@ -98,6 +110,8 @@ class TestUserRepository implements UserRepository {
     required String userId,
     required UserRole role,
   }) async {
+    roleUpdateCalls++;
+    await roleUpdateBlocker?.future;
     final profile = profiles[userId];
     if (profile == null) {
       throw StateError('The test profile does not exist.');
@@ -120,7 +134,13 @@ class TestUserRepository implements UserRepository {
 
   void failObservation(Object error) => _changes.addError(error);
 
-  Future<void> close() => _changes.close();
+  /// Fails only administrative queries while preserving profile observation.
+  void failUserList(Object error) => _listErrors.add(error);
+
+  Future<void> close() async {
+    await _changes.close();
+    await _listErrors.close();
+  }
 }
 
 /// Simulates account events and failures while using the real UI controllers.
