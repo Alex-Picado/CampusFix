@@ -59,6 +59,28 @@ class AuthController extends ChangeNotifier {
     });
   }
 
+  /// Signs out through the authentication repository.
+///
+/// Reuses shared loading and error handling.
+/// Returns false on failure, overlapping calls, or disposal.
+Future<bool> signOut() {
+  return _execute(() {
+    return _authRepository.signOut();
+  });
+}
+
+/// Clears the latest authentication form error.
+///
+/// Does nothing after disposal or when no error exists.
+void clearError() {
+  if (_disposed || _errorMessage == null) {
+    return;
+  }
+
+  _errorMessage = null;
+  notifyListeners();
+}
+
   /// Executes [action] with shared loading and error handling.
   ///
   /// Rejects overlapping calls and calls after disposal.
