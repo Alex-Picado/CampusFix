@@ -1,6 +1,6 @@
 import '../models/user_profile.dart';
 import '../services/user_service.dart';
-
+import '../models/user_role.dart';
 /// Converts stored user data into application profiles and back.
 class UserRepository {
   final UserService _userService;
@@ -72,7 +72,53 @@ class UserRepository {
 
 
 
+  /// Watches all profiles sorted by their case-insensitive full name.
+  ///
+  /// Converts stored documents into application models.
+  /// Emits an unmodifiable list.
+  /// Forwards service and profile parsing errors to the listener.
+  /// The caller must cancel its subscription when no longer needed.
+  Stream<List<UserProfile>> watchAll() {
+    return _userService.watchAll().map((documents) {
+      final profiles = <UserProfile>[];
 
+      for (final entry in documents.entries) {
+        profiles.add(
+          UserProfile.fromMap(
+            id: entry.key,
+            data: entry.value,
+          ),
+        );
+      }
+
+      profiles.sort((first, second) {
+        return first.fullName.toLowerCase().compareTo(
+          second.fullName.toLowerCase(),
+        );
+      });
+
+      return List<UserProfile>.unmodifiable(profiles);
+    });
+  }
+
+  /// Updates the role of the profile identified by [userId].
+  ///
+  /// Stores the enum name used by the profile model and security rules.
+  /// Throws a [FormatException] if the identifier is empty.
+  /// Propagates errors reported by the service.
+  Future<void> updateRole({
+    required String userId,
+    required UserRole role,
+  }) {
+    if (userId.trim().isEmpty) {
+      throw const FormatException('User ID is required.');
+    }
+
+    return _userService.updateRole(
+      userId: userId,
+      role: role.name,
+    );
+  }
 
 
 

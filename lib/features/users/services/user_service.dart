@@ -58,4 +58,36 @@ class UserService {
   }
 
 
+    /// Watches all stored profiles, indexed by document ID.
+  ///
+  /// Emits the initial collection and subsequent changes.
+  /// Firestore rules restrict this query to administrators.
+  /// The caller must cancel its subscription when no longer needed.
+  Stream<Map<String, Map<String, dynamic>>> watchAll() {
+    return _firestore.collection('users').snapshots().map((snapshot) {
+      final profiles = <String, Map<String, dynamic>>{};
+
+      for (final document in snapshot.docs) {
+        profiles[document.id] = document.data();
+      }
+
+      return profiles;
+    });
+  }
+
+  /// Updates only the role of an existing profile.
+  ///
+  /// Preserves the remaining document fields.
+  /// Firestore rules enforce administrator permissions and valid roles.
+  /// Propagates errors reported by Firestore.
+  Future<void> updateRole({
+    required String userId,
+    required String role,
+  }) {
+    return _firestore.collection('users').doc(userId).update({
+      'role': role,
+    });
+  }
+
+
 }

@@ -68,6 +68,51 @@ class TestUserRepository implements UserRepository {
     );
   }
 
+  /// Emits all local profiles initially and whenever a profile changes.
+  @override
+  Stream<List<UserProfile>> watchAll() {
+    return Stream<List<UserProfile>>.multi((sink) {
+      void emitProfiles() {
+        final current = profiles.values.toList();
+        current.sort((first, second) {
+          return first.fullName.toLowerCase().compareTo(
+            second.fullName.toLowerCase(),
+          );
+        });
+        sink.add(List<UserProfile>.unmodifiable(current));
+      }
+
+      emitProfiles();
+      final subscription = _changes.stream.listen(
+        (_) => emitProfiles(),
+        onError: sink.addError,
+        onDone: sink.close,
+      );
+      sink.onCancel = subscription.cancel;
+    });
+  }
+
+  /// Updates a local role while preserving the remaining profile fields.
+  @override
+  Future<void> updateRole({
+    required String userId,
+    required UserRole role,
+  }) async {
+    final profile = profiles[userId];
+    if (profile == null) {
+      throw StateError('The test profile does not exist.');
+    }
+
+    await saveProfile(
+      UserProfile(
+        id: profile.id,
+        fullName: profile.fullName,
+        email: profile.email,
+        role: role,
+      ),
+    );
+  }
+
   void put(UserProfile profile) {
     profiles[profile.id] = profile;
     _changes.add(profile.id);
