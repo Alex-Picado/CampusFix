@@ -200,6 +200,9 @@ recorrido con el proyecto `campus-fix-ucr`:
 | Cambiar la segunda cuenta a Técnico desde Usuarios | La segunda sesión muestra Mi trabajo sin recargar. |
 | Recargar la segunda sesión | El rol Técnico permanece guardado. |
 | Volver a cambiar la segunda cuenta a Reportante | La segunda sesión vuelve a mostrar Mis incidencias. |
+| Cambiar el nombre desde Mi perfil y recargar | El nombre actualizado permanece guardado. |
+| Cerrar sesión e intentar ingresar con contraseña incorrecta | Se muestra un error de acceso. |
+| Corregir la contraseña e ingresar de nuevo | El acceso se completa correctamente. |
 
 La evidencia de este recorrido es la confirmación del usuario en la conversación;
 no se generaron capturas ni un reporte automatizado de esta prueba. Comprueba el
@@ -211,11 +214,9 @@ sí sola el rechazo de operaciones directas no autorizadas por las reglas.
 Estos casos están cubiertos total o parcialmente por pruebas locales, pero su
 resultado con el proyecto Firebase real todavía no se ha registrado:
 
-1. Cambiar el nombre desde Mi perfil, guardar y comprobarlo después de recargar.
-2. Salir, entrar con la misma cuenta y verificar un intento con contraseña incorrecta.
-3. Comprobar en Firestore el documento `users/{uid}`: cambia `fullName` y se
+1. Comprobar en Firestore el documento `users/{uid}`: cambia `fullName` y se
    mantienen el correo y el rol.
-4. Comprobar el rechazo de lecturas y escrituras no autorizadas mediante pruebas
+2. Comprobar el rechazo de lecturas y escrituras no autorizadas mediante pruebas
    de las reglas, incluyendo intentos de cambiar el rol propio desde una cuenta
    reportante o técnica y consultas de usuarios desde esas cuentas.
 
