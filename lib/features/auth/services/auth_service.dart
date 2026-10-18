@@ -48,4 +48,11 @@ class AuthService {
   Stream<User?> watchAuthState() {
     return _auth.authStateChanges();
   }
+
+  /// Returns the currently authenticated user, or null if unavailable.
+  ///
+  /// May return null while Firebase is restoring the initial session.
+  User? getCurrentUser() {
+    return _auth.currentUser;
+  }
 }
