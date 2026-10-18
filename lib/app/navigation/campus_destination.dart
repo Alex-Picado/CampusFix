@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Presentation metadata for each navigable module in the prototype.
+import '../../features/users/models/user_role.dart';
+
+/// Presentation metadata and menu visibility for the application's modules.
 ///
-/// Navigation labels do not provide authorization. Session guards and role
-/// permissions will be connected when the functional screens are integrated.
+/// Visibility guides the interface. Firestore rules must independently authorize
+/// each data operation when the corresponding module is implemented.
 enum CampusDestination {
   overview(
     'Inicio',
@@ -92,4 +94,29 @@ enum CampusDestination {
     this.description,
     this.capabilities,
   );
+
+  /// Whether this menu entry is relevant to [role].
+  bool isVisibleTo(UserRole role) {
+    switch (this) {
+      case CampusDestination.overview:
+      case CampusDestination.profile:
+        return true;
+      case CampusDestination.incidents:
+        return role == UserRole.reporter;
+      case CampusDestination.workspace:
+        return role == UserRole.technician;
+      case CampusDestination.management:
+      case CampusDestination.dashboard:
+      case CampusDestination.categories:
+      case CampusDestination.users:
+        return role == UserRole.administrator;
+    }
+  }
+
+  /// Returns the visible destinations in their normal display order.
+  static List<CampusDestination> forRole(UserRole role) {
+    return values
+        .where((item) => item.isVisibleTo(role))
+        .toList(growable: false);
+  }
 }

@@ -1,8 +1,8 @@
 # Interfaz común de CampusFix
 
 Esta entrega incorpora una interfaz sencilla con controles estándar de Material,
-colores discretos y navegación consistente. No requiere fuentes, imágenes ni
-dependencias nuevas.
+colores discretos y navegación consistente. Utiliza controles Material sin
+fuentes o imágenes externas. Provider conecta las pantallas con los controladores.
 
 ## Alcance actual
 
@@ -11,10 +11,11 @@ dependencias nuevas.
   categorías, usuarios y perfil.
 - Cada módulo pendiente muestra «Próximamente». No se simulan registros,
   fotografías, indicadores ni operaciones exitosas.
-- La interfaz es actualmente un prototipo navegable. Todavía no conecta las
-  pantallas con `AuthController` y `SessionController`, ni consulta datos privados.
-  Por eso las opciones del menú se muestran para revisar la estructura completa;
-  no representan accesos autorizados de una sesión real.
+- Acceso mediante correo y contraseña, registro y recuperación del perfil pendiente.
+- Consulta del nombre, correo y rol del perfil autenticado.
+- Cierre de sesión y recuperación de errores de observación.
+- El menú y los accesos rápidos muestran únicamente las opciones del rol actual.
+  La visibilidad del menú no sustituye las reglas de seguridad de Firestore.
 
 ## Adaptación a pantalla
 
@@ -28,32 +29,41 @@ dependencias nuevas.
 | Archivo o componente | Responsabilidad |
 | --- | --- |
 | `CampusTheme` | Colores y estilos compartidos. |
-| `CampusDestination` | Etiquetas y descripciones de las vistas del prototipo. |
+| `CampusDestination` | Etiquetas, descripciones y visibilidad por rol. |
 | `CampusNavigation` | Opciones del menú lateral y desplegable. |
-| `CampusShell` | Distribución responsiva y selección de vista. |
+| `CampusShell` | Distribución responsiva, selección de vista y cierre de sesión. |
 | `OverviewScreen` | Pantalla inicial y accesos rápidos. |
 | `ModulePreviewScreen` | Identificación explícita de funciones pendientes. |
 | `PageHeading`, `SectionCard` | Componentes visuales reutilizables. |
+| `AppProviders` | Instancias compartidas de repositorios y controladores. |
+| `SessionGate` | Pantalla correspondiente al estado de la sesión. |
+| `AuthScreen` | Formularios de acceso y registro. |
+| `CompleteProfileScreen` | Recuperación de una cuenta cuyo perfil falta. |
+| `SessionFailureScreen` | Reintento de observación y salida ante un error. |
+| `ProfileScreen` | Consulta del perfil autenticado. |
 
 `main.dart` conserva la inicialización de Firebase antes de abrir la aplicación.
-La capa visual no modifica servicios, repositorios, controladores o reglas.
+La conexión utiliza los servicios, repositorios y controladores existentes.
 
-## Siguiente integración
+## Módulos y permisos de presentación
 
-Conectar los estados de sesión a las pantallas de acceso y perfil pendiente.
-El menú deberá mostrar las opciones correspondientes al rol autenticado;
-Firestore seguirá siendo responsable de proteger los datos.
+| Rol | Opciones visibles |
+| --- | --- |
+| Reportante | Inicio, Mis incidencias y Mi perfil. |
+| Técnico | Inicio, Mi trabajo y Mi perfil. |
+| Administrador | Inicio, Gestión, Indicadores, Categorías, Usuarios y Mi perfil. |
 
-## Verificaciones de esta entrega
+El cambio de rol observado actualiza el menú. Si la vista seleccionada deja de
+estar disponible, se vuelve a Inicio. El cambio de cuenta reinicia la selección.
 
-- Análisis de Dart: sin problemas.
-- Pruebas de Flutter: nueve aprobadas, incluidas la navegación de los módulos
-  y la apertura y cierre del menú en una tablet de 768 × 1024 píxeles lógicos.
-- Compilación web: completada correctamente.
-- Revisión visual en navegador: inicio comprobado a 1280 × 720 píxeles.
+## Funciones pendientes
 
-Estas verificaciones cubren el prototipo visual. La integración de acceso,
-perfiles y permisos todavía requiere sus propias pruebas.
+La actualización del nombre, la administración de roles y las funciones de
+incidencias, fotografías, gestión, indicadores y categorías siguen pendientes.
+Los módulos pendientes no muestran registros ficticios ni acciones exitosas.
+
+La configuración, el recorrido de autenticación y sus pruebas se documentan en
+[Autenticación y sesión](autenticacion.md).
 
 ## Cómo revisar la interfaz
 

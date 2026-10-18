@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'theme/campus_theme.dart';
-import 'widgets/campus_shell.dart';
+import 'widgets/session_gate.dart';
 
-/// Configures the shared theme and current visual prototype.
+/// Configures the shared theme and session-driven application entry point.
 class CampusFixApp extends StatelessWidget {
   const CampusFixApp({super.key});
 
@@ -13,7 +13,7 @@ class CampusFixApp extends StatelessWidget {
       title: 'CampusFix',
       debugShowCheckedModeBanner: false,
       theme: CampusTheme.light,
-      home: const CampusShell(),
+      home: const SessionGate(),
     );
   }
 }

@@ -5,11 +5,16 @@ import '../../core/widgets/section_card.dart';
 import '../navigation/campus_destination.dart';
 import '../theme/campus_theme.dart';
 
-/// Shows the prototype landing page and simple module shortcuts.
+/// Shows the landing page and shortcuts available to the current role.
 class OverviewScreen extends StatelessWidget {
   final ValueChanged<CampusDestination> onNavigate;
+  final List<CampusDestination> destinations;
 
-  const OverviewScreen({super.key, required this.onNavigate});
+  const OverviewScreen({
+    super.key,
+    required this.onNavigate,
+    required this.destinations,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -35,21 +40,15 @@ class OverviewScreen extends StatelessWidget {
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: () => onNavigate(CampusDestination.incidents),
-                    icon: const Icon(Icons.description_outlined),
-                    label: const Text('Mis incidencias'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => onNavigate(CampusDestination.workspace),
-                    icon: const Icon(Icons.handyman_outlined),
-                    label: const Text('Mi trabajo'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => onNavigate(CampusDestination.profile),
-                    icon: const Icon(Icons.person_outline),
-                    label: const Text('Mi perfil'),
-                  ),
+                  for (final destination
+                      in destinations
+                          .where((item) => item != CampusDestination.overview)
+                          .take(3))
+                    OutlinedButton.icon(
+                      onPressed: () => onNavigate(destination),
+                      icon: Icon(destination.icon),
+                      label: Text(destination.label),
+                    ),
                 ],
               ),
             ],
@@ -77,7 +76,7 @@ class OverviewScreen extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         const Text(
-          'Vista previa: podés recorrer las pantallas. Las funciones pendientes se indican como Próximamente.',
+          'Los módulos pendientes se indican como Próximamente.',
           style: TextStyle(color: CampusTheme.secondaryText),
         ),
       ],

@@ -5,11 +5,13 @@ import '../navigation/campus_destination.dart';
 /// Displays the same navigation options in a sidebar or drawer.
 class CampusNavigation extends StatelessWidget {
   final CampusDestination selected;
+  final List<CampusDestination> destinations;
   final ValueChanged<CampusDestination> onSelected;
 
   const CampusNavigation({
     super.key,
     required this.selected,
+    required this.destinations,
     required this.onSelected,
   });
 
@@ -24,7 +26,7 @@ class CampusNavigation extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Text('Menú', style: TextStyle(fontWeight: FontWeight.w600)),
           ),
-          for (final destination in CampusDestination.values)
+          for (final destination in destinations)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: ListTile(
