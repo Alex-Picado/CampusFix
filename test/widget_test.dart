@@ -1,30 +1,63 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:campusfix/app/navigation/campus_destination.dart';
 import 'package:campusfix/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Desktop navigation opens all pending module previews', (
+    tester,
+  ) async {
+    await _mountPrototype(tester, const Size(1440, 900));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('CampusFix'), findsOneWidget);
+    expect(find.byTooltip('Abrir menú'), findsNothing);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    for (final destination in CampusDestination.values.skip(1)) {
+      await tester.tap(find.byKey(ValueKey('nav-${destination.name}')));
+      await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('preview-${destination.name}')),
+        findsOneWidget,
+      );
+      expect(find.text('Funcionalidad pendiente'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+
+    await tester.tap(find.byKey(const ValueKey('nav-overview')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('overview-page')), findsOneWidget);
   });
+
+  testWidgets('Portrait tablet uses its drawer and closes it on selection', (
+    tester,
+  ) async {
+    await _mountPrototype(tester, const Size(768, 1024));
+
+    await tester.tap(find.byTooltip('Abrir menú'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('nav-profile')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('preview-profile')), findsOneWidget);
+    final scaffold = tester.state<ScaffoldState>(find.byType(Scaffold));
+    expect(scaffold.isDrawerOpen, isFalse);
+
+    await tester.tap(find.text('Volver al inicio'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('overview-page')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+/// Builds the visual prototype without initializing or contacting Firebase.
+Future<void> _mountPrototype(WidgetTester tester, Size size) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = size;
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+
+  await tester.pumpWidget(const MyApp());
+  await tester.pumpAndSettle();
 }
