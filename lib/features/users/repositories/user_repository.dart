@@ -47,4 +47,33 @@ class UserRepository {
   Future<void> saveProfile(UserProfile profile) {
     return _userService.setProfile(userId: profile.id, data: profile.toMap());
   }
+
+
+  /// Updates the name of the profile identified by [userId].
+  ///
+  /// Removes surrounding name whitespace.
+  /// Throws a [FormatException] if the identifier or name is empty.
+  /// Propagates errors reported by the service.
+  Future<void> updateFullName({
+    required String userId,
+    required String fullName,
+  }) {
+    final normalizedName = fullName.trim();
+
+    if (userId.trim().isEmpty || normalizedName.isEmpty) {
+      throw const FormatException('User ID and full name are required.');
+    }
+
+    return _userService.updateFullName(
+      userId: userId,
+      fullName: normalizedName,
+    );
+  }
+
+
+
+
+
+
+
 }

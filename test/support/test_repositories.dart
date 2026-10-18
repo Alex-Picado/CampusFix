@@ -40,6 +40,30 @@ class TestUserRepository implements UserRepository {
     put(profile);
   }
 
+  /// Updates a local profile name while preserving its identity, email and role.
+  ///
+  /// Uses saveProfile so configured failures and profile observations still work.
+  @override
+  Future<void> updateFullName({
+    required String userId,
+    required String fullName,
+  }) async {
+    final profile = profiles[userId];
+
+    if (profile == null) {
+      throw StateError('The test profile does not exist.');
+    }
+
+    await saveProfile(
+      UserProfile(
+        id: profile.id,
+        fullName: fullName.trim(),
+        email: profile.email,
+        role: profile.role,
+      ),
+    );
+  }
+
   void put(UserProfile profile) {
     profiles[profile.id] = profile;
     _changes.add(profile.id);

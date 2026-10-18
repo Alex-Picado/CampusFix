@@ -43,4 +43,19 @@ class UserService {
   }) {
     return _firestore.collection('users').doc(userId).set(data);
   }
+
+  /// Updates only the full name of an existing profile.
+  ///
+  /// Preserves all other document fields.
+  /// Propagates Firestore errors, including missing documents and denied writes.
+  Future<void> updateFullName({
+    required String userId,
+    required String fullName,
+  }) {
+    return _firestore.collection('users').doc(userId).update({
+      'fullName': fullName,
+    });
+  }
+
+
 }
