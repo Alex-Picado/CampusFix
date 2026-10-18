@@ -1,0 +1,78 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Checks whether the request comes from an authenticated user.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Checks the current user's stored administrator role.
+    function isAdmin() {
+      return isSignedIn()
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        )
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.role == 'administrator';
+    }
+
+    // Validates the complete incoming profile document.
+    function isValidProfile() {
+      let data = request.resource.data;
+
+      return data.keys().hasAll(['fullName', 'email', 'role'])
+        && data.keys().hasOnly(['fullName', 'email', 'role'])
+        && data.fullName is string
+        && data.fullName.size() > 0
+        && data.email is string
+        && data.email.size() > 0
+        && data.role is string
+        && data.role in ['reporter', 'technician', 'administrator'];
+    }
+
+    match /users/{userId} {
+
+      // Owners may read their own profile, even before it exists.
+      // Administrators may read any profile.
+      allow get: if isSignedIn()
+        && (request.auth.uid == userId || isAdmin());
+
+      // Only administrators may query the users collection.
+      allow list: if isAdmin();
+
+      // Self-registration creates only a reporter profile.
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && isValidProfile()
+        && request.resource.data.role == 'reporter'
+        && request.resource.data.email == request.auth.token.email;
+
+      // Owners may edit their names; administrators may change roles.
+      allow update: if isSignedIn()
+        && isValidProfile()
+        && (
+          (
+            request.auth.uid == userId
+            && request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['fullName'])
+          )
+          ||
+          (
+            isAdmin()
+            && request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['role'])
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // Other collections require their own module-specific rules.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
