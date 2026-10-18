@@ -209,16 +209,31 @@ no se generaron capturas ni un reporte automatizado de esta prueba. Comprueba el
 flujo de roles y las actualizaciones observadas en dos sesiones. No demuestra por
 sí sola el rechazo de operaciones directas no autorizadas por las reglas.
 
-### Comprobaciones reales adicionales pendientes
+### Comprobaciones de datos y permisos de la Parte 1
 
-Estos casos están cubiertos total o parcialmente por pruebas locales, pero su
-resultado con el proyecto Firebase real todavía no se ha registrado:
+Durante la revisión se consultaron los documentos de las dos cuentas de prueba
+en Firestore y sus identidades en Authentication. Se identificaron la cuenta
+administradora y la cuenta técnica mediante sus UID, correos y roles almacenados.
 
-1. Comprobar en Firestore el documento `users/{uid}`: cambia `fullName` y se
-   mantienen el correo y el rol.
-2. Comprobar el rechazo de lecturas y escrituras no autorizadas mediante pruebas
-   de las reglas, incluyendo intentos de cambiar el rol propio desde una cuenta
-   reportante o técnica y consultas de usuarios desde esas cuentas.
+El 18 de octubre de 2026, Alex ejecutó estos casos en la Zona de pruebas de reglas
+de Firebase Console. La identidad simulada corresponde a la cuenta técnica;
+el proveedor del token de prueba se dejó en `google.com`.
+
+| Caso | Operación y destino | Resultado observado o informado |
+| --- | --- | --- |
+| Leer el perfil propio | `get` del documento del técnico con su propio UID autenticado | Lectura simulada autorizada. |
+| Leer un perfil ajeno | `get` del documento del administrador manteniendo la identidad técnica | Lectura simulada rechazada. |
+| Intentar elevar el rol propio | `update` del documento del técnico, conservando `fullName` y `email` existentes y proponiendo `role: administrator` | Escritura simulada rechazada. |
+
+La captura del primer resultado y las confirmaciones de los dos rechazos fueron
+aportadas por Alex en la conversación. Las simulaciones no modificaron documentos.
+Evalúan las reglas presentes en el editor de la consola; no son una suite
+automatizada ni prueban por sí mismas todas las combinaciones posibles.
+
+Con estos casos se completa la comprobación manual mínima acordada para los
+perfiles de la Parte 1. Las pruebas de consultas de colección, otros intentos de
+escritura y los permisos de incidencias, categorías y evidencias se ampliarán con
+los módulos correspondientes.
 
 No se deben adjuntar contraseñas a capturas o documentación. Las pruebas de
 interfaz con repositorios locales no verifican la autorización efectiva de Firestore.
