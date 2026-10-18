@@ -69,8 +69,9 @@ Las confirmaciones y errores aparecen dentro de la vista y desaparecen al salir.
 ## Funciones pendientes
 
 Las funciones de incidencias, fotografías, gestión, indicadores y categorías
-siguen pendientes. La preparación del primer administrador y la comprobación
-de permisos con Firebase real se completan en el siguiente bloque.
+siguen pendientes. El primer administrador está habilitado y Alex confirmó los
+cambios de rol y menú entre dos sesiones conectadas al proyecto Firebase real.
+Las comprobaciones directas de las reglas de seguridad siguen pendientes.
 Los módulos pendientes no muestran registros ficticios ni acciones exitosas.
 
 La configuración, el recorrido de autenticación y sus pruebas se documentan en
