@@ -21,4 +21,42 @@ class UserProfile {
     required this.email,
     required this.role,
   });
+
+  /// Returns the profile fields to store in Firestore.
+  ///
+  /// The identifier is used as the document ID and is not included.
+  Map<String, dynamic> toMap() {
+    return {'fullName': fullName, 'email': email, 'role': role.name};
+  }
+
+  /// Creates a profile from a Firestore document ID and its fields.
+  ///
+  /// Throws a [FormatException] if required fields have invalid types
+  /// or the role is unsupported.
+  factory UserProfile.fromMap({
+    required String id,
+    required Map<String, dynamic> data,
+  }) {
+    final fullName = data['fullName'];
+    final email = data['email'];
+    final roleName = data['role'];
+
+    if (fullName is! String || email is! String || roleName is! String) {
+      throw const FormatException('Invalid user profile data.');
+    }
+
+    final UserRole role;
+
+    if (roleName == 'reporter') {
+      role = UserRole.reporter;
+    } else if (roleName == 'technician') {
+      role = UserRole.technician;
+    } else if (roleName == 'administrator') {
+      role = UserRole.administrator;
+    } else {
+      throw const FormatException('Unsupported user role.');
+    }
+
+    return UserProfile(id: id, fullName: fullName, email: email, role: role);
+  }
 }
