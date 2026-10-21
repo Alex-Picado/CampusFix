@@ -31,6 +31,8 @@ class IncidentService {
   /// Matching existing reports are returned without rewriting any documents;
   /// conflicting IDs are rejected. Transaction callbacks have no file or UI
   /// side effects. A failed server confirmation can be retried with the same ID.
+  /// Rejected counter races allow at most three transaction invocations, only
+  /// when a fresh server read confirms that the counter advanced.
   Future<Map<String, dynamic>> create({
     required String incidentId,
     required String title,
@@ -45,104 +47,125 @@ class IncidentService {
     final profile = _firestore.collection('users').doc(userId);
     final category = _firestore.collection('categories').doc(categoryId);
 
-    await _firestore.runTransaction<void>((transaction) async {
-      _requireSession(userId);
-      final existing = await transaction.get(incident);
-      if (existing.exists) {
-        final data = existing.data()!;
-        if (data['createdByUserId'] != userId) {
-          throw FirebaseException(
-            plugin: 'cloud_firestore',
-            code: 'permission-denied',
-            message: 'The incident belongs to another account.',
-          );
-        }
-        if (data['title'] != title ||
-            data['description'] != description ||
-            data['categoryId'] != categoryId ||
-            data['location'] != location) {
-          throw FirebaseException(
-            plugin: 'cloud_firestore',
-            code: 'already-exists',
-            message: 'The incident ID is associated with a different report.',
-          );
+    for (var attempt = 0; attempt < 3; attempt++) {
+      int? attemptedSequence;
+      try {
+        await _firestore.runTransaction<void>((transaction) async {
+          attemptedSequence = null;
+          _requireSession(userId);
+          final existing = await transaction.get(incident);
+          if (existing.exists) {
+            final data = existing.data()!;
+            if (data['createdByUserId'] != userId) {
+              throw FirebaseException(
+                plugin: 'cloud_firestore',
+                code: 'permission-denied',
+                message: 'The incident belongs to another account.',
+              );
+            }
+            if (data['title'] != title ||
+                data['description'] != description ||
+                data['categoryId'] != categoryId ||
+                data['location'] != location) {
+              throw FirebaseException(
+                plugin: 'cloud_firestore',
+                code: 'already-exists',
+                message:
+                    'The incident ID is associated with a different report.',
+              );
+            }
+            _requireSession(userId);
+            return;
+          }
+
+          final profileSnapshot = await transaction.get(profile);
+          if (profileSnapshot.data()?['role'] != UserRole.reporter.name) {
+            throw FirebaseException(
+              plugin: 'cloud_firestore',
+              code: 'permission-denied',
+              message: 'Only reporter profiles can create incidents.',
+            );
+          }
+
+          final categorySnapshot = await transaction.get(category);
+          final categoryData = categorySnapshot.data();
+          final categoryName = categoryData?['name'];
+          if (categoryData?['isActive'] != true ||
+              categoryName is! String ||
+              categoryName.trim().isEmpty) {
+            throw const FormatException(
+              'An active valid category is required.',
+            );
+          }
+
+          final counterSnapshot = await transaction.get(counter);
+          final counterData = counterSnapshot.data();
+          var previousSequence = 0;
+          if (counterSnapshot.exists) {
+            final storedSequence = counterData?['lastSequenceNumber'];
+            final storedIncidentId = counterData?['lastIncidentId'];
+            if (storedSequence is! int ||
+                storedSequence < 1 ||
+                storedIncidentId is! String ||
+                storedIncidentId.trim().isEmpty) {
+              throw const FormatException('Invalid incident sequence counter.');
+            }
+            previousSequence = storedSequence;
+          }
+          if (previousSequence >= _maxSequenceNumber) {
+            throw FirebaseException(
+              plugin: 'cloud_firestore',
+              code: 'resource-exhausted',
+              message: 'The incident sequence has reached its supported limit.',
+            );
+          }
+
+          _requireSession(userId);
+          final sequenceNumber = previousSequence + 1;
+          attemptedSequence = sequenceNumber;
+          final timestamp = FieldValue.serverTimestamp();
+          transaction.set(counter, {
+            'lastSequenceNumber': sequenceNumber,
+            'lastIncidentId': incidentId,
+          });
+          transaction.set(incident, {
+            'sequenceNumber': sequenceNumber,
+            'title': title,
+            'description': description,
+            'categoryId': categoryId,
+            'location': location,
+            'priority': null,
+            'status': IncidentStatus.reported.value,
+            'createdAt': timestamp,
+            'updatedAt': timestamp,
+            'createdByUserId': userId,
+            'assignedTechnicianId': null,
+            'resolutionDescription': null,
+          });
+          transaction.set(history, {
+            'actorUserId': userId,
+            'createdAt': timestamp,
+            'action': IncidentHistoryAction.created.value,
+            'fromStatus': null,
+            'toStatus': IncidentStatus.reported.value,
+            'fromTechnicianId': null,
+            'toTechnicianId': null,
+            'reason': null,
+          });
+        });
+        break;
+      } on FirebaseException catch (error) {
+        final sequence = attemptedSequence;
+        if (attempt == 2 ||
+            sequence == null ||
+            !['permission-denied', 'aborted'].contains(error.code)) {
+          rethrow;
         }
         _requireSession(userId);
-        return;
+        if (!await _counterAdvanced(counter, sequence)) rethrow;
+        _requireSession(userId);
       }
-
-      final profileSnapshot = await transaction.get(profile);
-      if (profileSnapshot.data()?['role'] != UserRole.reporter.name) {
-        throw FirebaseException(
-          plugin: 'cloud_firestore',
-          code: 'permission-denied',
-          message: 'Only reporter profiles can create incidents.',
-        );
-      }
-
-      final categorySnapshot = await transaction.get(category);
-      final categoryData = categorySnapshot.data();
-      final categoryName = categoryData?['name'];
-      if (categoryData?['isActive'] != true ||
-          categoryName is! String ||
-          categoryName.trim().isEmpty) {
-        throw const FormatException('An active valid category is required.');
-      }
-
-      final counterSnapshot = await transaction.get(counter);
-      final counterData = counterSnapshot.data();
-      var previousSequence = 0;
-      if (counterSnapshot.exists) {
-        final storedSequence = counterData?['lastSequenceNumber'];
-        final storedIncidentId = counterData?['lastIncidentId'];
-        if (storedSequence is! int ||
-            storedSequence < 1 ||
-            storedIncidentId is! String ||
-            storedIncidentId.trim().isEmpty) {
-          throw const FormatException('Invalid incident sequence counter.');
-        }
-        previousSequence = storedSequence;
-      }
-      if (previousSequence >= _maxSequenceNumber) {
-        throw FirebaseException(
-          plugin: 'cloud_firestore',
-          code: 'resource-exhausted',
-          message: 'The incident sequence has reached its supported limit.',
-        );
-      }
-
-      _requireSession(userId);
-      final sequenceNumber = previousSequence + 1;
-      final timestamp = FieldValue.serverTimestamp();
-      transaction.set(counter, {
-        'lastSequenceNumber': sequenceNumber,
-        'lastIncidentId': incidentId,
-      });
-      transaction.set(incident, {
-        'sequenceNumber': sequenceNumber,
-        'title': title,
-        'description': description,
-        'categoryId': categoryId,
-        'location': location,
-        'priority': null,
-        'status': IncidentStatus.reported.value,
-        'createdAt': timestamp,
-        'updatedAt': timestamp,
-        'createdByUserId': userId,
-        'assignedTechnicianId': null,
-        'resolutionDescription': null,
-      });
-      transaction.set(history, {
-        'actorUserId': userId,
-        'createdAt': timestamp,
-        'action': IncidentHistoryAction.created.value,
-        'fromStatus': null,
-        'toStatus': IncidentStatus.reported.value,
-        'fromTechnicianId': null,
-        'toTechnicianId': null,
-        'reason': null,
-      });
-    });
+    }
 
     _requireSession(userId);
     final confirmed = await incident.get(
@@ -182,6 +205,33 @@ class IncidentService {
       'createdAt': createdAt.toDate(),
       'updatedAt': updatedAt.toDate(),
     };
+  }
+
+  /// Confirms a counter advance before retrying a rejected creation attempt.
+  ///
+  /// Unavailable or unconfirmed probes preserve the original transaction error.
+  /// No retry is authorized by a local cache value or a pending write.
+  Future<bool> _counterAdvanced(
+    DocumentReference<Map<String, dynamic>> counter,
+    int attemptedSequence,
+  ) async {
+    try {
+      final snapshot = await counter.get(
+        const GetOptions(source: Source.server),
+      );
+      final data = snapshot.data();
+      final sequence = data?['lastSequenceNumber'];
+      final incidentId = data?['lastIncidentId'];
+      return !snapshot.metadata.hasPendingWrites &&
+          !snapshot.metadata.isFromCache &&
+          sequence is int &&
+          sequence >= attemptedSequence &&
+          sequence <= _maxSequenceNumber &&
+          incidentId is String &&
+          incidentId.trim().isNotEmpty;
+    } on FirebaseException {
+      return false;
+    }
   }
 
   /// Requires an authenticated account and preserves the submission identity.

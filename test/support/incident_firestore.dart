@@ -36,6 +36,7 @@ class IncidentTestFirestore extends Fake implements FirebaseFirestore {
   Object? nextServerReadError;
   void Function(String path)? onTransactionRead;
   void Function(String path)? beforeServerRead;
+  void Function()? beforeCommit;
 
   /// Creates reference records required for report creation.
   IncidentTestFirestore() {
@@ -70,6 +71,7 @@ class IncidentTestFirestore extends Fake implements FirebaseFirestore {
         continue;
       }
 
+      beforeCommit?.call();
       if (nextCommitError != null) {
         final error = nextCommitError!;
         nextCommitError = null;

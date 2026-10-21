@@ -78,6 +78,14 @@ counter again. A rejected transaction leaves its report, counter update and
 initial event uncommitted. No local time estimate substitutes for server
 confirmation.
 
+If a failed proposal reports `permission-denied` or `aborted`, the service
+checks the server counter before considering another transaction. A confirmed
+advance permits a bounded retry with the same IDs. Cached or pending counter
+values do not permit retries, and a failed probe preserves the original error.
+The limit is three transaction invocations; the SDK can rerun callbacks within
+each invocation. [Creation security](incident_security.md) describes the
+conditions and verification.
+
 The service checks the authenticated UID before the transaction, before
 writes and around confirmation. A changed account cannot become the author
 of an earlier submission or receive its returned record. A transaction already
@@ -85,10 +93,11 @@ committed before an account change remains attributed to its original author.
 
 ## Authorization boundary
 
-Client validation does not grant database access. The committed Firestore
-rule source currently permits profile operations and active category reads;
-incident and counter operations remain denied. This persistence API is not
-connected to a report form in the current application.
+Client validation does not grant database access. The committed rule source
+authorizes reporter creation only with a valid counter increment and initial
+history in the same atomic operation. Owner reads support confirmation and
+retry recovery. Other incident mutations and collection queries remain denied.
+This persistence API is not connected to a report form in the current application.
 
 The creation tests use a controlled database double to execute the production
 repository and transaction callback. The double models read conflicts, atomic
@@ -113,14 +122,18 @@ Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
 
 | Check | Result |
 | --- | --- |
-| Creation tests | 22 tests passed as part of the full suite. |
-| `flutter test --no-pub` | 106 tests passed. |
+| Creation tests | 26 tests passed as part of the full suite. |
+| `flutter test --no-pub` | 110 tests passed. |
+| Local Firestore rule suite | 39 tests passed, including 29 incident creation tests. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 
-Creation concurrency and write authorization have not been verified against
-a Firestore emulator or a deployed database. The existing emulator suite
-covers category and profile permissions independently of these creation tests.
+Creation concurrency and write authorization are verified separately against
+the local Firestore emulator using Firebase JavaScript SDK requests. The
+suite covers concurrent reporters, repeated IDs and direct requests that
+violate the rule conditions. It also retains category and profile regression
+checks. No production deployment or Flutter browser integration test is
+included in these results.
 
 ## References
 
@@ -130,4 +143,5 @@ covers category and profile permissions independently of these creation tests.
 - [Controlled database and session doubles](../test/support/incident_firestore.dart).
 - [Incident model reference](part_2_incidents.md).
 - [Shared data contracts](contratos_modulos.md).
+- [Creation security and rule verification](incident_security.md).
 - [Runtime configuration](toolchain.md).

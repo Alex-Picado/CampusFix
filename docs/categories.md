@@ -91,17 +91,18 @@ reporter, technician and administrator identities.
 
 The suite verifies authenticated filtered queries, direct reads, rejected
 inactive and unfiltered queries, malformed active flags, denied catalog writes
-and existing profile permissions. Repository tests cover ordering, live
-changes, empty results, immutability, malformed snapshots, error recovery and
-subscription cancellation.
+and existing profile permissions. The same test command also runs the
+[incident creation rule suite](incident_security.md). Repository tests cover
+ordering, live changes, empty results, immutability, malformed snapshots, error
+recovery and subscription cancellation.
 
 Verified on October 21, 2026:
 
 | Check | Result |
 | --- | --- |
 | `npm ci --prefix tool/firestore_tests` | Dependencies restored from the lockfile. |
-| `npm test --prefix tool/firestore_tests` | 10 rule tests passed with Java `21.0.9`. |
-| Category repository tests | 8 tests passed as part of the 106-test Flutter suite. |
+| `npm test --prefix tool/firestore_tests` | 39 rule tests passed with Java `21.0.9`, including 10 category/profile checks. |
+| Category repository tests | 8 tests passed as part of the 110-test Flutter suite. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 

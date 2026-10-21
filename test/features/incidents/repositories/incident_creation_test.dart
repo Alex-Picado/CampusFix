@@ -209,6 +209,100 @@ void main() {
     },
   );
 
+  test('A stale-counter permission rejection retries only after server confirmation', () async {
+    database.beforeCommit = () {
+      database.beforeCommit = null;
+      database.store('counters/incidents', {
+        'lastSequenceNumber': 1,
+        'lastIncidentId': 'concurrent-report',
+      });
+      database.nextCommitError = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+      );
+    };
+
+    final incident = await create();
+    expect(incident.sequenceNumber, 2);
+    expect(database.transactionAttempts, 2);
+    expect(database.writeCommits, 1);
+    expect(reportPaths().length, 2);
+  });
+
+  test(
+    'Repeated counter contention stops after three transaction invocations',
+    () async {
+      final failure = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+      );
+      database.beforeCommit = () {
+        final previous =
+            database.documents['counters/incidents']?['lastSequenceNumber']
+                as int? ??
+            0;
+        database.store('counters/incidents', {
+          'lastSequenceNumber': previous + 1,
+          'lastIncidentId': 'concurrent-$previous',
+        });
+        database.nextCommitError = failure;
+      };
+
+      await expectLater(create(), throwsA(same(failure)));
+      expect(database.transactionAttempts, 3);
+      expect(database.writeCommits, 0);
+      expect(reportPaths(), isEmpty);
+    },
+  );
+
+  test(
+    'An unavailable contention probe preserves the original permission denial',
+    () async {
+      final failure = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+      );
+      database.nextCommitError = failure;
+      database.nextServerReadError = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'unavailable',
+      );
+
+      await expectLater(create(), throwsA(same(failure)));
+      expect(database.transactionAttempts, 1);
+      expect(database.writeCommits, 0);
+    },
+  );
+
+  test(
+    'A cached or pending counter probe cannot authorize another transaction',
+    () async {
+      final failure = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+      );
+      for (final cached in [true, false]) {
+        database.beforeCommit = () {
+          final previous =
+              database.documents['counters/incidents']?['lastSequenceNumber']
+                  as int? ??
+              0;
+          database.store('counters/incidents', {
+            'lastSequenceNumber': previous + 1,
+            'lastIncidentId': 'concurrent-$previous',
+          });
+          database.cachedServerRead = cached;
+          database.pendingServerWrites = !cached;
+          database.nextCommitError = failure;
+        };
+        await expectLater(create(), throwsA(same(failure)));
+      }
+      expect(database.transactionAttempts, 2);
+      expect(database.writeCommits, 0);
+      expect(reportPaths(), isEmpty);
+    },
+  );
+
   test(
     'An occupied ID rejects a changed payload without overwriting the report',
     () async {

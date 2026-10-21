@@ -7,10 +7,12 @@ records independently of the persistence layer. An authenticated category
 reader observes active categories for incident report selection.
 The incident persistence API creates reports, sequence increments and initial
 history events atomically, with stable IDs for retrying submissions.
+Firestore rules validate the related writes and initial report fields.
 
 ## Documentation
 
 - [Incident models](docs/part_2_incidents.md).
 - [Incident creation](docs/incident_creation.md).
+- [Incident creation security](docs/incident_security.md).
 - [Active category reader](docs/categories.md).
 - [Runtime configuration](docs/toolchain.md).

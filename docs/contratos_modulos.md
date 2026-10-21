@@ -15,7 +15,7 @@ services.
 | Acceso, sesión, perfiles y roles | Implementados; pruebas reales registradas en `autenticacion.md` | Identity and access |
 | `UserProfile`, `UserRole`, `Category` | Modelos con conversión de datos | Shared models |
 | `Incident`, `IncidentStatus`, `IncidentPriority` | Model conversion and copy operations implemented | Incident data |
-| Incident creation and sequences | Transactional service and repository implemented; database rules deny incident writes | Incident persistence |
+| Incident creation and sequences | Transactional service, repository and related-write security rules implemented | Incident persistence |
 | Photographs and progress persistence | Not implemented | Evidence and progress |
 | Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |
 | Active category reader | Service, repository and read rules implemented | Incident report selection |
@@ -106,13 +106,15 @@ the transaction.
 
 Creation tests execute concurrent submissions against a controlled transaction
 double and verify distinct sequences and a single initial event per report.
-These checks do not exercise a Firestore server. [Incident creation](incident_creation.md)
-documents confirmation reads, retries and current authorization boundaries.
+The independent JavaScript SDK rule suite exercises concurrent creation
+against the local Firestore emulator. [Incident creation](incident_creation.md)
+documents the API; [Creation security](incident_security.md) documents related
+writes, minimum read permissions and bounded counter retries.
 
-The counter contract requires an increment of exactly one and a new incident
+The counter rules require an increment of exactly one and a new incident
 identified by `lastIncidentId`, with the same sequence and authenticated creator.
-Related writes require validation with `getAfter()`. A client transaction alone
-does not authorize unrestricted counter updates.
+The rule source validates related writes with `getAfter()`. A client transaction
+alone does not authorize unrestricted counter updates.
 
 ### Subcollection record formats
 
@@ -267,11 +269,13 @@ Cada controlador es dueño de sus suscripciones: cancela al salir del módulo y 
 
 Las pantallas distinguen carga, lista vacía, error de lectura y error al guardar. Un snapshot posterior no debe borrar un error de guardado pendiente. Tras perder conexión se indica el estado disponible y se comprueba recuperación; no se confunde una vista local con una escritura confirmada.
 
-The current rule source allows authorized operations on `users` and
-authenticated reads of active `categories`. Category writes, `incidents`,
-`counters` and their subcollections remain denied. Each collection requires
-module-specific authorization; a general read/write grant is not part of the
-contract.
+The current rule source allows authorized operations on `users`, authenticated
+reads of active `categories` and atomic reporter creation of incidents with
+their counter increment and initial history. Owners can read their incidents
+for confirmation; reporters can probe absent incident IDs and read the creation
+counter. Incident queries and later mutations, history reads, category writes,
+progress and evidence writes remain denied. Each operation requires explicit
+authorization; a general read/write grant is not part of the contract.
 
 Se comprobarán consultas y escrituras directas no autorizadas, transiciones inválidas y ausencia de eventos huérfanos. Las pruebas deben intentar modificar UID, rol, consecutivo, actor y fechas; esconder botones no constituye una prueba de seguridad.
 

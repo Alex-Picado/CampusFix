@@ -19,6 +19,125 @@ service cloud.firestore {
         ).data.role == 'administrator';
     }
 
+    // Uses the stored role rather than a role supplied in an incident request.
+    function isReporter() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.role == 'reporter';
+    }
+
+    function isNonblankText(value) {
+      return value is string && value.trim().size() > 0;
+    }
+
+    // Keeps dynamic document references within a single valid path segment.
+    function isDocumentId(value) {
+      return isNonblankText(value)
+        && value == value.trim()
+        && value.matches('[^/]+')
+        && value != '.' && value != '..'
+        && !value.matches('(?s)__.*__');
+    }
+
+    function isActiveCategory(categoryId) {
+      let category = get(/databases/$(database)/documents/categories/$(categoryId)).data;
+      return category.isActive == true && isNonblankText(category.name);
+    }
+
+    // A counter cannot be reset, extended with arbitrary fields or rounded on web.
+    function isValidIncidentCounter(data) {
+      return data.keys().hasAll(['lastSequenceNumber', 'lastIncidentId'])
+        && data.keys().hasOnly(['lastSequenceNumber', 'lastIncidentId'])
+        && data.lastSequenceNumber is int
+        && data.lastSequenceNumber >= 1
+        && data.lastSequenceNumber <= 9007199254740991
+        && isDocumentId(data.lastIncidentId);
+    }
+
+    function isValidNewIncident(data) {
+      return data.keys().hasAll([
+          'sequenceNumber', 'title', 'description', 'categoryId', 'location',
+          'priority', 'status', 'createdAt', 'updatedAt', 'createdByUserId',
+          'assignedTechnicianId', 'resolutionDescription'
+        ])
+        && data.keys().hasOnly([
+          'sequenceNumber', 'title', 'description', 'categoryId', 'location',
+          'priority', 'status', 'createdAt', 'updatedAt', 'createdByUserId',
+          'assignedTechnicianId', 'resolutionDescription'
+        ])
+        && data.sequenceNumber is int
+        && data.sequenceNumber >= 1
+        && data.sequenceNumber <= 9007199254740991
+        && isNonblankText(data.title)
+        && isNonblankText(data.description)
+        && isNonblankText(data.location)
+        && isDocumentId(data.categoryId)
+        && data.createdByUserId == request.auth.uid
+        && data.status == 'REPORTADA'
+        && data.priority == null
+        && data.assignedTechnicianId == null
+        && data.resolutionDescription == null
+        && data.createdAt is timestamp && data.createdAt == request.time
+        && data.updatedAt is timestamp && data.updatedAt == request.time
+        && isActiveCategory(data.categoryId);
+    }
+
+    function isValidInitialHistory(data) {
+      return data.keys().hasAll([
+          'actorUserId', 'createdAt', 'action', 'fromStatus', 'toStatus',
+          'fromTechnicianId', 'toTechnicianId', 'reason'
+        ])
+        && data.keys().hasOnly([
+          'actorUserId', 'createdAt', 'action', 'fromStatus', 'toStatus',
+          'fromTechnicianId', 'toTechnicianId', 'reason'
+        ])
+        && data.actorUserId == request.auth.uid
+        && data.createdAt is timestamp && data.createdAt == request.time
+        && data.action == 'created'
+        && data.fromStatus == null && data.toStatus == 'REPORTADA'
+        && data.fromTechnicianId == null && data.toTechnicianId == null
+        && data.reason == null;
+    }
+
+    // The increment must identify this report and advance the previous value by one.
+    function hasCreationCounter(incidentId, sequenceNumber) {
+      let counterPath = /databases/$(database)/documents/counters/incidents;
+      let next = getAfter(counterPath).data;
+      return isValidIncidentCounter(next)
+        && next.lastIncidentId == incidentId
+        && next.lastSequenceNumber == sequenceNumber
+        && (
+          (!exists(counterPath) && sequenceNumber == 1)
+          || (exists(counterPath)
+            && isValidIncidentCounter(get(counterPath).data)
+            && sequenceNumber == get(counterPath).data.lastSequenceNumber + 1)
+        );
+    }
+
+    function hasNewInitialHistory(incidentId) {
+      let eventPath = /databases/$(database)/documents/incidents/$(incidentId)/history/created;
+      return !exists(eventPath) && isValidInitialHistory(getAfter(eventPath).data);
+    }
+
+    // A counter update requires a fresh report in the same atomic operation.
+    function counterReferencesNewIncident(data) {
+      let incidentPath = /databases/$(database)/documents/incidents/$(data.lastIncidentId);
+      let incident = getAfter(incidentPath).data;
+      return !exists(incidentPath)
+        && incident.createdByUserId == request.auth.uid
+        && incident.sequenceNumber == data.lastSequenceNumber;
+    }
+
+    function historyReferencesNewIncident(incidentId) {
+      let incidentPath = /databases/$(database)/documents/incidents/$(incidentId);
+      let incident = getAfter(incidentPath).data;
+      return !exists(incidentPath)
+        && incident.createdByUserId == request.auth.uid
+        && incident.status == 'REPORTADA'
+        && incident.createdAt == request.time;
+    }
+
     // Validates the complete incoming profile document.
     function isValidProfile() {
       let data = request.resource.data;
@@ -76,6 +195,45 @@ service cloud.firestore {
 
       // Category administration is not exposed by the reporting reader.
       allow create, update, delete: if false;
+    }
+
+    match /incidents/{incidentId} {
+      // Creation needs a missing-document read; confirmed retries read only their owner.
+      allow get: if isSignedIn()
+        && ((resource == null && isReporter())
+          || resource.data.createdByUserId == request.auth.uid);
+      allow list: if false;
+
+      allow create: if isReporter()
+        && isDocumentId(incidentId)
+        && isValidNewIncident(request.resource.data)
+        && hasCreationCounter(incidentId, request.resource.data.sequenceNumber)
+        && hasNewInitialHistory(incidentId);
+      allow update, delete: if false;
+
+      match /history/{eventId} {
+        allow create: if eventId == 'created'
+          && isReporter()
+          && isValidInitialHistory(request.resource.data)
+          && historyReferencesNewIncident(incidentId);
+        allow read, update, delete: if false;
+      }
+    }
+
+    match /counters/incidents {
+      allow get: if isReporter();
+      allow list, delete: if false;
+
+      allow create: if isReporter()
+        && isValidIncidentCounter(request.resource.data)
+        && request.resource.data.lastSequenceNumber == 1
+        && counterReferencesNewIncident(request.resource.data);
+
+      allow update: if isReporter()
+        && isValidIncidentCounter(resource.data)
+        && isValidIncidentCounter(request.resource.data)
+        && request.resource.data.lastSequenceNumber == resource.data.lastSequenceNumber + 1
+        && counterReferencesNewIncident(request.resource.data);
     }
 
     // Other collections require their own module-specific rules.
