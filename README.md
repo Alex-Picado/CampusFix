@@ -4,3 +4,6 @@ FlutterWeb que permite registrar, gestionar y dar seguimiento a incidencias de s
 
 Part 2 scope, acceptance criteria and incremental delivery plan:
 [Incidents, evidence and progress](docs/part_2_incidents.md).
+
+Pinned runtime versions, setup and baseline verification:
+[Reproducible toolchain](docs/toolchain.md).

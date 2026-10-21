@@ -146,21 +146,21 @@ and Dart `3.13.4`, although its directory name contains `3.47.2`. The project's
 Dart constraint, `^3.13.0`, accepts the inspected Dart version. Node.js reported
 `24.19.0` during planning.
 
-Flutter execution was blocked during planning because its lock file is in the
-SDK cache outside the writable workspace. Runtime startup and full baseline
-verification remain pending. Block 2 will address tool access and verify the
-baseline before feature implementation.
+Flutter execution was initially blocked because its cache is outside the
+writable workspace. Approved tool access resolved runtime startup without an
+SDK upgrade. Block 2 adds the version pins and a verifier; exact commands,
+results and remaining checks are recorded in [Reproducible toolchain](toolchain.md).
 
-Pin Flutter `3.47.5` and Node.js `24.19.0` during block 2. Preserve the existing
-dependency lockfile and lock added dependencies. Do not perform a general
-dependency upgrade or change the global Flutter installation for this module.
-Review dependency changes and rerun verification before integration.
+Preserve the existing dependency lockfile and lock added dependencies. Do not
+perform a general dependency upgrade or change the global Flutter installation
+for this module. Review dependency changes and rerun verification before
+integration.
 
 Required final checks are `flutter analyze`, `flutter test`, `flutter build web`,
 local-service tests and Firestore emulator integration/security tests. Record
-environment failures separately from application failures. Results documented
-in [Authentication and sessions](autenticacion.md) have not been rerun by this
-documentation change.
+environment failures separately from application failures. Historical results
+remain in [Authentication and sessions](autenticacion.md); the new baseline
+results are documented separately in the toolchain guide.
 
 ## Incremental delivery and Git approval workflow
 
@@ -180,8 +180,8 @@ individual commits for Christian's review and eventual integration; do not
 push feature work to `main` or squash the delivery into a single commit.
 
 Each block must be coherent and include relevant verification. This table is
-the planned order, not a claim that commits exist or have been pushed. At this
-initial checkpoint, block 1 is prepared for approval; blocks 2-24 are planned.
+the planned order. Block 1 was committed and pushed as `9fe64b6` after approval.
+Block 2 is prepared for approval; blocks 3-24 remain planned.
 
 | Block | Proposed commit message |
 | --- | --- |
