@@ -9,13 +9,15 @@ import '../../features/auth/screens/session_failure_screen.dart';
 import '../../features/users/controllers/profile_controller.dart';
 import '../../features/users/repositories/user_repository.dart';
 import 'campus_shell.dart';
+import '../../features/incidents/screens/incident_detail_screen.dart';
 
 /// Selects the visible screen from authentication and profile observation.
 ///
 /// Never mounts the private shell until a profile is available. Account changes
 /// replace the shell's state, and signing out removes its private widgets.
 class SessionGate extends StatelessWidget {
-  const SessionGate({super.key});
+  final String? incidentId;
+  const SessionGate({super.key, this.incidentId});
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +39,28 @@ class SessionGate extends StatelessWidget {
               userRepository: context.read<UserRepository>(),
               userId: profile.id,
             ),
-            child: CampusShell(profile: profile),
+            child: incidentId == null
+                ? CampusShell(profile: profile)
+                : Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Seguimiento de incidencia'),
+                      leading: IconButton(
+                        tooltip: 'Volver',
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          } else {
+                            Navigator.of(context).pushReplacementNamed('/');
+                          }
+                        },
+                      ),
+                    ),
+                    body: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: IncidentDetailScreen(incidentId: incidentId!),
+                    ),
+                  ),
           );
         }
         return const _SessionLoadingScreen();

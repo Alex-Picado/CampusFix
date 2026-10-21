@@ -14,12 +14,15 @@ Client-supplied roles and token role claims do not replace the stored profile.
 | `counters/incidents` | Get | Stored reporter profile, including the absent-counter case. |
 | `counters/incidents` | Create or update | Exact counter schema and a matching new report in the same atomic operation. |
 | `incidents/{incidentId}/history/created` | Create | Valid initial event accompanying the creation of its parent report. |
-| `incidents/{incidentId}/history/{eventId}` and `progress/{progressId}` | Get or list | Existing parent incident and the same detail authorization. |
+| `incidents/{incidentId}/history/{eventId}`, `progress/{progressId}` and `evidence/{evidenceId}` | Get or list | Existing parent incident and the same detail authorization. |
+| `progress/{progressId}` and matching history | Create | Assigned technician in `EN_ATENCION`, exact schemas and matching atomic records. |
+| `evidence/{evidenceId}` | Create | Owner reporter for initial photos, or assigned technician with a new progress record in the same operation. |
 
 Unfiltered or foreign-owner incident queries, incident updates/deletion,
 history updates/deletion and counter listing/deletion are denied by these rules.
-Other counter documents, progress entries and evidence records have no write
-grant. Existing profile and active-category authorization conditions are unchanged.
+Other counter documents have no write grant. Progress and evidence remain
+immutable. [Follow-up](incident_followup.md) describes their atomic writes and
+retries. Existing profile and active-category authorization conditions are unchanged.
 
 [Incident observation](incident_observation.md) documents reader interfaces,
 session cleanup, parent authorization and the own-query index.
@@ -104,10 +107,10 @@ Verified on October 21, 2026:
 
 | Check | Result |
 | --- | --- |
-| Local rule suite | 53 tests passed: 29 creation, 14 read and 10 category/profile tests. |
+| Local rule suite | 61 tests passed: 29 creation, 14 read, 10 category/profile and 8 follow-up tests. |
 | Concurrent reporters | Different consecutive numbers and one initial event per report. |
 | Concurrent retries of one ID | One incident, one counter increment and one initial event. |
-| Flutter suite | 159 tests passed, including 26 creation and 19 observation tests. |
+| Flutter suite | 190 tests passed, including 26 creation and 19 observation tests. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 

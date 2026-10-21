@@ -101,8 +101,8 @@ Verified on October 21, 2026:
 | Check | Result |
 | --- | --- |
 | `npm ci --prefix tool/firestore_tests` | Dependencies restored from the lockfile. |
-| `npm test --prefix tool/firestore_tests` | 53 rule tests passed with Java `21.0.9`, including 10 category/profile checks. |
-| Category repository tests | 8 tests passed as part of the 159-test Flutter suite. |
+| `npm test --prefix tool/firestore_tests` | 61 rule tests passed with Java `21.0.9`, including 10 category/profile checks. |
+| Category repository tests | 8 tests passed as part of the 190-test Flutter suite. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 

@@ -47,6 +47,17 @@ class MyIncidentsController extends ChangeNotifier {
   /// Whether the original reporter session can still use this instance.
   bool get isActive => _isActive && !_disposed;
 
+  /// Releases the list while a protected detail route covers its view.
+  void pause() {
+    _watchVersion++;
+    _subscription?.cancel().ignore();
+    _subscription = null;
+    _incidents = const [];
+    _isLoading = false;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   /// Retries observation after clearing previously displayed private records.
   void start() {
     if (!isActive || !_matchesSession()) return;

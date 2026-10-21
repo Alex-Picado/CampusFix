@@ -14,6 +14,13 @@ The reporting form manages validated drafts, stable submission retries and
 server reconciliation, clearing its private state when the view or session ends.
 The personal incident list observes the reporter's own records and updates their
 status, location and creation date without reloading the application.
+Protected detail routes show photographs, responsible accounts, comments and
+history. Assigned technicians in attention can record progress with optional
+photographs. Image bytes are stored in the versioned `local_storage/evidence/`
+folder through a local authenticated Node.js service.
+
+See [Local storage and startup](docs/local_evidence.md) for installation, portable
+startup and the isolated emulator demonstration.
 
 ## Documentation
 
@@ -22,5 +29,7 @@ status, location and creation date without reloading the application.
 - [Incident creation security](docs/incident_security.md).
 - [Incident observation](docs/incident_observation.md).
 - [Report draft and submission controller](docs/incident_reporting.md).
+- [Local evidence service](docs/local_evidence.md).
+- [Incident detail and follow-up](docs/incident_followup.md).
 - [Active category reader](docs/categories.md).
 - [Runtime configuration](docs/toolchain.md).

@@ -15,6 +15,31 @@ class IncidentRepository {
   /// Retain this ID for all retries of the same submission.
   String newIncidentId() => _incidentService.newIncidentId();
 
+  /// Validates a stable progress submission before invoking its atomic service.
+  Future<void> addProgress({
+    required String incidentId,
+    required String progressId,
+    required String description,
+    String? evidenceId,
+    Map<String, dynamic>? reference,
+  }) async {
+    _requireIncidentId(incidentId);
+    _requireIncidentId(progressId);
+    if (progressId == 'created' ||
+        description.trim().isEmpty ||
+        (evidenceId == null) != (reference == null)) {
+      throw const FormatException('Valid progress fields are required.');
+    }
+    if (evidenceId != null) _requireIncidentId(evidenceId);
+    await _incidentService.addProgress(
+      incidentId: incidentId,
+      progressId: progressId,
+      description: description.trim(),
+      evidenceId: evidenceId,
+      reference: reference,
+    );
+  }
+
   /// Watches the authenticated reporter's incidents, newest first.
   ///
   /// The service filters by UID in Firestore. Lists are unmodifiable; creation

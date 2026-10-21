@@ -19,7 +19,7 @@ services.
 | Incident observation | Own reports and authorized detail, history and progress readers implemented | Incident queries |
 | Personal incident list | Live account-bound list, error recovery and report-form navigation implemented | Reporter interface |
 | Report drafts and submission | Account-bound form and controller with validation, stable retries and reconciliation implemented | Report presentation state |
-| Photographs and progress persistence | Not implemented | Evidence and progress |
+| Photographs and progress persistence | Authenticated local storage, metadata association and atomic technician progress implemented | Evidence and progress |
 | Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |
 | Active category reader | Service, repository and read rules implemented | Incident report selection |
 | Category administration, queries and indicators | Proposed interfaces | Catalogs and reporting |
@@ -287,10 +287,11 @@ reads of active `categories` and atomic reporter creation of incidents with
 their counter increment and initial history. Authors, assigned technicians and
 administrators can read authorized incident details, history and progress.
 Reporters can query their own incidents and read the creation counter. Valid
-stored profiles can probe absent incident IDs. Incident updates, history mutation,
-category writes, progress and evidence writes remain denied. Each operation
-requires explicit
-authorization; a general read/write grant is not part of the contract.
+stored profiles can probe absent incident IDs. Owner reporters can attach initial
+evidence. Assigned technicians in attention can create progress with matching
+history and optional evidence atomically. Existing metadata, progress and history
+remain immutable. Incident updates and category writes remain denied.
+[Follow-up](incident_followup.md) records these interfaces and permissions.
 
 Se comprobarán consultas y escrituras directas no autorizadas, transiciones inválidas y ausencia de eventos huérfanos. Las pruebas deben intentar modificar UID, rol, consecutivo, actor y fechas; esconder botones no constituye una prueba de seguridad.
 

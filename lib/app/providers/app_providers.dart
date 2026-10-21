@@ -6,6 +6,7 @@ import '../../features/auth/controllers/session_controller.dart';
 import '../../features/auth/repositories/auth_repository.dart';
 import '../../features/catalogs/repositories/category_repository.dart';
 import '../../features/incidents/repositories/incident_repository.dart';
+import '../../features/incidents/repositories/evidence_repository.dart';
 import '../../features/users/repositories/user_repository.dart';
 
 /// Shares repositories and owns the application's authentication controllers.
@@ -17,6 +18,7 @@ class AppProviders extends StatelessWidget {
   final UserRepository userRepository;
   final CategoryRepository categoryRepository;
   final IncidentRepository incidentRepository;
+  final EvidenceRepository? evidenceRepository;
   final Widget child;
 
   const AppProviders({
@@ -25,6 +27,7 @@ class AppProviders extends StatelessWidget {
     required this.userRepository,
     required this.categoryRepository,
     required this.incidentRepository,
+    this.evidenceRepository,
     required this.child,
   });
 
@@ -36,6 +39,7 @@ class AppProviders extends StatelessWidget {
         Provider<UserRepository>.value(value: userRepository),
         Provider<CategoryRepository>.value(value: categoryRepository),
         Provider<IncidentRepository>.value(value: incidentRepository),
+        Provider<EvidenceRepository?>.value(value: evidenceRepository),
         ChangeNotifierProvider(
           create: (context) =>
               AuthController(authRepository: context.read<AuthRepository>()),

@@ -11,6 +11,8 @@ import 'features/catalogs/repositories/category_repository.dart';
 import 'features/catalogs/services/category_service.dart';
 import 'features/incidents/repositories/incident_repository.dart';
 import 'features/incidents/services/incident_service.dart';
+import 'features/incidents/services/local_evidence_service.dart';
+import 'features/incidents/repositories/evidence_repository.dart';
 import 'features/users/repositories/user_repository.dart';
 import 'features/users/services/user_service.dart';
 import 'firebase_options.dart';
@@ -19,9 +21,24 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: const bool.fromEnvironment('USE_FIREBASE_EMULATORS')
+        ? const FirebaseOptions(
+            apiKey: 'demo-api-key',
+            appId: '1:123456789:web:demo',
+            messagingSenderId: '123456789',
+            projectId: 'demo-campusfix',
+            authDomain: 'demo-campusfix.firebaseapp.com',
+          )
+        : DefaultFirebaseOptions.currentPlatform,
+  );
 
   final firestore = FirebaseFirestore.instance;
+  if (const bool.fromEnvironment('USE_FIREBASE_EMULATORS')) {
+    await FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9099);
+    firestore.settings = const Settings(persistenceEnabled: false);
+    firestore.useFirestoreEmulator('127.0.0.1', 8085);
+  }
   final authService = AuthService(auth: FirebaseAuth.instance);
   final userRepository = UserRepository(
     userService: UserService(firestore: firestore),
@@ -29,6 +46,10 @@ Future<void> main() async {
   final authRepository = AuthRepository(
     authService: authService,
     userRepository: userRepository,
+  );
+  final incidentService = IncidentService(
+    firestore: firestore,
+    authService: authService,
   );
 
   runApp(
@@ -38,11 +59,10 @@ Future<void> main() async {
       categoryRepository: CategoryRepository(
         categoryService: CategoryService(firestore: firestore),
       ),
-      incidentRepository: IncidentRepository(
-        incidentService: IncidentService(
-          firestore: firestore,
-          authService: authService,
-        ),
+      incidentRepository: IncidentRepository(incidentService: incidentService),
+      evidenceRepository: EvidenceRepository(
+        incidents: incidentService,
+        files: LocalEvidenceService(auth: FirebaseAuth.instance),
       ),
       child: const MyApp(),
     ),

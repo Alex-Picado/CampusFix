@@ -139,7 +139,7 @@ Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
 | --- | --- |
 | Focused controller suite | 30 tests passed. |
 | Incident screen suite | 15 widget tests passed: 9 report-form tests and 6 own-list tests with controlled repositories. |
-| `flutter test --no-pub` | 174 tests passed. |
+| `flutter test --no-pub` | 190 tests passed. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 

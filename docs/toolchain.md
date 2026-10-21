@@ -81,6 +81,16 @@ npm ci --prefix tool/firestore_tests
 npm test --prefix tool/firestore_tests
 ```
 
+The [local evidence service](local_evidence.md) pins Firebase Admin `14.5.0`
+for token verification and Sharp `0.35.5` for image decoding. Its committed
+lockfile records transitive dependencies and platform-specific image binaries.
+
+```text
+npm ci --prefix services/local_evidence
+npm test --prefix services/local_evidence
+npm start --prefix services/local_evidence
+```
+
 ## Verification results
 
 Verified on Windows on October 21, 2026:
@@ -94,13 +104,18 @@ Verified on Windows on October 21, 2026:
 | `node tool/verify_toolchain.mjs` | Passed; both runtimes match their version files. |
 | Incompatible runtime versions | Node.js and Flutter mismatches each return exit code 1. |
 | Invocation from another directory | Passed; configuration is resolved relative to the script. |
-| `flutter pub get --enforce-lockfile` | Passed; dependency declarations and lockfile unchanged. |
+| `flutter pub get --enforce-lockfile` | Passed; locked versions preserved. Existing `http` and `web` packages are direct dependencies. |
 | `flutter analyze --no-pub` | No issues found. |
-| `flutter test --no-pub` | 174 tests passed, including 30 report-controller tests and 15 incident-screen tests. |
+| `flutter test --no-pub` | 190 tests passed, including 30 report-controller tests and 15 incident-screen tests. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 | Java runtime for rule tests | `21.0.9`. |
 | `npm ci --prefix tool/firestore_tests` | Passed; test dependencies restored from the lockfile. |
-| `npm test --prefix tool/firestore_tests` | 53 Firestore rule tests passed against the local emulator: 29 creation, 14 read and 10 category/profile tests. |
+| `npm test --prefix tool/firestore_tests` | 61 tests passed: 29 creation, 14 read, 10 category/profile and 8 follow-up permission tests. |
+| `npm test --prefix services/local_evidence` | 10 tests passed, including decoding, size limits, authorization, persistence and upload retries. |
+| `npm run test:integration --prefix tool/firestore_tests` | Auth, Firestore and file service workflow passed, including live progress and copied storage. |
+| `node tool/start_local.mjs --demo --serve` | Runtime checks, emulator startup, fixture seeding and local application startup passed. |
+| Browser demonstration | Reporter creation, own list, protected detail/photo/history, reload persistence, sign-out and assigned-technician progress passed with emulator accounts. |
+| Clean project copy | Locked Flutter and Node dependencies restored; relative storage, image decoding, health and protected routes verified from the copied project. |
 
 The Flutter tests exercise model conversion, category observation, incident
 creation callbacks and presentation/controller behavior with controlled

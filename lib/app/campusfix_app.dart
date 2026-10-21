@@ -14,6 +14,18 @@ class CampusFixApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: CampusTheme.light,
       home: const SessionGate(),
+      onGenerateRoute: (settings) {
+        final uri = Uri.tryParse(settings.name ?? '');
+        if (uri != null &&
+            uri.pathSegments.length == 2 &&
+            uri.pathSegments.first == 'incidents') {
+          return MaterialPageRoute<void>(
+            settings: settings,
+            builder: (_) => SessionGate(incidentId: uri.pathSegments[1]),
+          );
+        }
+        return null;
+      },
     );
   }
 }

@@ -1,0 +1,20 @@
+{
+  "name": "campusfix-local-evidence",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.19.0"
+  },
+  "scripts": {
+    "start": "node src/main.mjs",
+    "test": "node --test",
+    "start:app": "node ../../tool/start_local.mjs",
+    "demo": "node ../../tool/start_local.mjs --demo",
+    "seed:demo": "node src/seed_demo.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.0",
+    "sharp": "0.35.5"
+  }
+}

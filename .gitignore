@@ -34,6 +34,7 @@ migrate_working_dir/
 **/node_modules/
 /build/
 /coverage/
+/local_storage/evidence/**/.upload-*/
 
 # Symbolication related
 app.*.symbols

@@ -72,10 +72,11 @@ Las confirmaciones y errores aparecen dentro de la vista y desaparecen al salir.
 
 ## Funciones pendientes
 
-The report form and personal incident list are connected; photographs and
-detail presentation remain unavailable in the interface. Management, indicators
-and category administration retain their pending views. Local security checks
-are recorded in [Incident creation security](incident_security.md).
+Reporting, personal lists, protected detail, local photographs, chronological
+comments/history and assigned-technician progress are connected. Assignment,
+classification, lifecycle actions, indicators and category administration retain
+their pending views. [Follow-up](incident_followup.md) documents the implemented
+detail and progress interface; [Local storage](local_evidence.md) documents startup.
 
 La configuración, el recorrido de autenticación y sus pruebas se documentan en
 [Autenticación y sesión](autenticacion.md).

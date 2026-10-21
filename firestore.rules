@@ -46,6 +46,43 @@ service cloud.firestore {
       return exists(incidentPath) && canReadIncidentData(get(incidentPath).data);
     }
 
+    function canAddProgress(incidentId) {
+      let parent = get(/databases/$(database)/documents/incidents/$(incidentId)).data;
+      return isTechnician() && parent.assignedTechnicianId == request.auth.uid
+        && parent.status == 'EN_ATENCION';
+    }
+
+    function validProgress(data) {
+      return data.keys().hasAll(['authorUserId', 'createdAt', 'description'])
+        && data.keys().hasOnly(['authorUserId', 'createdAt', 'description'])
+        && data.authorUserId == request.auth.uid && data.createdAt == request.time
+        && isNonblankText(data.description);
+    }
+
+    function validProgressHistory(data, description) {
+      return data.keys().hasAll(['actorUserId', 'createdAt', 'action', 'fromStatus',
+          'toStatus', 'fromTechnicianId', 'toTechnicianId', 'reason'])
+        && data.keys().hasOnly(['actorUserId', 'createdAt', 'action', 'fromStatus',
+          'toStatus', 'fromTechnicianId', 'toTechnicianId', 'reason'])
+        && data.actorUserId == request.auth.uid && data.createdAt == request.time
+        && data.action == 'progressAdded' && data.fromStatus == 'EN_ATENCION'
+        && data.toStatus == 'EN_ATENCION' && data.fromTechnicianId == null
+        && data.toTechnicianId == null && data.reason == description;
+    }
+
+    function validEvidence(data, incidentId, evidenceId) {
+      return data.keys().hasAll(['uploadedByUserId', 'createdAt', 'provider', 'assetId',
+          'url', 'fileName', 'contentType', 'sizeBytes', 'progressId'])
+        && data.keys().hasOnly(['uploadedByUserId', 'createdAt', 'provider', 'assetId',
+          'url', 'fileName', 'contentType', 'sizeBytes', 'progressId'])
+        && data.uploadedByUserId == request.auth.uid && data.createdAt == request.time
+        && data.provider == 'local' && data.assetId == incidentId + '/' + evidenceId
+        && data.url == '/incidents/' + incidentId + '/evidence/' + evidenceId
+        && isNonblankText(data.fileName) && data.fileName.size() <= 160
+        && data.contentType in ['image/jpeg', 'image/png', 'image/webp']
+        && data.sizeBytes is int && data.sizeBytes > 0 && data.sizeBytes <= 3000000;
+    }
+
     function isNonblankText(value) {
       return value is string && value.trim().size() > 0;
     }
@@ -232,17 +269,39 @@ service cloud.firestore {
       allow update, delete: if false;
 
       match /history/{eventId} {
-        allow create: if eventId == 'created'
+        allow create: if (eventId == 'created'
           && isReporter()
           && isValidInitialHistory(request.resource.data)
-          && historyReferencesNewIncident(incidentId);
+          && historyReferencesNewIncident(incidentId))
+          || (eventId != 'created' && isDocumentId(eventId) && canAddProgress(incidentId)
+            && !exists(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId))
+            && validProgress(getAfter(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId)).data)
+            && validProgressHistory(request.resource.data,
+              getAfter(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId)).data.description));
         allow read: if canReadIncident(incidentId);
         allow update, delete: if false;
       }
 
       match /progress/{progressId} {
         allow read: if canReadIncident(incidentId);
-        allow create, update, delete: if false;
+        allow create: if progressId != 'created' && isDocumentId(progressId)
+          && canAddProgress(incidentId) && validProgress(request.resource.data)
+          && !exists(/databases/$(database)/documents/incidents/$(incidentId)/history/$(progressId))
+          && validProgressHistory(getAfter(/databases/$(database)/documents/incidents/$(incidentId)/history/$(progressId)).data,
+            request.resource.data.description);
+        allow update, delete: if false;
+      }
+
+      match /evidence/{evidenceId} {
+        allow read: if canReadIncident(incidentId);
+        allow create: if isDocumentId(evidenceId) && isSignedIn()
+          && validEvidence(request.resource.data, incidentId, evidenceId)
+          && ((request.resource.data.progressId == null && isReporter()
+              && get(/databases/$(database)/documents/incidents/$(incidentId)).data.createdByUserId == request.auth.uid)
+            || (isDocumentId(request.resource.data.progressId) && canAddProgress(incidentId)
+              && !exists(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(request.resource.data.progressId))
+              && validProgress(getAfter(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(request.resource.data.progressId)).data)));
+        allow update, delete: if false;
       }
     }
 
