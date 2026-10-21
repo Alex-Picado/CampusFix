@@ -107,7 +107,7 @@ Verified on October 21, 2026:
 | Local rule suite | 53 tests passed: 29 creation, 14 read and 10 category/profile tests. |
 | Concurrent reporters | Different consecutive numbers and one initial event per report. |
 | Concurrent retries of one ID | One incident, one counter increment and one initial event. |
-| Flutter suite | 129 tests passed, including 26 creation and 19 observation tests. |
+| Flutter suite | 159 tests passed, including 26 creation and 19 observation tests. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 

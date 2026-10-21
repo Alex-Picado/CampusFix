@@ -17,6 +17,8 @@ services.
 | `Incident`, `IncidentStatus`, `IncidentPriority` | Model conversion and copy operations implemented | Incident data |
 | Incident creation and sequences | Transactional service, repository and related-write security rules implemented | Incident persistence |
 | Incident observation | Own reports and authorized detail, history and progress readers implemented | Incident queries |
+| Personal incident list | Live account-bound list, error recovery and report-form navigation implemented | Reporter interface |
+| Report drafts and submission | Account-bound form and controller with validation, stable retries and reconciliation implemented | Report presentation state |
 | Photographs and progress persistence | Not implemented | Evidence and progress |
 | Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |
 | Active category reader | Service, repository and read rules implemented | Incident report selection |
@@ -168,6 +170,13 @@ La pantalla y el controlador impiden que el administrador se quite accidentalmen
 `saveProfile` reemplaza un documento completo. Los módulos posteriores deben usar operaciones específicas para cambios parciales y no reconstruir perfiles con campos o roles supuestos.
 
 ### Incident repository interfaces
+
+`IncidentReportController` manages report drafts through these repositories,
+with constructor-injected session and UID dependencies. It preserves uncertain
+submissions for retry with the same ID and checks the server before unlocking
+edits. [Report draft and submission controller](incident_reporting.md) documents
+its state, methods and lifecycle. `IncidentReportScreen` uses the controller
+through Provider, with independent database authorization.
 
 `newIncidentId()`, `create()`, `watchOwn()`, `watchById()`, `watchHistory()` and
 `watchProgress()` are implemented. Other operations in this table are proposed

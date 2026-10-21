@@ -8,8 +8,9 @@ consultar el perfil autenticado, actualizar el nombre, cerrar sesión y administ
 los roles de las cuentas desde Usuarios.
 
 El primer administrador fue preparado y el cambio de roles se comprobó con dos
-sesiones en el proyecto Firebase real. Las vistas de los módulos de incidencias,
-indicadores y categorías todavía muestran su condición de pendientes.
+sesiones en el proyecto Firebase real.
+Incident reporting now uses the authenticated shell; indicators and category
+administration retain their pending views.
 
 ## Configuración necesaria
 
