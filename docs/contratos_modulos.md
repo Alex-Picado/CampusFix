@@ -1,5 +1,11 @@
 # CampusFix: contratos entre módulos
 
+> Part 2 implementation update: [Incidents, evidence and progress](part_2_incidents.md)
+> records the requested local evidence service and versioned file storage. For
+> Part 2 evidence only, it supersedes the cloud-file-provider and no-custom-server
+> assumptions below. Authentication, Firestore and the other module contracts
+> remain in effect. Implementation and verification are still pending.
+
 ## Alcance y estado de este acuerdo
 
 Este documento fija nombres y responsabilidades para continuar la Parte 1 sin implementar las entregas de los compañeros. Las operaciones propuestas son contratos de diseño; no son interfaces ni servicios ya disponibles.
