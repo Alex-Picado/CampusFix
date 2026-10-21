@@ -96,7 +96,9 @@ committed before an account change remains attributed to its original author.
 Client validation does not grant database access. The committed rule source
 authorizes reporter creation only with a valid counter increment and initial
 history in the same atomic operation. Owner reads support confirmation and
-retry recovery. Other incident mutations and collection queries remain denied.
+retry recovery. [Authorized readers](incident_observation.md) provide own
+queries and detail, history and progress reads. Other incident mutations remain
+denied.
 This persistence API is not connected to a report form in the current application.
 
 The creation tests use a controlled database double to execute the production
@@ -123,8 +125,8 @@ Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
 | Check | Result |
 | --- | --- |
 | Creation tests | 26 tests passed as part of the full suite. |
-| `flutter test --no-pub` | 110 tests passed. |
-| Local Firestore rule suite | 39 tests passed, including 29 incident creation tests. |
+| `flutter test --no-pub` | 129 tests passed. |
+| Local Firestore rule suite | 53 tests passed, including 29 incident creation tests. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 

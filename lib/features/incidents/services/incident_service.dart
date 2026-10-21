@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../auth/services/auth_service.dart';
 import '../../users/models/user_role.dart';
 import '../models/incident_history_action.dart';
 import '../models/incident_status.dart';
 
-/// Persists reports, sequences and initial history in a Firestore transaction.
+/// Handles authenticated incident persistence and confirmed live observations.
 class IncidentService {
   final FirebaseFirestore _firestore;
   final AuthService _authService;
+  final Duration _initialSnapshotTimeout;
 
   /// Stable history document ID used for the single initial event.
   static const initialHistoryEventId = 'created';
@@ -17,10 +21,205 @@ class IncidentService {
   static const _maxSequenceNumber = 9007199254740991;
 
   /// Creates a service with explicit database and authentication dependencies.
-  IncidentService({required this._firestore, required this._authService});
+  ///
+  /// The first confirmed snapshot must arrive within [initialSnapshotTimeout].
+  IncidentService({
+    required this._firestore,
+    required this._authService,
+    this._initialSnapshotTimeout = const Duration(seconds: 30),
+  }) : assert(_initialSnapshotTimeout > Duration.zero);
 
   /// Allocates an incident ID locally without writing any documents.
   String newIncidentId() => _firestore.collection('incidents').doc().id;
+
+  /// Watches server-confirmed reports filtered by the authenticated owner's UID.
+  ///
+  /// Metadata events deliver the acknowledged snapshot after pending writes.
+  /// Cached and pending snapshots are withheld rather than parsed as confirmed.
+  /// Account changes and source errors terminate the observation.
+  Stream<Map<String, Map<String, dynamic>>> watchOwn({required String userId}) {
+    _requireSession(userId);
+    return _watchSession(userId, () {
+      return _firestore
+          .collection('incidents')
+          .where('createdByUserId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .snapshots(includeMetadataChanges: true)
+          .where((snapshot) => _isConfirmed(snapshot.metadata))
+          .map(
+            (snapshot) => {
+              for (final document in snapshot.docs)
+                document.id: _normalizeDates(document.data(), [
+                  'createdAt',
+                  'updatedAt',
+                ]),
+            },
+          );
+    });
+  }
+
+  /// Watches one server-confirmed document under Firestore detail permissions.
+  Stream<Map<String, dynamic>?> watchById({required String incidentId}) {
+    final userId = _requireSession();
+    return _watchSession(userId, () {
+      return _firestore
+          .collection('incidents')
+          .doc(incidentId)
+          .snapshots(includeMetadataChanges: true)
+          .where((snapshot) => _isConfirmed(snapshot.metadata))
+          .map(
+            (snapshot) => snapshot.exists
+                ? _normalizeDates(snapshot.data()!, ['createdAt', 'updatedAt'])
+                : null,
+          );
+    });
+  }
+
+  /// Watches authorized initial and operational history records.
+  Stream<Map<String, Map<String, dynamic>>> watchHistory({
+    required String incidentId,
+  }) {
+    return _watchRecords(incidentId, 'history');
+  }
+
+  /// Watches authorized technician progress descriptions and their authors.
+  Stream<Map<String, Map<String, dynamic>>> watchProgress({
+    required String incidentId,
+  }) {
+    return _watchRecords(incidentId, 'progress');
+  }
+
+  Stream<Map<String, Map<String, dynamic>>> _watchRecords(
+    String incidentId,
+    String name,
+  ) {
+    final userId = _requireSession();
+    return _watchSession(userId, () {
+      return _firestore
+          .collection('incidents')
+          .doc(incidentId)
+          .collection(name)
+          .orderBy('createdAt')
+          .snapshots(includeMetadataChanges: true)
+          .where((snapshot) => _isConfirmed(snapshot.metadata))
+          .map(
+            (snapshot) => {
+              for (final document in snapshot.docs)
+                document.id: _normalizeDates(document.data(), ['createdAt']),
+            },
+          );
+    });
+  }
+
+  bool _isConfirmed(SnapshotMetadata metadata) {
+    return !metadata.isFromCache && !metadata.hasPendingWrites;
+  }
+
+  Map<String, dynamic> _normalizeDates(
+    Map<String, dynamic> data,
+    List<String> fields,
+  ) {
+    final normalized = Map<String, dynamic>.of(data);
+    for (final field in fields) {
+      final value = data[field];
+      if (value is! Timestamp) {
+        throw const FormatException(
+          'Confirmed record timestamps are required.',
+        );
+      }
+      normalized[field] = value.toDate();
+    }
+    return normalized;
+  }
+
+  /// Owns both subscriptions and terminates them when the session is unavailable.
+  Stream<T> _watchSession<T>(String userId, Stream<T> Function() source) {
+    late StreamController<T> controller;
+    StreamSubscription<T>? documents;
+    StreamSubscription<User?>? authentication;
+    Future<void>? cancellation;
+    Timer? firstSnapshotDeadline;
+    var stopped = false;
+
+    Future<void> cancelSubscriptions() {
+      firstSnapshotDeadline?.cancel();
+      return cancellation ??= Future.wait<void>([
+        if (documents != null) documents!.cancel(),
+        if (authentication != null) authentication!.cancel(),
+      ]).then((_) {});
+    }
+
+    Future<void> stop([Object? error, StackTrace? stack]) async {
+      if (stopped) return;
+      stopped = true;
+      if (error != null) controller.addError(error, stack);
+      await cancelSubscriptions();
+      unawaited(controller.close());
+    }
+
+    controller = StreamController<T>(
+      onListen: () {
+        try {
+          _requireSession(userId);
+          firstSnapshotDeadline = Timer(_initialSnapshotTimeout, () {
+            unawaited(
+              stop(
+                FirebaseException(
+                  plugin: 'cloud_firestore',
+                  code: 'unavailable',
+                  message: 'No confirmed server snapshot was received.',
+                ),
+              ),
+            );
+          });
+          authentication = _authService.watchAuthState().listen(
+            (user) {
+              if (user?.uid != userId) {
+                unawaited(stop(StateError('The observed session changed.')));
+              }
+            },
+            onError: (Object error, StackTrace stack) =>
+                unawaited(stop(error, stack)),
+            onDone: () => unawaited(
+              stop(StateError('Authentication observation ended.')),
+            ),
+          );
+          if (stopped) {
+            unawaited(authentication!.cancel());
+            return;
+          }
+          documents = source().listen(
+            (value) {
+              if (stopped) return;
+              try {
+                _requireSession(userId);
+                firstSnapshotDeadline?.cancel();
+                controller.add(value);
+              } catch (error, stack) {
+                unawaited(stop(error, stack));
+              }
+            },
+            onError: (Object error, StackTrace stack) =>
+                unawaited(stop(error, stack)),
+            onDone: () => unawaited(stop()),
+          );
+          if (stopped) unawaited(documents!.cancel());
+        } catch (error, stack) {
+          unawaited(stop(error, stack));
+        }
+      },
+      onPause: () => documents?.pause(),
+      onResume: () => documents?.resume(),
+      onCancel: () {
+        stopped = true;
+        return cancelSubscriptions();
+      },
+    );
+    return controller.stream.map((value) {
+      _requireSession(userId);
+      return value;
+    });
+  }
 
   /// Atomically creates a report, its counter increment and its initial event.
   ///

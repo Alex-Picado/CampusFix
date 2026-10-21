@@ -16,6 +16,7 @@ services.
 | `UserProfile`, `UserRole`, `Category` | Modelos con conversión de datos | Shared models |
 | `Incident`, `IncidentStatus`, `IncidentPriority` | Model conversion and copy operations implemented | Incident data |
 | Incident creation and sequences | Transactional service, repository and related-write security rules implemented | Incident persistence |
+| Incident observation | Own reports and authorized detail, history and progress readers implemented | Incident queries |
 | Photographs and progress persistence | Not implemented | Evidence and progress |
 | Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |
 | Active category reader | Service, repository and read rules implemented | Incident report selection |
@@ -168,18 +169,21 @@ La pantalla y el controlador impiden que el administrador se quite accidentalmen
 
 ### Incident repository interfaces
 
-`newIncidentId()` and `create()` are implemented. Other operations in this
-table are proposed interfaces. The creation service derives its actor from
+`newIncidentId()`, `create()`, `watchOwn()`, `watchById()`, `watchHistory()` and
+`watchProgress()` are implemented. Other operations in this table are proposed
+interfaces. [Incident observation](incident_observation.md) documents live
+reader signatures, metadata and session behavior. The creation service derives
+its actor from
 the authenticated session; database authorization is enforced independently.
 
 | Operación | Entrada → resultado esperado | Authorization | Historias |
 |---|---|---|---|
 | `newIncidentId` | No arguments → stable document ID; no writes | Local allocation | HU-05 |
 | `create` | Stable incident ID, title, description, category and location → `Future<Incident>` with confirmed dates and sequence | Reporter profile and authenticated author | HU-05 |
-| `watchOwn` | UID propio → `Stream<List<Incident>>` | Reportante, solo sus casos | HU-07 |
-| `watchById` | `incidentId` → `Stream<Incident?>` | Propietario, técnico asignado o administrador | HU-08 |
-| `watchHistory` | `incidentId` → stream de eventos cronológicos | Mismo acceso al detalle | HU-08, HU-19 |
-| `watchProgress` | `incidentId` → stream de avances/comentarios | Mismo acceso al detalle | HU-08, HU-12 |
+| `watchOwn` | `userId` → `Stream<List<Incident>>`, newest first | Authenticated reporter, own UID only | HU-07 |
+| `watchById` | `incidentId` → `Stream<Incident?>` | Author, assigned technician or administrator | HU-08 |
+| `watchHistory` | `incidentId` → `Stream<List<IncidentHistoryEvent>>`, chronological | Same parent detail authorization | HU-08, HU-19 |
+| `watchProgress` | `incidentId` → `Stream<List<IncidentProgress>>`, chronological | Same parent detail authorization | HU-08, HU-12 |
 | `addProgress` | `incidentId`, descripción, referencias de evidencia opcionales → `Future<void>` | Técnico asignado durante atención | HU-12 |
 | `watchAll` | Sin argumentos → `Stream<List<Incident>>` | Administrador | HU-09 |
 | `classify` | `incidentId`, `categoryId`, prioridad → `Future<void>` | Administrador | HU-09 |
@@ -271,10 +275,12 @@ Las pantallas distinguen carga, lista vacía, error de lectura y error al guarda
 
 The current rule source allows authorized operations on `users`, authenticated
 reads of active `categories` and atomic reporter creation of incidents with
-their counter increment and initial history. Owners can read their incidents
-for confirmation; reporters can probe absent incident IDs and read the creation
-counter. Incident queries and later mutations, history reads, category writes,
-progress and evidence writes remain denied. Each operation requires explicit
+their counter increment and initial history. Authors, assigned technicians and
+administrators can read authorized incident details, history and progress.
+Reporters can query their own incidents and read the creation counter. Valid
+stored profiles can probe absent incident IDs. Incident updates, history mutation,
+category writes, progress and evidence writes remain denied. Each operation
+requires explicit
 authorization; a general read/write grant is not part of the contract.
 
 Se comprobarán consultas y escrituras directas no autorizadas, transiciones inválidas y ausencia de eventos huérfanos. Las pruebas deben intentar modificar UID, rol, consecutivo, actor y fechas; esconder botones no constituye una prueba de seguridad.

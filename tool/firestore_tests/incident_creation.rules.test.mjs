@@ -506,11 +506,13 @@ test('Creation reads allow the owner while denying unrelated direct reads and qu
   await assertSucceeds(getDocFromServer(doc(database, 'incidents/report-1')));
   for (const other of [
     databaseFor('reporter-2'), databaseFor('technician-1'),
-    databaseFor('administrator-1'), environment.unauthenticatedContext().firestore(),
+    environment.unauthenticatedContext().firestore(),
   ]) await assertFails(getDoc(doc(other, 'incidents/report-1')));
+  await assertSucceeds(getDoc(doc(databaseFor('administrator-1'), 'incidents/report-1')));
   await assertFails(getDocs(collection(database, 'incidents')));
-  await assertFails(getDocs(query(collection(database, 'incidents'), where('createdByUserId', '==', 'reporter-1'))));
-  await assertFails(getDoc(doc(database, 'incidents/report-1/history/created')));
+  await assertSucceeds(getDocs(query(collection(database, 'incidents'), where('createdByUserId', '==', 'reporter-1'))));
+  await assertFails(getDocs(query(collection(database, 'incidents'), where('createdByUserId', '==', 'reporter-2'))));
+  await assertSucceeds(getDoc(doc(database, 'incidents/report-1/history/created')));
 });
 
 test('Only reporters may read the creation counter and alternate counters stay denied', async () => {

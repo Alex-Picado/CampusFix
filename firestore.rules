@@ -27,6 +27,25 @@ service cloud.firestore {
           .data.role == 'reporter';
     }
 
+    function isTechnician() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.role == 'technician';
+    }
+
+    function canReadIncidentData(data) {
+      return isSignedIn() && (
+        data.createdByUserId == request.auth.uid || isAdmin()
+        || (isTechnician() && data.assignedTechnicianId == request.auth.uid)
+      );
+    }
+
+    function canReadIncident(incidentId) {
+      let incidentPath = /databases/$(database)/documents/incidents/$(incidentId);
+      return exists(incidentPath) && canReadIncidentData(get(incidentPath).data);
+    }
+
     function isNonblankText(value) {
       return value is string && value.trim().size() > 0;
     }
@@ -198,11 +217,12 @@ service cloud.firestore {
     }
 
     match /incidents/{incidentId} {
-      // Creation needs a missing-document read; confirmed retries read only their owner.
+      // Valid profiles may probe missing IDs; existing records require detail access.
       allow get: if isSignedIn()
-        && ((resource == null && isReporter())
-          || resource.data.createdByUserId == request.auth.uid);
-      allow list: if false;
+        && ((resource == null && (isReporter() || isAdmin() || isTechnician()))
+          || canReadIncidentData(resource.data));
+      // Reporter queries must constrain createdByUserId to their own UID.
+      allow list: if isReporter() && resource.data.createdByUserId == request.auth.uid;
 
       allow create: if isReporter()
         && isDocumentId(incidentId)
@@ -216,7 +236,13 @@ service cloud.firestore {
           && isReporter()
           && isValidInitialHistory(request.resource.data)
           && historyReferencesNewIncident(incidentId);
-        allow read, update, delete: if false;
+        allow read: if canReadIncident(incidentId);
+        allow update, delete: if false;
+      }
+
+      match /progress/{progressId} {
+        allow read: if canReadIncident(incidentId);
+        allow create, update, delete: if false;
       }
     }
 

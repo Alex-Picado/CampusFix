@@ -8,11 +8,14 @@ reader observes active categories for incident report selection.
 The incident persistence API creates reports, sequence increments and initial
 history events atomically, with stable IDs for retrying submissions.
 Firestore rules validate the related writes and initial report fields.
+Live incident readers provide own reports and authorized details, history and
+technician progress with subscriptions tied to the authenticated session.
 
 ## Documentation
 
 - [Incident models](docs/part_2_incidents.md).
 - [Incident creation](docs/incident_creation.md).
 - [Incident creation security](docs/incident_security.md).
+- [Incident observation](docs/incident_observation.md).
 - [Active category reader](docs/categories.md).
 - [Runtime configuration](docs/toolchain.md).
