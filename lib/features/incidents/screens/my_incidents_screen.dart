@@ -144,6 +144,18 @@ class _IncidentList extends StatelessWidget {
                     Text('Ubicación: ${incident.location}'),
                     const SizedBox(height: 4),
                     Text('Reportada: ${_date(incident.createdAt)}'),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      key: ValueKey('detail-${incident.id}'),
+                      onPressed: () async {
+                        controller.pause();
+                        await Navigator.of(context).pushNamed(
+                          '/incidents/${Uri.encodeComponent(incident.id)}',
+                        );
+                        if (controller.isActive) controller.start();
+                      },
+                      child: const Text('Ver detalle'),
+                    ),
                   ],
                 ),
               ),

@@ -236,7 +236,7 @@ test('Own report listeners receive new matching cases without including other au
   }
 });
 
-test('Read permissions do not grant progress writes or evidence access', async () => {
+test('Detail readers can query evidence without gaining standalone progress writes', async () => {
   for (const userId of ['reporter-2', 'technician-1', 'administrator-1']) {
     const database = databaseFor(userId);
     await assertFails(setDoc(doc(database, 'incidents/assigned/progress/new'), {
@@ -244,6 +244,6 @@ test('Read permissions do not grant progress writes or evidence access', async (
     }));
     await assertFails(updateDoc(doc(database, 'incidents/assigned/progress/comment'), { description: 'Changed' }));
     await assertFails(deleteDoc(doc(database, 'incidents/assigned/progress/comment')));
-    await assertFails(getDocs(collection(database, 'incidents/assigned/evidence')));
+    await assertSucceeds(getDocs(collection(database, 'incidents/assigned/evidence')));
   }
 });

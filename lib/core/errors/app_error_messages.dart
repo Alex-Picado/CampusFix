@@ -13,7 +13,16 @@ abstract final class AppErrorMessages {
         return _authenticationMessage(error.code);
       }
 
-      if (error.plugin == 'cloud_firestore') {
+      if (error.plugin == 'local_evidence') {
+        if (error.code == 'unavailable') {
+          return 'El servicio de fotografías no está disponible. Iniciá el servicio local e intentá nuevamente.';
+        }
+        if (error.code == 'invalid-argument') {
+          return 'Elegí una foto JPEG, PNG o WebP válida de hasta 3 MB.';
+        }
+      }
+      if (error.plugin == 'cloud_firestore' ||
+          error.plugin == 'local_evidence') {
         return _databaseMessage(error.code);
       }
     }

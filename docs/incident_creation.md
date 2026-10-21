@@ -127,8 +127,8 @@ Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
 | Check | Result |
 | --- | --- |
 | Creation tests | 26 tests passed as part of the full suite. |
-| `flutter test --no-pub` | 159 tests passed. |
-| Local Firestore rule suite | 53 tests passed, including 29 incident creation tests. |
+| `flutter test --no-pub` | 190 tests passed. |
+| Local Firestore rule suite | 61 tests passed, including 29 incident creation tests. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 

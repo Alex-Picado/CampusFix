@@ -9,6 +9,7 @@ import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../controllers/incident_report_controller.dart';
 import '../repositories/incident_repository.dart';
+import '../widgets/evidence_widgets.dart';
 
 /// Owns a report controller while the original reporter's form is mounted.
 class IncidentReportScreen extends StatelessWidget {
@@ -222,6 +223,16 @@ class _ReportFormState extends State<_ReportForm> {
               ],
             ),
           ),
+          if (controller.createdIncident != null) ...[
+            const SizedBox(height: 16),
+            ReportPhotoUpload(incidentId: controller.createdIncident!.id),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => Navigator.of(context)
+                  .pushNamed('/incidents/${controller.createdIncident!.id}'),
+              child: const Text('Ver detalle y fotografías'),
+            ),
+          ],
         ],
       ),
     );

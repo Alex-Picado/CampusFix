@@ -39,7 +39,6 @@ enum CampusDestination {
     'Consultá las incidencias que tenés asignadas.',
     [
       'Consultar asignaciones e iniciar la atención.',
-      'Registrar avances y evidencia.',
       'Documentar la solución de cada incidencia.',
     ],
   ),

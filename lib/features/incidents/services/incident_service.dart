@@ -89,6 +89,144 @@ class IncidentService {
     return _watchRecords(incidentId, 'progress');
   }
 
+  /// Watches authorized local photograph metadata with confirmed server dates.
+  Stream<Map<String, Map<String, dynamic>>> watchEvidence({
+    required String incidentId,
+  }) => _watchRecords(incidentId, 'evidence');
+
+  /// Associates a previously uploaded report photograph without duplicate writes.
+  Future<void> attachEvidence({
+    required String incidentId,
+    required String evidenceId,
+    required Map<String, dynamic> reference,
+  }) async {
+    final uid = _requireSession();
+    final parent = _firestore.collection('incidents').doc(incidentId);
+    final target = parent.collection('evidence').doc(evidenceId);
+    await _firestore.runTransaction<void>((tx) async {
+      _requireSession(uid);
+      final incident = await tx.get(parent);
+      final profile = await tx.get(_firestore.collection('users').doc(uid));
+      final existing = await tx.get(target);
+      if (incident.data()?['createdByUserId'] != uid ||
+          profile.data()?['role'] != 'reporter') {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+        );
+      }
+      final fields = {
+        ...reference,
+        'provider': 'local',
+        'uploadedByUserId': uid,
+        'progressId': null,
+      };
+      if (existing.exists) {
+        if (!fields.entries.every(
+          (entry) => existing.data()?[entry.key] == entry.value,
+        )) {
+          throw const FormatException('Conflicting evidence reference.');
+        }
+        return;
+      }
+      _requireSession(uid);
+      tx.set(target, {...fields, 'createdAt': FieldValue.serverTimestamp()});
+    });
+    _requireSession(uid);
+    final confirmed = await target.get(const GetOptions(source: Source.server));
+    _requireSession(uid);
+    if (confirmed.data()?['createdAt'] is! Timestamp ||
+        confirmed.metadata.hasPendingWrites ||
+        confirmed.metadata.isFromCache) {
+      throw FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
+    }
+  }
+
+  /// Atomically records immutable progress, its matching history and optional evidence.
+  Future<void> addProgress({
+    required String incidentId,
+    required String progressId,
+    required String description,
+    String? evidenceId,
+    Map<String, dynamic>? reference,
+  }) async {
+    final uid = _requireSession();
+    final parent = _firestore.collection('incidents').doc(incidentId);
+    final progress = parent.collection('progress').doc(progressId);
+    final event = parent.collection('history').doc(progressId);
+    final evidence = evidenceId == null
+        ? null
+        : parent.collection('evidence').doc(evidenceId);
+    await _firestore.runTransaction<void>((tx) async {
+      _requireSession(uid);
+      final incident = await tx.get(parent);
+      final profile = await tx.get(_firestore.collection('users').doc(uid));
+      final existing = await tx.get(progress);
+      final existingEvent = await tx.get(event);
+      final existingEvidence = evidence == null ? null : await tx.get(evidence);
+      final data = incident.data();
+      if (existing.exists) {
+        if (existing.data()?['authorUserId'] != uid ||
+            existing.data()?['description'] != description ||
+            existingEvent.data()?['action'] != 'progressAdded' ||
+            existingEvent.data()?['reason'] != description ||
+            (evidence != null &&
+                (existingEvidence?.data()?['progressId'] != progressId ||
+                    !reference!.entries.every(
+                      (entry) =>
+                          existingEvidence?.data()?[entry.key] == entry.value,
+                    )))) {
+          throw const FormatException('Conflicting progress submission.');
+        }
+        return;
+      }
+      if (data?['assignedTechnicianId'] != uid ||
+          data?['status'] != 'EN_ATENCION' ||
+          profile.data()?['role'] != 'technician') {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+        );
+      }
+      _requireSession(uid);
+      final timestamp = FieldValue.serverTimestamp();
+      tx.set(progress, {
+        'authorUserId': uid,
+        'createdAt': timestamp,
+        'description': description,
+      });
+      tx.set(event, {
+        'actorUserId': uid,
+        'createdAt': timestamp,
+        'action': 'progressAdded',
+        'fromStatus': 'EN_ATENCION',
+        'toStatus': 'EN_ATENCION',
+        'fromTechnicianId': null,
+        'toTechnicianId': null,
+        'reason': description,
+      });
+      if (evidence != null) {
+        tx.set(evidence, {
+          ...reference!,
+          'provider': 'local',
+          'uploadedByUserId': uid,
+          'createdAt': timestamp,
+          'progressId': progressId,
+        });
+      }
+    });
+    _requireSession(uid);
+    final confirmed = await progress.get(
+      const GetOptions(source: Source.server),
+    );
+    _requireSession(uid);
+    if (confirmed.data()?['createdAt'] is! Timestamp ||
+        confirmed.metadata.hasPendingWrites ||
+        confirmed.metadata.isFromCache) {
+      throw FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
+    }
+  }
+
   Stream<Map<String, Map<String, dynamic>>> _watchRecords(
     String incidentId,
     String name,

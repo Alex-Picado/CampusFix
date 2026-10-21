@@ -102,8 +102,10 @@ not replace stored roles. Orphan subcollections do not grant access, including
 to administrators.
 
 These read grants retain the creation invariants described in
-[Creation security](incident_security.md). They do not authorize incident
-updates, progress writes, evidence access or history mutation.
+[Creation security](incident_security.md). Evidence metadata shares the same
+parent read authorization. [Follow-up](incident_followup.md) defines the separate
+atomic progress and evidence write grants. Incident updates and existing history
+mutation remain denied.
 
 ## Query index
 
@@ -123,8 +125,8 @@ Verified on October 21, 2026, with Flutter `3.47.5`, Dart `3.13.4` and Java `21.
 
 | Check | Result |
 | --- | --- |
-| `flutter test --no-pub` | 174 tests passed, including 19 observation tests and 6 own-list widget tests. |
-| `npm test --prefix tool/firestore_tests` | 53 rule tests passed, including 14 read tests. |
+| `flutter test --no-pub` | 190 tests passed, including 19 observation tests and 6 own-list widget tests. |
+| `npm test --prefix tool/firestore_tests` | 61 rule tests passed, including 14 read tests. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 
