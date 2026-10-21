@@ -1,23 +1,30 @@
 # CampusFix: contratos entre módulos
 
+The [Incident model reference](part_2_incidents.md) describes incident, progress,
+history and evidence serialization. [Runtime configuration](toolchain.md)
+documents the executable versions and verification commands.
+
 ## Alcance y estado de este acuerdo
 
-Este documento fija nombres y responsabilidades para continuar la Parte 1 sin implementar las entregas de los compañeros. Las operaciones propuestas son contratos de diseño; no son interfaces ni servicios ya disponibles.
+This reference defines shared field names, stored values and module boundaries.
+Operations marked as proposed are interface contracts rather than implemented
+services.
 
-| Elemento | Estado actual | Responsable siguiente |
+| Elemento | Estado actual | Integration area |
 |---|---|---|
-| Acceso, sesión, perfiles y roles | Implementados; pruebas reales registradas en `autenticacion.md` | Alex mantiene su base |
-| `UserProfile`, `UserRole`, `Category` | Modelos con conversión de datos | Cada módulo los reutiliza |
-| `Incident`, `IncidentStatus`, `IncidentPriority` | Campos y enumeraciones; falta serialización de `Incident` | José |
-| Incidencias, consecutivos, fotografías y avances | Pendientes | José, Parte 2 |
-| Clasificación, asignaciones, transiciones y auditoría | Pendientes | Christian, Parte 3 |
-| Categorías, consultas, indicadores e integración final | Pendientes | Daniel, Parte 4 |
+| Acceso, sesión, perfiles y roles | Implementados; pruebas reales registradas en `autenticacion.md` | Identity and access |
+| `UserProfile`, `UserRole`, `Category` | Modelos con conversión de datos | Shared models |
+| `Incident`, `IncidentStatus`, `IncidentPriority` | Model conversion and copy operations implemented; persistence pending | Incident data |
+| Incidencias, consecutivos, fotografías y avances | Pendientes | Incident reporting and progress |
+| Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |
+| Categorías, consultas, indicadores e integración final | Pendientes | Catalogs and reporting |
 
 La arquitectura acordada es `screen → controller → repository → service`. La pantalla no accede directamente a Firebase. Los controladores usan `ChangeNotifier`; las dependencias se reciben por constructor.
 
 Se mantiene Firebase Spark sin activar facturación. No se incorpora un servidor propio ni Cloud Functions. Las actualizaciones automáticas usarán escuchas de Firestore; la sugerencia de WebSockets no implica crear otro servidor.
 
-El enunciado exige Firebase Storage para fotografías. Usar otro proveedor, como Cloudinary, continúa sujeto a aceptación del profesor; José debe resolverlo antes de integrar ese módulo. El límite de 3 MB es un acuerdo del equipo, no un requisito atribuido al enunciado.
+The evidence contract defines a maximum file size of 3 000 000 bytes. File-provider
+configuration is separate from the incident metadata schema.
 
 ## Diccionario de datos
 
@@ -42,7 +49,9 @@ Un registro normal crea un reportante. La preparación del primer administrador 
 | `name` | string | Nombre de la categoría |
 | `isActive` | boolean | Controla si puede seleccionarse en reportes nuevos |
 
-`Category.toMap()` y `Category.fromMap()` ya existen. Daniel implementará el repositorio y la administración. Se desactivará una categoría usada en lugar de eliminarla y dejar referencias rotas; las incidencias anteriores conservan `categoryId`.
+`Category.toMap()` and `Category.fromMap()` provide model conversion. Category
+administration is a separate interface. Deactivation preserves `categoryId`
+references in existing incidents without requiring deletion.
 
 ### `incidents/{incidentId}`: almacenamiento pendiente
 
@@ -61,7 +70,17 @@ Un registro normal crea un reportante. La preparación del primer administrador 
 | `assignedTechnicianId` | string o null | UID del técnico asignado |
 | `resolutionDescription` | string o null | Solución obligatoria al resolver |
 
-La serialización de `Incident` está pendiente: no asumir que dispone de `toMap()`, `fromMap()` o `copyWith()`. José añadirá la conversión y sus pruebas sin cambiar silenciosamente estos nombres.
+`Incident.toMap()`, `Incident.fromMap(id: ..., data: ...)` and `Incident.copyWith()`
+preserve the field names above and omit `id` from stored maps.
+Dates are `DateTime` at the model boundary: services must normalize confirmed
+Firestore timestamps before parsing and apply server timestamps when writing.
+Pending or missing dates are rejected instead of replaced with local estimates.
+
+`copyWith()` preserves the ID, sequence number, creator and creation time.
+Its `clearPriority`, `clearAssignedTechnician` and `clearResolution` flags clear
+nullable fields explicitly. These model methods do not authorize writes or
+implement lifecycle transitions. Behavior and verification are documented in
+[Incident model](part_2_incidents.md).
 
 Los roles usan `.name`; estados y prioridades usan `.value`. No guardar `underReview`, `inProgress` o `high` como estados/prioridades. La interfaz puede mostrar tildes aunque el valor almacenado sea `EN_REVISION` o `EN_ATENCION`.
 
@@ -75,23 +94,37 @@ La creación leerá el contador y escribirá contador actualizado, incidencia y 
 
 La prueba mínima crea dos reportes simultáneos y comprueba IDs distintos, números distintos y exactamente un evento inicial por reporte. La operación puede fallar sin conexión; la pantalla conservará el formulario y permitirá reintentar sin anunciar una creación confirmada.
 
-José debe diseñar y probar las reglas que vinculen el incremento con la incidencia creada: incremento de exactamente uno y documento nuevo identificado por `lastIncidentId`, con número coincidente y creador autenticado, verificables en la misma operación con `getAfter()`. No se autoriza una escritura general al contador. La transacción del cliente, por sí sola, no impide que una petición modificada intente saltarse el contrato.
+The counter contract requires an increment of exactly one and a new incident
+identified by `lastIncidentId`, with the same sequence and authenticated creator.
+Related writes require validation with `getAfter()`. A client transaction alone
+does not authorize unrestricted counter updates.
 
-### Subcolecciones: diseño pendiente de implementación
+### Subcollection record formats
 
-El enunciado describe fotografías, comentarios e historial conceptualmente. El uso de subcolecciones es una decisión técnica del equipo para evitar que el documento de la incidencia crezca con cada actualización.
+`IncidentProgress`, `IncidentHistoryEvent` and `IncidentEvidence` provide
+`toMap()` and `fromMap()` conversions for their record fields. Document IDs
+remain separate from those fields. Dates use `DateTime` in models and require
+timestamp conversion at the persistence boundary.
 
-| Ruta | Campos propuestos | Responsable |
+| Ruta | Model fields | Model |
 |---|---|---|
-| `incidents/{incidentId}/progress/{progressId}` | `authorUserId`, `createdAt`, `description` | José |
-| `incidents/{incidentId}/history/{eventId}` | `actorUserId`, `createdAt`, `action`, `fromStatus`, `toStatus`, `fromTechnicianId`, `toTechnicianId`, `reason` | Christian; José crea el evento inicial |
-| `incidents/{incidentId}/evidence/{evidenceId}` | `uploadedByUserId`, `createdAt`, `provider`, `assetId`, `url`, `fileName`, `contentType`, `sizeBytes`, `progressId` | José |
+| `incidents/{incidentId}/progress/{progressId}` | `authorUserId`, `createdAt`, `description` | `IncidentProgress` |
+| `incidents/{incidentId}/history/{eventId}` | `actorUserId`, `createdAt`, `action`, `fromStatus`, `toStatus`, `fromTechnicianId`, `toTechnicianId`, `reason` | `IncidentHistoryEvent` |
+| `incidents/{incidentId}/evidence/{evidenceId}` | `uploadedByUserId`, `createdAt`, `provider`, `assetId`, `url`, `fileName`, `contentType`, `sizeBytes`, `progressId` | `IncidentEvidence` |
 
-Los modelos de avance, evento y evidencia todavía no existen. Sus IDs se obtendrán de los documentos y las fechas usarán `Timestamp`. Los estados dentro del historial siguen los mismos valores `.value` que la incidencia.
+The history model uses the same `IncidentStatus.value` strings as the incident.
+Unresolved dates and unsupported stored values raise `FormatException`.
 
-`action` usará códigos compartidos en inglés: `created`, `classified`, `assigned`, `started`, `progressAdded`, `resolved`, `closed`, `rejected`, `cancelled`, `reopened`. Los campos de antes/después no aplicables y `reason` opcional se guardarán como null; los motivos requeridos no estarán vacíos.
+`IncidentHistoryAction` defines the English codes `created`, `classified`,
+`assigned`, `started`, `progressAdded`, `resolved`, `closed`, `rejected`,
+`cancelled` and `reopened`. Optional fields are serialized as null. Present
+technician identifiers and reasons must be nonblank.
 
-`progressId` será null para evidencia del reporte inicial y contendrá el ID del avance cuando corresponda. `assetId` identifica el archivo en el proveedor; `url` es su referencia de consulta. Firestore no almacenará los bytes ni imágenes en Base64.
+`IncidentEvidence.provider` is `local`. Metadata accepts JPEG, PNG and WebP
+content types and a positive size up to 3 000 000 bytes. `progressId` is null
+for a report photograph or identifies its related progress entry. `assetId`
+identifies the file and `url` contains its retrieval reference. Serialized
+metadata contains neither image bytes nor Base64 data.
 
 El detalle debe mostrar fotografías, comentarios e historial (HU-08). La propuesta representa los comentarios de seguimiento mediante `progress.description`, con autor y fecha; esos textos deben verse en el detalle y no quedar ocultos en otra pantalla. Si el profesor requiere además comentarios libres distintos de los avances, se acordará ese alcance antes de crear otro contrato.
 
@@ -120,28 +153,30 @@ La pantalla y el controlador impiden que el administrador se quite accidentalmen
 
 Los nombres fijan la intención del contrato; las firmas Dart completas y tipos auxiliares se definirán al implementarlos. El actor se obtiene de la sesión autenticada y las reglas comprueban su UID y permisos.
 
-| Operación | Entrada → resultado esperado | Permiso y responsable | Historias |
+| Operación | Entrada → resultado esperado | Authorization | Historias |
 |---|---|---|---|
-| `create` | Título, descripción, categoría y ubicación → `Future<Incident>` con ID y consecutivo confirmados | Reportante; José | HU-05 |
-| `watchOwn` | UID propio → `Stream<List<Incident>>` | Reportante, solo sus casos; José | HU-07 |
-| `watchById` | `incidentId` → `Stream<Incident?>` | Propietario, técnico asignado o administrador; José | HU-08 |
-| `watchHistory` | `incidentId` → stream de eventos cronológicos | Mismo acceso al detalle; José consume, Christian completa eventos | HU-08, HU-19 |
-| `watchProgress` | `incidentId` → stream de avances/comentarios | Mismo acceso al detalle; José | HU-08, HU-12 |
-| `addProgress` | `incidentId`, descripción, referencias de evidencia opcionales → `Future<void>` | Técnico asignado durante atención; José | HU-12 |
-| `watchAll` | Sin argumentos → `Stream<List<Incident>>` | Administrador; Christian | HU-09 |
-| `classify` | `incidentId`, `categoryId`, prioridad → `Future<void>` | Administrador; Christian | HU-09 |
-| `assignTechnician` | `incidentId`, UID técnico → `Future<void>` | Administrador; Christian | HU-10 |
-| `watchAssigned` | UID propio → `Stream<List<Incident>>` | Técnico, solo casos asignados; Christian | HU-10, HU-11 |
-| `startAttention` | `incidentId` → `Future<void>` | Técnico asignado; Christian | HU-11 |
-| `resolve` | `incidentId`, solución no vacía → `Future<void>` | Técnico asignado; Christian | HU-13 |
-| `close` | `incidentId` → `Future<void>` | Administrador; Christian | HU-14 |
-| `reject`, `cancel`, `reopen` | `incidentId`, motivo no vacío → `Future<void>` | Administrador según matriz siguiente; Christian | Flujo acordado |
+| `create` | Título, descripción, categoría y ubicación → `Future<Incident>` con ID y consecutivo confirmados | Reportante | HU-05 |
+| `watchOwn` | UID propio → `Stream<List<Incident>>` | Reportante, solo sus casos | HU-07 |
+| `watchById` | `incidentId` → `Stream<Incident?>` | Propietario, técnico asignado o administrador | HU-08 |
+| `watchHistory` | `incidentId` → stream de eventos cronológicos | Mismo acceso al detalle | HU-08, HU-19 |
+| `watchProgress` | `incidentId` → stream de avances/comentarios | Mismo acceso al detalle | HU-08, HU-12 |
+| `addProgress` | `incidentId`, descripción, referencias de evidencia opcionales → `Future<void>` | Técnico asignado durante atención | HU-12 |
+| `watchAll` | Sin argumentos → `Stream<List<Incident>>` | Administrador | HU-09 |
+| `classify` | `incidentId`, `categoryId`, prioridad → `Future<void>` | Administrador | HU-09 |
+| `assignTechnician` | `incidentId`, UID técnico → `Future<void>` | Administrador | HU-10 |
+| `watchAssigned` | UID propio → `Stream<List<Incident>>` | Técnico, solo casos asignados | HU-10, HU-11 |
+| `startAttention` | `incidentId` → `Future<void>` | Técnico asignado | HU-11 |
+| `resolve` | `incidentId`, solución no vacía → `Future<void>` | Técnico asignado | HU-13 |
+| `close` | `incidentId` → `Future<void>` | Administrador | HU-14 |
+| `reject`, `cancel`, `reopen` | `incidentId`, motivo no vacío → `Future<void>` | Administrador según matriz siguiente | Flujo acordado |
 
 Las consultas del propietario y del técnico incluirán el filtro de UID en Firestore. No consultar todos los casos para luego ocultar los ajenos en Flutter: las reglas autorizan consultas completas, no filtran sus resultados.
 
 Una categoría válida y una prioridad asignada serán condiciones previas de la asignación. El destino debe corresponder a un usuario técnico; el cliente no puede asignar arbitrariamente un UID como si tuviera ese rol.
 
-Cada clasificación, asignación o cambio de estado actualizará la incidencia y creará su evento en la misma transacción. Los cambios basados en el estado anterior volverán a leerlo dentro de esa transacción. Christian definirá el vínculo verificable con el evento al implementar las reglas y probará escrituras incompletas o alteradas.
+Classification, assignment and status-change contracts require the incident
+update and history event in the same transaction. State-dependent operations
+must reread the current incident and validate the related event atomically.
 
 `addProgress` guardará el avance, las referencias de evidencia relacionadas y el evento `progressAdded` de forma atómica en Firestore. La subida externa del archivo ocurre fuera de esa transacción; no se promete atomicidad entre dos proveedores.
 
@@ -149,29 +184,33 @@ Cada clasificación, asignación o cambio de estado actualizará la incidencia y
 
 | Operación | Entrada → resultado esperado | Permiso y responsable | Historias |
 |---|---|---|---|
-| `watchActive` | Sin argumentos → `Stream<List<Category>>` | Sesión autenticada; Daniel | Selección en HU-05 |
-| `watchAll` | Sin argumentos → `Stream<List<Category>>` | Administrador; Daniel | Módulo de catálogos |
-| `create` | Nombre → categoría persistida | Administrador; Daniel | Módulo de catálogos |
-| `update` | `categoryId`, nombre, `isActive` → `Future<void>` | Administrador; Daniel | Módulo de catálogos |
-| Consultas e indicadores | Incidencias autorizadas y criterios → resultados/conteos | Según el rol; Daniel | HU-15 a HU-18 |
+| `watchActive` | Sin argumentos → `Stream<List<Category>>` | Sesión autenticada | Selección en HU-05 |
+| `watchAll` | Sin argumentos → `Stream<List<Category>>` | Administrador | Módulo de catálogos |
+| `create` | Nombre → categoría persistida | Administrador | Módulo de catálogos |
+| `update` | `categoryId`, nombre, `isActive` → `Future<void>` | Administrador | Módulo de catálogos |
+| Consultas e indicadores | Incidencias autorizadas y criterios → resultados/conteos | Según el rol | HU-15 a HU-18 |
 
-Para el volumen previsto, Daniel puede buscar texto y combinar filtros sobre las incidencias autorizadas ya cargadas. No se contrata otro buscador. Las categorías inactivas deben seguir pudiendo identificarse en el detalle histórico; Daniel resolverá esa lectura con permisos explícitos.
+Search and combined filters operate on authorized incident data. Historical
+details retain category identifiers, including inactive categories; category
+reads require explicit authorization.
 
-Para probar la Parte 2 antes de completar la administración de catálogos, se prepararán categorías de prueba desde la consola. José incorporará la lectura de categorías activas y sus permisos mínimos, coordinando el contrato con Daniel; la administración completa del catálogo permanece en la Parte 4.
+The category-reading contract is separate from catalog administration. Selecting
+a category for a report requires an authenticated read of active categories.
 
 ## Fotografías: contrato independiente del proveedor
 
-José implementará `EvidenceRepository`; las pantallas dependerán de ese contrato y no de APIs concretas de Cloudinary o Storage.
+`EvidenceRepository` defines the evidence interface independently of the file
+provider. Presentation code depends on that interface.
 
 - `upload`: recibe bytes, nombre, tipo de contenido y contexto de incidencia/avance; devuelve una referencia con `provider`, `assetId`, `url`, `fileName`, `contentType` y `sizeBytes` después de una carga confirmada.
 - `attachToIncident`: recibe `incidentId`, un `evidenceId` estable y la referencia devuelta por la carga; devuelve `Future<void>` al persistir los metadatos de una fotografía inicial con `progressId: null`. Autoriza al reportante propietario y comprueba la incidencia existente. El ID estable permite reintentar la misma asociación sin duplicarla. Las evidencias de avances se asocian mediante `addProgress`.
 - `watchByIncident`: recibe `incidentId`; emite metadatos de evidencias para quienes pueden consultar ese caso.
 - La asociación persistente añade UID del autor y hora del servidor; no acepta un autor inventado desde el formulario.
 - Se validará que sea una imagen y que no supere 3 MB. El equipo fija aquí 3 MB como 3 000 000 bytes para evitar umbrales distintos entre pantallas y proveedor.
-- La validación del cliente mejora el mensaje; José también configurará las restricciones disponibles en el proveedor. No se incluirán claves administrativas ni secretos de firma dentro de Flutter.
+- Client validation supplies user-facing feedback; provider-side restrictions enforce file constraints independently. Flutter configuration must not contain administrative keys or signing secrets.
 - Una carga fallida conserva los datos del formulario y permite reintento. Si el archivo sube pero falla su asociación, se conserva una referencia para reintentar o se elimina mediante una operación autorizada si el proveedor lo permite.
 - No se incorporan tarjeta, facturación ni servicios pagos. La selección del proveedor y la aceptación académica siguen pendientes; no se garantiza una cuota gratuita específica en este contrato.
-- Las reglas de Firestore protegen metadatos, no una URL pública externa. José documentará quién puede abrir el archivo y qué protección ofrece realmente el proveedor elegido.
+- Firestore rules protect metadata. File access depends on the provider's authorization mechanism; metadata permissions alone do not protect an external public URL.
 
 ## Estados, actores y auditoría
 
@@ -191,33 +230,31 @@ El flujo principal conserva los valores existentes:
 | Cancelar | Estado activo anterior a `RESUELTA` → `CANCELADA` | Administrador; motivo obligatorio |
 | Reabrir | `RESUELTA` o `CERRADA` → `EN_REVISION` | Administrador; motivo obligatorio |
 
-Las reglas de rechazo, cancelación y reapertura son acuerdos del equipo: el enunciado menciona esos estados sin detallar todas sus transiciones. Christian debe conservar esta distinción al documentarlos.
+The rejection, cancellation and reopening transitions are application rules.
+The state enumeration alone does not define their authorization or transitions.
 
 `IncidentStatus.reopened` ya existe con valor `REABIERTA`. El acuerdo actual registra `action: reopened` en el historial y devuelve el caso a `EN_REVISION`, sin dejarlo estacionado en `REABIERTA`. No eliminar ese enum ni producir un flujo distinto sin coordinarlo.
 
 Para concretar la reapertura se propone limpiar `resolutionDescription` y conservar la solución anterior en un campo `previousResolutionDescription` del evento. Esta política adicional deberá acordarse al implementar la Parte 3; no es una condición impuesta por el enunciado.
 
-La misma propuesta limpia `assignedTechnicianId` y requiere nueva clasificación/asignación, registrando esa eliminación en el evento. Si se permite reasignar durante atención, Christian debe acordar primero su transición y pruebas; no es una operación implícita.
+The proposed reopening contract clears `assignedTechnicianId`, records that
+change in history and requires a new classification and assignment. Reassignment
+during attention requires an explicit transition contract and validation.
 
 Para los indicadores, abiertas son `REPORTADA`, `EN_REVISION`, `ASIGNADA` y `EN_ATENCION`. `RESUELTA` sigue pendiente de cierre administrativo, pero se cuenta separadamente; `CERRADA`, `RECHAZADA` y `CANCELADA` no se mezclan con abiertas.
 
-## Escuchas, permisos y evidencias de entrega
+## Escuchas y permisos
 
 Cada controlador es dueño de sus suscripciones: cancela al salir del módulo y al hacer `dispose()`. Al cerrar sesión o perder el rol, se desmonta el módulo y se limpian listas y datos privados. Una respuesta tardía no debe modificar la siguiente sesión.
 
 Las pantallas distinguen carga, lista vacía, error de lectura y error al guardar. Un snapshot posterior no debe borrar un error de guardado pendiente. Tras perder conexión se indica el estado disponible y se comprueba recuperación; no se confunde una vista local con una escritura confirmada.
 
-Las reglas actuales solo permiten operaciones autorizadas en `users`; `categories`, `incidents`, `counters` y sus subcolecciones continúan denegadas. Este documento no habilita esos accesos. Cada responsable entregará reglas y pruebas junto con su módulo, sin usar un permiso general para desbloquearlo.
+The current rules allow authorized operations on `users`; `categories`,
+`incidents`, `counters` and their subcollections remain denied. Each collection
+requires module-specific authorization; a general read/write grant is not part
+of the contract.
 
 Se comprobarán consultas y escrituras directas no autorizadas, transiciones inválidas y ausencia de eventos huérfanos. Las pruebas deben intentar modificar UID, rol, consecutivo, actor y fechas; esconder botones no constituye una prueba de seguridad.
-
-Cada entrega documenta clases/métodos públicos, datos, errores, permisos y la relación `HU → implementación → evidencia de prueba`. Distinguir pruebas automatizadas ejecutadas, comprobaciones manuales confirmadas y verificaciones pendientes. Un formulario visible no acredita que el recorrido completo funcione.
-
-Los cambios se guardan en commits pequeños y coherentes con `tipo(alcance): descripción`, usando `feat`, `fix`, `perf`, `build`, `ci`, `docs`, `refactor`, `style` o `test`. No dividir artificialmente una funcionalidad solo para aumentar el contador.
-
-La integración de `feat/base` a `main` debe preservar los commits individuales mediante un merge normal. Evitar `Squash and merge`, que reemplazaría ese historial por un solo commit en `main`. Alex ejecuta sus commits y push; las siguientes entregas también conservan su historia significativa.
-
-José implementa y documenta la Parte 2; Christian revisa esa entrega y realiza la Parte 3; Daniel revisa la Parte 3 y coordina la Parte 4. Cada integrante corrige los problemas de su módulo. Alex revisa el cierre de Daniel. La publicación final pertenece a la Parte 4.
 
 ## Referencias técnicas
 
