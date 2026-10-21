@@ -14,14 +14,18 @@ services.
 |---|---|---|
 | Acceso, sesión, perfiles y roles | Implementados; pruebas reales registradas en `autenticacion.md` | Identity and access |
 | `UserProfile`, `UserRole`, `Category` | Modelos con conversión de datos | Shared models |
-| `Incident`, `IncidentStatus`, `IncidentPriority` | Model conversion and copy operations implemented; persistence pending | Incident data |
-| Incidencias, consecutivos, fotografías y avances | Pendientes | Incident reporting and progress |
+| `Incident`, `IncidentStatus`, `IncidentPriority` | Model conversion and copy operations implemented | Incident data |
+| Incident creation and sequences | Transactional service, repository and related-write security rules implemented | Incident persistence |
+| Incident observation | Own reports and authorized detail, history and progress readers implemented | Incident queries |
+| Photographs and progress persistence | Not implemented | Evidence and progress |
 | Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |
-| Categorías, consultas, indicadores e integración final | Pendientes | Catalogs and reporting |
+| Active category reader | Service, repository and read rules implemented | Incident report selection |
+| Category administration, queries and indicators | Proposed interfaces | Catalogs and reporting |
 
 La arquitectura acordada es `screen → controller → repository → service`. La pantalla no accede directamente a Firebase. Los controladores usan `ChangeNotifier`; las dependencias se reciben por constructor.
 
-Se mantiene Firebase Spark sin activar facturación. No se incorpora un servidor propio ni Cloud Functions. Las actualizaciones automáticas usarán escuchas de Firestore; la sugerencia de WebSockets no implica crear otro servidor.
+Firebase Authentication and Firestore provide account and metadata services.
+Real-time updates use Firestore listeners.
 
 The evidence contract defines a maximum file size of 3 000 000 bytes. File-provider
 configuration is separate from the incident metadata schema.
@@ -42,7 +46,7 @@ Los nombres siguientes respetan los modelos existentes. El identificador `id` se
 
 Un registro normal crea un reportante. La preparación del primer administrador se realiza administrativamente y está documentada en `autenticacion.md`.
 
-### `categories/{categoryId}`: almacenamiento pendiente
+### `categories/{categoryId}`: active reader implemented
 
 | Campo | Tipo almacenado | Regla |
 |---|---|---|
@@ -53,7 +57,12 @@ Un registro normal crea un reportante. La preparación del primer administrador 
 administration is a separate interface. Deactivation preserves `categoryId`
 references in existing incidents without requiring deletion.
 
-### `incidents/{incidentId}`: almacenamiento pendiente
+`CategoryService` queries only active documents. `CategoryRepository` parses
+them into immutable lists sorted by case-insensitive name and then ID.
+[Active category reader](categories.md) documents errors, subscriptions and
+local permission verification.
+
+### `incidents/{incidentId}`: transactional creation API
 
 | Campo | Tipo almacenado | Correspondencia con `Incident` |
 |---|---|---|
@@ -86,18 +95,27 @@ Los roles usan `.name`; estados y prioridades usan `.value`. No guardar `underRe
 
 Las fechas de escritura se establecerán con hora del servidor. El límite entre repositorio y servicio convertirá `Timestamp` a `DateTime` y viceversa. Los valores locales aún pendientes de confirmación deben manejarse explícitamente; no sustituir fechas desconocidas por una fecha inventada.
 
-### Consecutivo: `counters/incidents`, pendiente
+### Sequence: `counters/incidents`
 
 Campos acordados: `lastSequenceNumber`, integer, y `lastIncidentId`, string con el ID de la incidencia creada por ese incremento. Si todavía no existe el contador, la primera transacción parte de cero y asigna el número uno.
 
-La creación leerá el contador y escribirá contador actualizado, incidencia y evento inicial en una misma transacción. Generará los IDs necesarios antes del bloque que Firestore puede reintentar. La transacción no subirá fotografías ni mostrará mensajes de éxito.
+`IncidentService.create()` reads the counter and writes its increment, the
+incident and `history/created` in one transaction. Document references are
+fixed before the callback. `IncidentRepository.newIncidentId()` allocates the
+stable ID retained for retries. No photographs or UI effects occur inside
+the transaction.
 
-La prueba mínima crea dos reportes simultáneos y comprueba IDs distintos, números distintos y exactamente un evento inicial por reporte. La operación puede fallar sin conexión; la pantalla conservará el formulario y permitirá reintentar sin anunciar una creación confirmada.
+Creation tests execute concurrent submissions against a controlled transaction
+double and verify distinct sequences and a single initial event per report.
+The independent JavaScript SDK rule suite exercises concurrent creation
+against the local Firestore emulator. [Incident creation](incident_creation.md)
+documents the API; [Creation security](incident_security.md) documents related
+writes, minimum read permissions and bounded counter retries.
 
-The counter contract requires an increment of exactly one and a new incident
+The counter rules require an increment of exactly one and a new incident
 identified by `lastIncidentId`, with the same sequence and authenticated creator.
-Related writes require validation with `getAfter()`. A client transaction alone
-does not authorize unrestricted counter updates.
+The rule source validates related writes with `getAfter()`. A client transaction
+alone does not authorize unrestricted counter updates.
 
 ### Subcollection record formats
 
@@ -149,17 +167,23 @@ La pantalla y el controlador impiden que el administrador se quite accidentalmen
 
 `saveProfile` reemplaza un documento completo. Los módulos posteriores deben usar operaciones específicas para cambios parciales y no reconstruir perfiles con campos o roles supuestos.
 
-### `IncidentRepository`: propuesta, Partes 2 y 3
+### Incident repository interfaces
 
-Los nombres fijan la intención del contrato; las firmas Dart completas y tipos auxiliares se definirán al implementarlos. El actor se obtiene de la sesión autenticada y las reglas comprueban su UID y permisos.
+`newIncidentId()`, `create()`, `watchOwn()`, `watchById()`, `watchHistory()` and
+`watchProgress()` are implemented. Other operations in this table are proposed
+interfaces. [Incident observation](incident_observation.md) documents live
+reader signatures, metadata and session behavior. The creation service derives
+its actor from
+the authenticated session; database authorization is enforced independently.
 
 | Operación | Entrada → resultado esperado | Authorization | Historias |
 |---|---|---|---|
-| `create` | Título, descripción, categoría y ubicación → `Future<Incident>` con ID y consecutivo confirmados | Reportante | HU-05 |
-| `watchOwn` | UID propio → `Stream<List<Incident>>` | Reportante, solo sus casos | HU-07 |
-| `watchById` | `incidentId` → `Stream<Incident?>` | Propietario, técnico asignado o administrador | HU-08 |
-| `watchHistory` | `incidentId` → stream de eventos cronológicos | Mismo acceso al detalle | HU-08, HU-19 |
-| `watchProgress` | `incidentId` → stream de avances/comentarios | Mismo acceso al detalle | HU-08, HU-12 |
+| `newIncidentId` | No arguments → stable document ID; no writes | Local allocation | HU-05 |
+| `create` | Stable incident ID, title, description, category and location → `Future<Incident>` with confirmed dates and sequence | Reporter profile and authenticated author | HU-05 |
+| `watchOwn` | `userId` → `Stream<List<Incident>>`, newest first | Authenticated reporter, own UID only | HU-07 |
+| `watchById` | `incidentId` → `Stream<Incident?>` | Author, assigned technician or administrator | HU-08 |
+| `watchHistory` | `incidentId` → `Stream<List<IncidentHistoryEvent>>`, chronological | Same parent detail authorization | HU-08, HU-19 |
+| `watchProgress` | `incidentId` → `Stream<List<IncidentProgress>>`, chronological | Same parent detail authorization | HU-08, HU-12 |
 | `addProgress` | `incidentId`, descripción, referencias de evidencia opcionales → `Future<void>` | Técnico asignado durante atención | HU-12 |
 | `watchAll` | Sin argumentos → `Stream<List<Incident>>` | Administrador | HU-09 |
 | `classify` | `incidentId`, `categoryId`, prioridad → `Future<void>` | Administrador | HU-09 |
@@ -180,14 +204,14 @@ must reread the current incident and validate the related event atomically.
 
 `addProgress` guardará el avance, las referencias de evidencia relacionadas y el evento `progressAdded` de forma atómica en Firestore. La subida externa del archivo ocurre fuera de esa transacción; no se promete atomicidad entre dos proveedores.
 
-### `CategoryRepository` y consultas: propuesta, Parte 4
+### Category repository and query interfaces
 
 | Operación | Entrada → resultado esperado | Permiso y responsable | Historias |
 |---|---|---|---|
-| `watchActive` | Sin argumentos → `Stream<List<Category>>` | Sesión autenticada | Selección en HU-05 |
-| `watchAll` | Sin argumentos → `Stream<List<Category>>` | Administrador | Módulo de catálogos |
-| `create` | Nombre → categoría persistida | Administrador | Módulo de catálogos |
-| `update` | `categoryId`, nombre, `isActive` → `Future<void>` | Administrador | Módulo de catálogos |
+| `watchActive` (implemented) | No arguments → `Stream<List<Category>>` | Authenticated session | Selection in HU-05 |
+| `watchAll` (proposed) | Sin argumentos → `Stream<List<Category>>` | Administrador | Módulo de catálogos |
+| `create` (proposed) | Nombre → categoría persistida | Administrador | Módulo de catálogos |
+| `update` (proposed) | `categoryId`, nombre, `isActive` → `Future<void>` | Administrador | Módulo de catálogos |
 | Consultas e indicadores | Incidencias autorizadas y criterios → resultados/conteos | Según el rol | HU-15 a HU-18 |
 
 Search and combined filters operate on authorized incident data. Historical
@@ -249,10 +273,15 @@ Cada controlador es dueño de sus suscripciones: cancela al salir del módulo y 
 
 Las pantallas distinguen carga, lista vacía, error de lectura y error al guardar. Un snapshot posterior no debe borrar un error de guardado pendiente. Tras perder conexión se indica el estado disponible y se comprueba recuperación; no se confunde una vista local con una escritura confirmada.
 
-The current rules allow authorized operations on `users`; `categories`,
-`incidents`, `counters` and their subcollections remain denied. Each collection
-requires module-specific authorization; a general read/write grant is not part
-of the contract.
+The current rule source allows authorized operations on `users`, authenticated
+reads of active `categories` and atomic reporter creation of incidents with
+their counter increment and initial history. Authors, assigned technicians and
+administrators can read authorized incident details, history and progress.
+Reporters can query their own incidents and read the creation counter. Valid
+stored profiles can probe absent incident IDs. Incident updates, history mutation,
+category writes, progress and evidence writes remain denied. Each operation
+requires explicit
+authorization; a general read/write grant is not part of the contract.
 
 Se comprobarán consultas y escrituras directas no autorizadas, transiciones inválidas y ausencia de eventos huérfanos. Las pruebas deben intentar modificar UID, rol, consecutivo, actor y fechas; esconder botones no constituye una prueba de seguridad.
 

@@ -71,6 +71,16 @@ use `--no-pub` so dependency resolution is not repeated during each command.
 The generated `.dart_tool/`, `.fvm/` and `build/` directories are excluded from
 version control.
 
+Firestore rule tests use a separate package with its own committed lockfile.
+They require Java 21 on `PATH`; a pretest check enforces this major version.
+See [Active category reader](categories.md) for terminal configuration and
+emulator behavior.
+
+```text
+npm ci --prefix tool/firestore_tests
+npm test --prefix tool/firestore_tests
+```
+
 ## Verification results
 
 Verified on Windows on October 21, 2026:
@@ -86,11 +96,18 @@ Verified on Windows on October 21, 2026:
 | Invocation from another directory | Passed; configuration is resolved relative to the script. |
 | `flutter pub get --enforce-lockfile` | Passed; dependency declarations and lockfile unchanged. |
 | `flutter analyze --no-pub` | No issues found. |
-| `flutter test --no-pub` | 76 tests passed. |
+| `flutter test --no-pub` | 129 tests passed. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
+| Java runtime for rule tests | `21.0.9`. |
+| `npm ci --prefix tool/firestore_tests` | Passed; test dependencies restored from the lockfile. |
+| `npm test --prefix tool/firestore_tests` | 53 Firestore rule tests passed against the local emulator: 29 creation, 14 read and 10 category/profile tests. |
 
-The Flutter tests exercise model conversion and presentation/controller behavior
-with local repositories. They do not verify deployed Firestore security rules.
+The Flutter tests exercise model conversion, category observation, incident
+creation callbacks and presentation/controller behavior with controlled
+dependencies. Creation tests model optimistic conflicts and atomic writes
+without a Firestore server. Observation tests cover confirmed snapshot metadata,
+session changes, cancellation and initial response deadlines. The Firestore
+tests verify the local rule source against the emulator; they do not deploy rules.
 The FVM commands above describe the optional setup; the recorded checks used
 the matching Flutter SDK directly.
 

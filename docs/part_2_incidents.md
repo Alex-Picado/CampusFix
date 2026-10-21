@@ -161,7 +161,7 @@ Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
 | Check | Result |
 | --- | --- |
 | `flutter analyze --no-pub` | No issues found. |
-| `flutter test --no-pub` | 76 tests passed, including 45 incident-record tests. |
+| `flutter test --no-pub` | 129 tests passed, including 45 incident-record tests. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 
 Model tests cover the field contracts, initial and nullable values, date
