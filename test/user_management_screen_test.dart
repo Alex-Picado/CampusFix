@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/test_repositories.dart';
+import 'support/report_repositories.dart';
 
 void main() {
   testWidgets('Only an open administrator user page observes all accounts', (
@@ -278,15 +279,19 @@ Future<_TestApp> _mount(
   users.profiles['current-user'] = _currentUser(role);
   users.profiles['other-user'] = _otherUser();
   final auth = TestAuthRepository(users: users, currentUserId: 'current-user');
+  final categories = TestReportCategories();
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     await auth.close();
     await users.close();
+    await categories.close();
   });
   await tester.pumpWidget(
     AppProviders(
       authRepository: auth,
       userRepository: users,
+      categoryRepository: categories,
+      incidentRepository: TestReportIncidents(),
       child: const MyApp(),
     ),
   );

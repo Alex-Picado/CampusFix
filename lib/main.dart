@@ -7,6 +7,10 @@ import 'app/campusfix_app.dart';
 import 'app/providers/app_providers.dart';
 import 'features/auth/repositories/auth_repository.dart';
 import 'features/auth/services/auth_service.dart';
+import 'features/catalogs/repositories/category_repository.dart';
+import 'features/catalogs/services/category_service.dart';
+import 'features/incidents/repositories/incident_repository.dart';
+import 'features/incidents/services/incident_service.dart';
 import 'features/users/repositories/user_repository.dart';
 import 'features/users/services/user_service.dart';
 import 'firebase_options.dart';
@@ -17,11 +21,13 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  final firestore = FirebaseFirestore.instance;
+  final authService = AuthService(auth: FirebaseAuth.instance);
   final userRepository = UserRepository(
-    userService: UserService(firestore: FirebaseFirestore.instance),
+    userService: UserService(firestore: firestore),
   );
   final authRepository = AuthRepository(
-    authService: AuthService(auth: FirebaseAuth.instance),
+    authService: authService,
     userRepository: userRepository,
   );
 
@@ -29,6 +35,15 @@ Future<void> main() async {
     AppProviders(
       authRepository: authRepository,
       userRepository: userRepository,
+      categoryRepository: CategoryRepository(
+        categoryService: CategoryService(firestore: firestore),
+      ),
+      incidentRepository: IncidentRepository(
+        incidentService: IncidentService(
+          firestore: firestore,
+          authService: authService,
+        ),
+      ),
       child: const MyApp(),
     ),
   );

@@ -11,6 +11,7 @@ import 'package:campusfix/features/users/models/user_role.dart';
 import 'package:campusfix/main.dart';
 
 import 'support/test_repositories.dart';
+import 'support/report_repositories.dart';
 
 void main() {
   testWidgets(
@@ -195,6 +196,8 @@ void main() {
           expect(find.byKey(const ValueKey('profile-page')), findsOneWidget);
         } else if (destination == CampusDestination.users) {
           expect(find.byKey(const ValueKey('users-page')), findsOneWidget);
+        } else if (destination == CampusDestination.incidents) {
+          expect(find.byKey(const ValueKey('report-page')), findsOneWidget);
         } else {
           expect(
             find.byKey(ValueKey('preview-${destination.name}')),
@@ -393,7 +396,7 @@ void main() {
       await _enter(tester, 'profile-name', 'Nombre de la cuenta anterior');
       await tester.tap(find.byKey(const ValueKey('profile-save')));
       await tester.pump();
-    expect(app.users.nameUpdateCalls, 1);
+      expect(app.users.nameUpdateCalls, 1);
       await _tap(tester, 'session-sign-out');
       expect(find.byKey(const ValueKey('auth-email')), findsOneWidget);
 
@@ -445,6 +448,7 @@ Future<_TestApp> _mountApp(
   final users = TestUserRepository();
   users.profiles['campus-user'] = _profile(role ?? UserRole.reporter);
   final auth = TestAuthRepository(users: users);
+  final categories = TestReportCategories();
   if (role != null) {
     auth.currentUserId = 'campus-user';
   }
@@ -453,11 +457,14 @@ Future<_TestApp> _mountApp(
     await tester.pumpWidget(const SizedBox.shrink());
     await auth.close();
     await users.close();
+    await categories.close();
   });
   await tester.pumpWidget(
     AppProviders(
       authRepository: auth,
       userRepository: users,
+      categoryRepository: categories,
+      incidentRepository: TestReportIncidents(),
       child: const MyApp(),
     ),
   );

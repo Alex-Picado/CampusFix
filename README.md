@@ -10,8 +10,8 @@ history events atomically, with stable IDs for retrying submissions.
 Firestore rules validate the related writes and initial report fields.
 Live incident readers provide own reports and authorized details, history and
 technician progress with subscriptions tied to the authenticated session.
-A report controller manages validated drafts, stable submission retries and
-server reconciliation, clearing its private state when the session ends.
+The reporting form manages validated drafts, stable submission retries and
+server reconciliation, clearing its private state when the view or session ends.
 
 ## Documentation
 

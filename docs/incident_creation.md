@@ -100,8 +100,8 @@ retry recovery. [Authorized readers](incident_observation.md) provide own
 queries and detail, history and progress reads. Other incident mutations remain
 denied.
 [The report controller](incident_reporting.md) supplies validated drafts,
-stable retries and reconciliation through this API. A report form is not yet
-connected in the current application.
+stable retries and reconciliation through this API. The reporting screen uses
+that controller and the shared application providers.
 
 The creation tests use a controlled database double to execute the production
 repository and transaction callback. The double models read conflicts, atomic

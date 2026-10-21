@@ -97,9 +97,26 @@ Server authorization remains independent of these presentation checks.
 
 Draft fields and unresolved submission state exist only for this controller's
 lifetime. They are not restored from disk or after a browser reload. Confirmed
-incidents persist through Firestore. This controller is available independently
-of a reporting screen; the application's existing report placeholder remains
-unchanged.
+incidents persist through Firestore.
+
+## Reporting screen
+
+`IncidentReportScreen` is available to reporters through **Mis incidencias**.
+It reuses `PageHeading`, `SectionCard` and the shell's scrollable layout. The
+screen owns its controller through Provider and cancels observation on exit.
+`main.dart` constructs the incident and category repositories, and `AppProviders`
+shares them without opening a query until the form is mounted.
+
+The form accepts title, description, active category and location. It displays
+field errors, category loading/empty/error states and confirmed creation with
+its sequence. Pending fields remain read-only. **Reintentar guardado** resends
+the same submission; **Editar datos** checks the server before unlocking fields.
+**Crear otra incidencia** resets the confirmed form. Buttons wrap on narrow
+screens, and tablet navigation uses the existing drawer.
+
+The Firestore connection requires the incident rules and active categories
+described in [Creation security](incident_security.md). The widget tests use
+local repositories and do not verify a deployed Firebase configuration.
 
 ## Verification
 
@@ -121,7 +138,8 @@ Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
 | Check | Result |
 | --- | --- |
 | Focused controller suite | 30 tests passed. |
-| `flutter test --no-pub` | 159 tests passed. |
+| Report screen suite | 9 widget tests passed with real application controllers, desktop and tablet layouts, and controlled repositories. |
+| `flutter test --no-pub` | 168 tests passed. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 
@@ -137,6 +155,8 @@ The persistence and security suites are documented separately in
 ## References
 
 - [Report controller](../lib/features/incidents/controllers/incident_report_controller.dart).
+- [Reporting screen](../lib/features/incidents/screens/incident_report_screen.dart).
+- [Screen tests](../test/incident_report_screen_test.dart).
 - [Draft model](../lib/features/incidents/models/incident_draft.dart).
 - [Controller tests](../test/features/incidents/controllers/incident_report_controller_test.dart).
 - [Active category reader](categories.md).

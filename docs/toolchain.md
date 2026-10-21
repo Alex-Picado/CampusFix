@@ -96,7 +96,7 @@ Verified on Windows on October 21, 2026:
 | Invocation from another directory | Passed; configuration is resolved relative to the script. |
 | `flutter pub get --enforce-lockfile` | Passed; dependency declarations and lockfile unchanged. |
 | `flutter analyze --no-pub` | No issues found. |
-| `flutter test --no-pub` | 159 tests passed, including 30 report-controller tests. |
+| `flutter test --no-pub` | 168 tests passed, including 30 report-controller tests and 9 report-screen tests. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 | Java runtime for rule tests | `21.0.9`. |
 | `npm ci --prefix tool/firestore_tests` | Passed; test dependencies restored from the lockfile. |
