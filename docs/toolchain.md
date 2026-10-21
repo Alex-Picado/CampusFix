@@ -86,7 +86,7 @@ Verified on Windows on October 21, 2026:
 | Invocation from another directory | Passed; configuration is resolved relative to the script. |
 | `flutter pub get --enforce-lockfile` | Passed; dependency declarations and lockfile unchanged. |
 | `flutter analyze --no-pub` | No issues found. |
-| `flutter test --no-pub` | 50 tests passed. |
+| `flutter test --no-pub` | 76 tests passed. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 
 The Flutter tests exercise model conversion and presentation/controller behavior

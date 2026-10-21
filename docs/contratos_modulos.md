@@ -1,7 +1,7 @@
 # CampusFix: contratos entre módulos
 
-The [Incident model reference](part_2_incidents.md) describes serialization,
-validation and immutable updates. [Runtime configuration](toolchain.md)
+The [Incident model reference](part_2_incidents.md) describes incident, progress,
+history and evidence serialization. [Runtime configuration](toolchain.md)
 documents the executable versions and verification commands.
 
 ## Alcance y estado de este acuerdo
@@ -99,21 +99,32 @@ identified by `lastIncidentId`, with the same sequence and authenticated creator
 Related writes require validation with `getAfter()`. A client transaction alone
 does not authorize unrestricted counter updates.
 
-### Subcolecciones: diseño pendiente de implementación
+### Subcollection record formats
 
-El enunciado describe fotografías, comentarios e historial conceptualmente. El uso de subcolecciones es una decisión técnica del equipo para evitar que el documento de la incidencia crezca con cada actualización.
+`IncidentProgress`, `IncidentHistoryEvent` and `IncidentEvidence` provide
+`toMap()` and `fromMap()` conversions for their record fields. Document IDs
+remain separate from those fields. Dates use `DateTime` in models and require
+timestamp conversion at the persistence boundary.
 
-| Ruta | Campos propuestos | Data area |
+| Ruta | Model fields | Model |
 |---|---|---|
-| `incidents/{incidentId}/progress/{progressId}` | `authorUserId`, `createdAt`, `description` | Technician progress |
-| `incidents/{incidentId}/history/{eventId}` | `actorUserId`, `createdAt`, `action`, `fromStatus`, `toStatus`, `fromTechnicianId`, `toTechnicianId`, `reason` | Creation and lifecycle events |
-| `incidents/{incidentId}/evidence/{evidenceId}` | `uploadedByUserId`, `createdAt`, `provider`, `assetId`, `url`, `fileName`, `contentType`, `sizeBytes`, `progressId` | Evidence metadata |
+| `incidents/{incidentId}/progress/{progressId}` | `authorUserId`, `createdAt`, `description` | `IncidentProgress` |
+| `incidents/{incidentId}/history/{eventId}` | `actorUserId`, `createdAt`, `action`, `fromStatus`, `toStatus`, `fromTechnicianId`, `toTechnicianId`, `reason` | `IncidentHistoryEvent` |
+| `incidents/{incidentId}/evidence/{evidenceId}` | `uploadedByUserId`, `createdAt`, `provider`, `assetId`, `url`, `fileName`, `contentType`, `sizeBytes`, `progressId` | `IncidentEvidence` |
 
-Los modelos de avance, evento y evidencia todavía no existen. Sus IDs se obtendrán de los documentos y las fechas usarán `Timestamp`. Los estados dentro del historial siguen los mismos valores `.value` que la incidencia.
+The history model uses the same `IncidentStatus.value` strings as the incident.
+Unresolved dates and unsupported stored values raise `FormatException`.
 
-`action` usará códigos compartidos en inglés: `created`, `classified`, `assigned`, `started`, `progressAdded`, `resolved`, `closed`, `rejected`, `cancelled`, `reopened`. Los campos de antes/después no aplicables y `reason` opcional se guardarán como null; los motivos requeridos no estarán vacíos.
+`IncidentHistoryAction` defines the English codes `created`, `classified`,
+`assigned`, `started`, `progressAdded`, `resolved`, `closed`, `rejected`,
+`cancelled` and `reopened`. Optional fields are serialized as null. Present
+technician identifiers and reasons must be nonblank.
 
-`progressId` será null para evidencia del reporte inicial y contendrá el ID del avance cuando corresponda. `assetId` identifica el archivo en el proveedor; `url` es su referencia de consulta. Firestore no almacenará los bytes ni imágenes en Base64.
+`IncidentEvidence.provider` is `local`. Metadata accepts JPEG, PNG and WebP
+content types and a positive size up to 3 000 000 bytes. `progressId` is null
+for a report photograph or identifies its related progress entry. `assetId`
+identifies the file and `url` contains its retrieval reference. Serialized
+metadata contains neither image bytes nor Base64 data.
 
 El detalle debe mostrar fotografías, comentarios e historial (HU-08). La propuesta representa los comentarios de seguimiento mediante `progress.description`, con autor y fecha; esos textos deben verse en el detalle y no quedar ocultos en otra pantalla. Si el profesor requiere además comentarios libres distintos de los avances, se acordará ese alcance antes de crear otro contrato.
 
