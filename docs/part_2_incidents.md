@@ -1,220 +1,103 @@
-# CampusFix: Part 2 - Incidents, Evidence and Progress
+# CampusFix: Incident Model
 
-## Scope and current status
+## Overview
 
-Jose Daniel owns HU-05, HU-06, HU-07, HU-08 and HU-12. This document records
-the agreed scope, acceptance criteria and delivery plan. It does not describe
-completed incident functionality.
+`Incident` is an immutable representation of a campus service report. It stores
+the report's identity, description, category, location, state, dates and user
+references. Serialization preserves the data contract and keeps the document
+identifier separate from its stored fields.
 
-The baseline was inspected on October 21, 2026, at commit
-`34739c64c6a4b23d086e3885696f2e329c8d762a`. The working tree was clean. A remote
-fetch confirmed that local `main` matched `origin/main` before creating
-`JDSM/parte-2`.
+## Data structure
 
-| Area | Baseline status | Part 2 responsibility |
+| Property | Model type | Description |
 | --- | --- | --- |
-| Authentication, sessions, profiles and roles | Implemented in Part 1 | Reuse the existing behavior. |
-| Profile editing and administrator user management | Implemented in Part 1 | Preserve existing behavior and tests. |
-| Shared navigation and responsive components | Implemented in Part 1 | Connect the incident screens. |
-| `Incident` | Fields and constructor exist; serialization is missing | Add conversion and copy operations. |
-| `IncidentStatus` and `IncidentPriority` | Stored-value conversion exists | Preserve the existing stored values. |
-| `Category` | Model conversion exists; persistence is pending | Add only the reads required by the reporting form. |
-| Reports, sequences, personal queries and detail | Not implemented | Implement HU-05, HU-07 and HU-08. |
-| Photographs and technician progress | Not implemented | Implement HU-06 and HU-12. |
-| Firestore authorization | User rules exist; other collections are denied | Add module-specific rules and indexes. |
+| `id` | `String` | Document identifier supplied separately to `fromMap()`; excluded from `toMap()`. |
+| `sequenceNumber` | `int` | Positive consecutive number displayed for the report. |
+| `title` | `String` | Short description of the problem. |
+| `description` | `String` | Detailed description of the problem. |
+| `categoryId` | `String` | Referenced category identifier. |
+| `location` | `String` | Location within the campus. |
+| `priority` | `IncidentPriority?` | Optional priority, serialized as `BAJA`, `MEDIA` or `ALTA`. |
+| `status` | `IncidentStatus` | Report state, serialized using its stored value. |
+| `createdAt` | `DateTime` | Creation time. |
+| `updatedAt` | `DateTime` | Last modification time. |
+| `createdByUserId` | `String` | Identifier of the reporting account. |
+| `assignedTechnicianId` | `String?` | Optional assigned technician identifier. |
+| `resolutionDescription` | `String?` | Optional resolution description. |
 
-Classification, assignment, starting attention, resolution, closure and other
-status transitions belong to Christian in Part 3. Category administration,
-search, filters, indicators and final publication belong to Daniel in Part 4.
-Part 2 will not implement those operations to make demonstrations work.
+The constructor defaults `status` to `IncidentStatus.reported` (`REPORTADA`).
+Priority, assigned technician and resolution default to null.
 
-The existing [module contracts](contratos_modulos.md) remain the source of shared
-field names, status values and responsibilities. The local evidence decision
-below supersedes their earlier cloud-file-provider and no-custom-server
-assumptions only for Part 2 evidence storage.
+## Serialization and validation
 
-## Architecture and shared interfaces
-
-Keep `screen -> controller -> repository -> service`, constructor-injected
-dependencies and Provider. Controllers use `ChangeNotifier`. Screens must not
-access Firestore or the local file API directly. Public classes, methods and new
-documentation use English; visible interface text remains Spanish.
-
-| Interface | Planned operations | Boundary |
-| --- | --- | --- |
-| `IncidentRepository` | `create`, `watchOwn`, `watchById`, `watchHistory`, `watchProgress`, `addProgress` | Only the operations owned by Part 2. |
-| `EvidenceRepository` | `upload`, `attachToIncident`, `watchByIncident`, authenticated image loading | File transfer is separate from Firestore metadata. |
-| Category reader | `watchActive` | No category administration. |
-| Incident detail route | `/incidents/:id` | Require authentication and enforce data authorization. |
-
-Preserve the agreed incident fields, `UserRole.name`, `IncidentStatus.value` and
-`IncidentPriority.value`. Document IDs remain separate from stored fields.
-Convert Firestore timestamps at the service/repository boundary. Do not replace
-pending server timestamps with fabricated dates.
-
-Create the incident, increment `counters/incidents` by exactly one, and record
-the initial `created` event in one transaction. Prepare stable operation IDs
-before retryable work and reuse them when reconciling an uncertain result.
-Keep file uploads outside the transaction.
-
-Personal queries filter by the authenticated UID in Firestore. Restrict detail,
-history, progress and evidence reads to the owner, assigned technician or
-administrator. Display only authorized profile information; retain stable actor
-IDs when another person's profile cannot be read under the existing user rules.
-
-Only the assigned technician may add progress while the incident is
-`EN_ATENCION`. Save the progress, its evidence references and the `progressAdded`
-event atomically in Firestore. HU-08 comments are the progress descriptions, as
-defined in the module contracts. History records are immutable from the client.
-
-Controllers own and cancel their subscriptions. Leaving a module, signing out
-or changing accounts must clear private state and ignore stale callbacks.
-Distinguish loading, empty, read-error, save-error and confirmed-success states.
-Preserve drafts and pending attachment references on recoverable failures and
-prevent overlapping submissions.
-
-## Local evidence storage decision
-
-Keep Firebase Authentication and Cloud Firestore. Replace only the photograph
-storage provider: neither Firebase Storage nor Cloudinary will be used for
-Part 2 files.
-
-The assignment describes cloud evidence storage. This records the requested
-local substitution; academic acceptance has not been verified. It does not
-claim compliance with the original cloud-file-storage requirement.
-
-Flutter Web cannot write directly into the repository's filesystem. Include a
-local Node.js service and the versioned `local_storage/evidence/` folder so a
-clone contains the service and photographs committed with that revision.
-
-| Decision | Planned behavior |
+| API | Behavior |
 | --- | --- |
-| Service address | Default to `127.0.0.1:8787`; allow client and service configuration. |
-| Authentication | Send a Firebase ID token; verify it using Firebase Admin. |
-| Authorization | Read relevant Firestore documents through REST with the caller's token, preserving Firestore rules. |
-| Credentials | Do not require or commit administrative service-account keys. |
-| API | Upload and download by incident ID and stable evidence ID; no public directory listing. |
-| Validation | Accept JPEG, PNG and WebP; validate content and size in the client and service. |
-| Size limit | At most 3 000 000 bytes per file, inclusive. |
-| Paths | Use generated IDs as physical names and portable relative references. |
-| Metadata | Preserve the evidence fields with `provider: local`; do not store image bytes or Base64 in Firestore. |
-| Retries | Retain uploaded-file references when association fails; avoid duplicate files and attachments. |
-| Persistence | Preserve files across browser refreshes and local-service restarts. |
+| `toMap()` | Returns the stored fields, with enum values, `DateTime` dates and explicit null optional fields. Excludes `id`. |
+| `Incident.fromMap(id: ..., data: ...)` | Constructs an incident from a document identifier and normalized fields. Missing optional fields become null; unrecognized fields are ignored. |
+| `copyWith(...)` | Returns a separate instance with selected fields replaced, preserving the report's identity and creation metadata. |
 
-Photographs included in a delivery will be versioned after approval. Newly
-uploaded files reach another computer only after an approved commit and push,
-followed by updating that clone. GitHub is not a live upload or synchronization
-service. Missing files must produce a recoverable message.
+`fromMap()` validates the input before constructing the model. Required text
+and identifiers must be nonblank, the sequence must be a positive integer, and
+status and priority must use supported stored values. An assigned technician
+identifier must be nonblank when present. Invalid types, missing required
+fields and unsupported enum values raise `FormatException`.
 
-Authentication protects service endpoints. A photograph committed to Git also
-has the visibility of the repository and its history; endpoint access controls
-do not protect the raw versioned copy.
+Valid text is preserved exactly, including surrounding whitespace and line
+breaks. An `id` field inside the map does not override the document identifier
+supplied to the factory.
 
-Provide portable startup instructions and emulator-only demonstration data,
-including categories and an assigned incident already in attention. Fixtures
-must not create production assignments or bypass production rules. Final
-Internet publication is outside this delivery; a local-only service is not a
-remotely hosted evidence endpoint.
+Dates must be confirmed `DateTime` values. Raw Firestore `Timestamp` values
+require conversion with `toDate()` before parsing. Null, missing or unconverted
+dates are rejected. The parser does not substitute the current time or supply
+an initial state when a stored state is missing.
 
-## Acceptance criteria and required evidence
+`toMap()` retains dates as `DateTime`; it does not perform JSON encoding or set
+server timestamps. Database conversion, writes and authorization are separate
+from the model operations.
 
-Implementation and functional verification below are pending in this first
-documentation block. Existing Part 1 results are historical evidence, not
-results from a new execution.
+## Immutable updates
 
-| Story or concern | Acceptance criteria | Required verification |
-| --- | --- | --- |
-| HU-05: create an incident | Validated fields, ID, unique sequence, authenticated creator, server dates and `REPORTADA` status. | Concurrent reports receive distinct IDs and numbers, with one initial event each. Retry an uncertain result without duplication. |
-| HU-06: attach evidence | Valid photographs remain associated after reload and service restart. Failed operations allow retry. | JPEG/PNG/WebP, exact size limit, oversized/invalid content, stopped service, upload retry and association retry. |
-| HU-07: personal reports | The reporter sees only their own reports. | Two reporters, an unauthorized collection query and direct access to another reporter's case. |
-| HU-08: detail and history | Authorized users see state, responsible actors, photographs, progress comments and chronological history. | Live updates, missing/inaccessible cases, immutable history and denied reads by unrelated accounts. |
-| HU-12: technician progress | Each advance records author, server date, description and optional evidence. | Allow the assigned technician in attention; reject unrelated actors and incompatible states. Verify atomic records and retries. |
-| Sessions and errors | Clear loading/success/error messages; account changes remove private data. | Sign out or switch accounts during reads and writes; verify cancellation and late-response isolation. |
-| Security | Firestore and the service independently enforce permissions. | Alter UID, role, sequence, dates, events, evidence IDs and paths in direct requests; verify rejection. |
-| Portability and layout | A fresh clone runs the service and uses its committed photographs. | Second checkout, refresh, service restart, desktop and tablet layouts. |
-| Regression | Part 1 functionality remains operational. | Analysis, Flutter tests, web build, local-service tests and Firestore emulator tests. |
+`copyWith()` preserves `id`, `sequenceNumber`, `createdByUserId` and `createdAt`.
+Omitted or null arguments preserve their existing values. Explicit clearing is
+available for nullable fields:
 
-Use emulator tests for concurrency and authorization. UI visibility and mocked
-repositories do not prove effective security. Record runtime versions, commands
-and actual outcomes. Distinguish automated results, confirmed manual checks and
-pending verification.
-
-## Runtime compatibility and verification status
-
-The installed SDK cache inspected during planning identifies Flutter `3.47.5`
-and Dart `3.13.4`, although its directory name contains `3.47.2`. The project's
-Dart constraint, `^3.13.0`, accepts the inspected Dart version. Node.js reported
-`24.19.0` during planning.
-
-Flutter execution was initially blocked because its cache is outside the
-writable workspace. Approved tool access resolved runtime startup without an
-SDK upgrade. Block 2 adds the version pins and a verifier; exact commands,
-results and remaining checks are recorded in [Reproducible toolchain](toolchain.md).
-
-Preserve the existing dependency lockfile and lock added dependencies. Do not
-perform a general dependency upgrade or change the global Flutter installation
-for this module. Review dependency changes and rerun verification before
-integration.
-
-Required final checks are `flutter analyze`, `flutter test`, `flutter build web`,
-local-service tests and Firestore emulator integration/security tests. Record
-environment failures separately from application failures. Historical results
-remain in [Authentication and sessions](autenticacion.md); the new baseline
-results are documented separately in the toolchain guide.
-
-## Incremental delivery and Git approval workflow
-
-Work on `JDSM/parte-2`, created from updated `main`. Git rejects the originally
-requested `JDSM/parte 2` because it contains a space. Use the existing local
-Jose Daniel Git identity for commits.
-
-Prepare only the current block. Before each commit/push pair, present its exact
-changes, verification results and commit message. Wait for explicit user
-acceptance. One acceptance authorizes only that presented commit and its
-immediate push to `origin/JDSM/parte-2`, not later commits. Confirm the push
-before preparing the next block. If it fails, recover the same commit without
-creating a duplicate or continuing to the next block.
-
-The first push will explicitly set the feature branch upstream. Keep the
-individual commits for Christian's review and eventual integration; do not
-push feature work to `main` or squash the delivery into a single commit.
-
-Each block must be coherent and include relevant verification. This table is
-the planned order. Block 1 was committed and pushed as `9fe64b6` after approval.
-Block 2 is prepared for approval; blocks 3-24 remain planned.
-
-| Block | Proposed commit message |
+| Parameter | Effect when true |
 | --- | --- |
-| 1 | `docs(incidents): document part two scope and acceptance criteria` |
-| 2 | `build(toolchain): pin runtimes and verify the project baseline` |
-| 3 | `feat(incidents): implement incident serialization` |
-| 4 | `feat(incidents): add evidence progress and history models` |
-| 5 | `feat(incidents): read active categories for incident reports` |
-| 6 | `feat(incidents): create reports with transactional sequences` |
-| 7 | `feat(incidents): secure report creation counters and initial history` |
-| 8 | `feat(incidents): observe authorized reports and incident details` |
-| 9 | `feat(incidents): manage report drafts and submission state` |
-| 10 | `feat(incidents): add the incident reporting form` |
-| 11 | `feat(incidents): connect the personal incident list` |
-| 12 | `build(evidence): add the local service and versioned storage folder` |
-| 13 | `feat(evidence): authorize local file access with Firebase sessions` |
-| 14 | `feat(evidence): implement validated uploads and protected downloads` |
-| 15 | `test(evidence): cover persistence validation and upload retries` |
-| 16 | `feat(evidence): add photo selection and authenticated requests` |
-| 17 | `feat(evidence): persist attachments with recoverable retries` |
-| 18 | `feat(evidence): display incident photographs and loading states` |
-| 19 | `feat(incidents): display live details comments and history` |
-| 20 | `feat(incidents): save authorized technician progress atomically` |
-| 21 | `feat(incidents): add the technician progress form` |
-| 22 | `test(incidents): verify concurrency permissions and complete workflows` |
-| 23 | `build(incidents): add portable startup and demonstration fixtures` |
-| 24 | `docs(incidents): record verification evidence and integration guidance` |
+| `clearPriority` | Sets `priority` to null. |
+| `clearAssignedTechnician` | Sets `assignedTechnicianId` to null. |
+| `clearResolution` | Sets `resolutionDescription` to null. |
 
-## Technical references
+A clear flag takes precedence over a simultaneous replacement for that field.
+The original instance remains unchanged. Constructor and copy operations do not
+enforce lifecycle transitions or authorize database writes.
 
-- [Flutter Web filesystem limitations](https://docs.flutter.dev/platform-integration/web/faq): why uploads require a local service.
-- [Firestore transactions](https://firebase.google.com/docs/firestore/manage-data/transactions): atomic creation and concurrent sequences.
-- [Firestore security conditions](https://firebase.google.com/docs/firestore/security/rules-conditions): related-document authorization.
-- [Firebase ID token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens): local-service authentication.
-- [Firestore REST authentication](https://firebase.google.com/docs/firestore/use-rest-api): caller-token access subject to rules.
-- [Security Rules unit tests](https://firebase.google.com/docs/rules/unit-tests): emulator-based verification.
+```dart
+final corrected = incident.copyWith(
+  title: 'Broken classroom light',
+  location: 'Building A, classroom 2',
+);
+
+final withoutPriority = corrected.copyWith(clearPriority: true);
+```
+
+## Verification
+
+Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
+
+| Check | Result |
+| --- | --- |
+| `flutter analyze --no-pub` | No issues found. |
+| `flutter test --no-pub` | 50 tests passed, including 19 incident-model tests. |
+| `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
+
+Model tests cover the field contract, initial and nullable values, date
+precision, unknown fields, invalid types, unsupported enum values, unresolved
+timestamps, identity preservation and explicit field clearing. These are model
+checks; they do not exercise Firestore writes or security rules.
+
+## References
+
+- [Incident implementation](../lib/features/incidents/models/incident.dart).
+- [Incident model tests](../test/features/incidents/models/incident_test.dart).
+- [Shared data contracts](contratos_modulos.md).
+- [Runtime configuration and verification](toolchain.md).
