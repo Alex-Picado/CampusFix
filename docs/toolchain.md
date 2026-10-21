@@ -96,7 +96,7 @@ Verified on Windows on October 21, 2026:
 | Invocation from another directory | Passed; configuration is resolved relative to the script. |
 | `flutter pub get --enforce-lockfile` | Passed; dependency declarations and lockfile unchanged. |
 | `flutter analyze --no-pub` | No issues found. |
-| `flutter test --no-pub` | 129 tests passed. |
+| `flutter test --no-pub` | 159 tests passed, including 30 report-controller tests. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 | Java runtime for rule tests | `21.0.9`. |
 | `npm ci --prefix tool/firestore_tests` | Passed; test dependencies restored from the lockfile. |
@@ -106,7 +106,9 @@ The Flutter tests exercise model conversion, category observation, incident
 creation callbacks and presentation/controller behavior with controlled
 dependencies. Creation tests model optimistic conflicts and atomic writes
 without a Firestore server. Observation tests cover confirmed snapshot metadata,
-session changes, cancellation and initial response deadlines. The Firestore
+session changes, cancellation and initial response deadlines. Report controller
+tests cover validation, frozen submission retries, reconciliation and private
+state cleanup using controlled repositories. The Firestore
 tests verify the local rule source against the emulator; they do not deploy rules.
 The FVM commands above describe the optional setup; the recorded checks used
 the matching Flutter SDK directly.

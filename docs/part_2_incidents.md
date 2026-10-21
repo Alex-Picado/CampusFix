@@ -154,6 +154,17 @@ content inspection and access authorization are separate from serialization.
 `toMap()` excludes the document identifier and includes the optional association
 explicitly, including null.
 
+## Report draft
+
+`IncidentDraft` stores raw title, description, category selection and location
+as immutable in-memory input. `copyWith()` updates individual fields and
+`clearCategory` explicitly clears selection. `normalized()` trims text for
+submission without changing category identity or internal line breaks. It has
+no database serialization or persistence metadata.
+
+[Report draft and submission controller](incident_reporting.md) documents the
+controller that validates drafts and retains stable IDs for uncertain writes.
+
 ## Verification
 
 Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
@@ -161,7 +172,7 @@ Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
 | Check | Result |
 | --- | --- |
 | `flutter analyze --no-pub` | No issues found. |
-| `flutter test --no-pub` | 129 tests passed, including 45 incident-record tests. |
+| `flutter test --no-pub` | 159 tests passed, including 45 incident-record tests and 30 report-controller tests. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 
 Model tests cover the field contracts, initial and nullable values, date

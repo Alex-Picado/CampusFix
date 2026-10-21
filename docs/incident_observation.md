@@ -105,7 +105,7 @@ Verified on October 21, 2026, with Flutter `3.47.5`, Dart `3.13.4` and Java `21.
 
 | Check | Result |
 | --- | --- |
-| `flutter test --no-pub` | 129 tests passed, including 19 observation tests. |
+| `flutter test --no-pub` | 159 tests passed, including 19 observation tests. |
 | `npm test --prefix tool/firestore_tests` | 53 rule tests passed, including 14 read tests. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
