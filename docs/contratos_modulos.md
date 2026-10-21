@@ -17,6 +17,7 @@ services.
 | `Incident`, `IncidentStatus`, `IncidentPriority` | Model conversion and copy operations implemented | Incident data |
 | Incident creation and sequences | Transactional service, repository and related-write security rules implemented | Incident persistence |
 | Incident observation | Own reports and authorized detail, history and progress readers implemented | Incident queries |
+| Personal incident list | Live account-bound list, error recovery and report-form navigation implemented | Reporter interface |
 | Report drafts and submission | Account-bound form and controller with validation, stable retries and reconciliation implemented | Report presentation state |
 | Photographs and progress persistence | Not implemented | Evidence and progress |
 | Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |

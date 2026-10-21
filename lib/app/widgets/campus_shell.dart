@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../features/auth/controllers/auth_controller.dart';
-import '../../features/incidents/screens/incident_report_screen.dart';
+import '../../features/incidents/screens/my_incidents_screen.dart';
 import '../../features/users/models/user_profile.dart';
 import '../../features/users/presentation/user_role_labels.dart';
 import '../../features/users/screens/profile_screen.dart';
@@ -183,10 +183,7 @@ class _CampusShellState extends State<CampusShell> {
     }
 
     if (_selected == CampusDestination.incidents) {
-      return IncidentReportScreen(
-        userId: widget.profile.id,
-        onBack: () => _select(CampusDestination.overview),
-      );
+      return MyIncidentsScreen(userId: widget.profile.id);
     }
 
     return ModulePreviewScreen(

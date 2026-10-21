@@ -101,7 +101,7 @@ incidents persist through Firestore.
 
 ## Reporting screen
 
-`IncidentReportScreen` is available to reporters through **Mis incidencias**.
+`IncidentReportScreen` opens through **Mis incidencias → Crear incidencia**.
 It reuses `PageHeading`, `SectionCard` and the shell's scrollable layout. The
 screen owns its controller through Provider and cancels observation on exit.
 `main.dart` constructs the incident and category repositories, and `AppProviders`
@@ -138,8 +138,8 @@ Verified on October 21, 2026, with Flutter `3.47.5` and Dart `3.13.4`:
 | Check | Result |
 | --- | --- |
 | Focused controller suite | 30 tests passed. |
-| Report screen suite | 9 widget tests passed with real application controllers, desktop and tablet layouts, and controlled repositories. |
-| `flutter test --no-pub` | 168 tests passed. |
+| Incident screen suite | 15 widget tests passed: 9 report-form tests and 6 own-list tests with controlled repositories. |
+| `flutter test --no-pub` | 174 tests passed. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
 

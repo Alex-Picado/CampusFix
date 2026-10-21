@@ -68,6 +68,24 @@ final subscription = repository.watchOwn(userId: profile.id).listen(
 await subscription.cancel();
 ```
 
+## Own-report list
+
+`MyIncidentsScreen` opens from **Mis incidencias** and owns a
+`MyIncidentsController` through Provider. The controller exposes immutable
+`incidents`, `isLoading`, `errorMessage` and `isActive` state. `start()` restarts
+the UID-filtered repository query. Loading, confirmed empty results and failed
+queries have distinct presentations; errors clear previously displayed reports.
+
+Each summary shows its consecutive number, title, Spanish status label,
+location and creation time in the viewer's local timezone. The list preserves
+the repository's newest-first order. Live snapshots replace changed or removed
+records. Account changes, role loss and disposal cancel observation and clear
+private state. An invalidated controller cannot be reused for another session.
+
+**Crear incidencia** opens the independently owned report form and cancels the
+list query. Returning starts a fresh confirmed query, including reports saved
+through the form. Category observation runs only while the form is open.
+
 ## Read permissions
 
 | Operation | Authorization |
@@ -105,7 +123,7 @@ Verified on October 21, 2026, with Flutter `3.47.5`, Dart `3.13.4` and Java `21.
 
 | Check | Result |
 | --- | --- |
-| `flutter test --no-pub` | 159 tests passed, including 19 observation tests. |
+| `flutter test --no-pub` | 174 tests passed, including 19 observation tests and 6 own-list widget tests. |
 | `npm test --prefix tool/firestore_tests` | 53 rule tests passed, including 14 read tests. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
@@ -125,6 +143,9 @@ constitute a Flutter browser integration test.
 ## References
 
 - [Incident repository](../lib/features/incidents/repositories/incident_repository.dart).
+- [Own-list controller](../lib/features/incidents/controllers/my_incidents_controller.dart).
+- [Own-list screen](../lib/features/incidents/screens/my_incidents_screen.dart).
+- [Presentation tests](../test/incident_report_screen_test.dart).
 - [Incident service](../lib/features/incidents/services/incident_service.dart).
 - [Observation tests](../test/features/incidents/repositories/incident_observation_test.dart).
 - [Controlled snapshot sources](../test/support/incident_observation.dart).

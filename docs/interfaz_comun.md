@@ -15,6 +15,7 @@ fuentes o imágenes externas. Provider conecta las pantallas con los controlador
 - Consulta del nombre, correo y rol del perfil autenticado, y actualización del nombre.
 - Listado de cuentas y cambios de rol desde Usuarios, exclusivo del administrador.
 - Incident reporting form with active categories, validation, stable retries and confirmed sequence feedback.
+- Personal incident list with live status updates, owner-filtered queries and separate loading, empty and error states.
 - Cierre de sesión y recuperación de errores de observación.
 - El menú y los accesos rápidos muestran únicamente las opciones del rol actual.
   La visibilidad del menú no sustituye las reglas de seguridad de Firestore.
@@ -46,6 +47,7 @@ fuentes o imágenes externas. Provider conecta las pantallas con los controlador
 | `UserManagementScreen` | Consulta de cuentas y selección de roles; administra el alcance de su controlador. |
 | `UserManagementController` | Escucha de usuarios, estados de carga y cambios de rol. |
 | `IncidentReportScreen` | Reporter form and ownership of its account-bound submission controller. |
+| `MyIncidentsScreen` | Live personal report list and navigation to the reporting form. |
 
 `main.dart` conserva la inicialización de Firebase antes de abrir la aplicación.
 La conexión utiliza los servicios, repositorios y controladores existentes.
@@ -70,7 +72,7 @@ Las confirmaciones y errores aparecen dentro de la vista y desaparecen al salir.
 
 ## Funciones pendientes
 
-The incident report form is connected; photographs, the own-report list and
+The report form and personal incident list are connected; photographs and
 detail presentation remain unavailable in the interface. Management, indicators
 and category administration retain their pending views. Local security checks
 are recorded in [Incident creation security](incident_security.md).

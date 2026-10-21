@@ -197,7 +197,10 @@ void main() {
         } else if (destination == CampusDestination.users) {
           expect(find.byKey(const ValueKey('users-page')), findsOneWidget);
         } else if (destination == CampusDestination.incidents) {
-          expect(find.byKey(const ValueKey('report-page')), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('my-incidents-page')),
+            findsOneWidget,
+          );
         } else {
           expect(
             find.byKey(ValueKey('preview-${destination.name}')),
@@ -449,6 +452,7 @@ Future<_TestApp> _mountApp(
   users.profiles['campus-user'] = _profile(role ?? UserRole.reporter);
   final auth = TestAuthRepository(users: users);
   final categories = TestReportCategories();
+  final incidents = TestReportIncidents();
   if (role != null) {
     auth.currentUserId = 'campus-user';
   }
@@ -458,13 +462,14 @@ Future<_TestApp> _mountApp(
     await auth.close();
     await users.close();
     await categories.close();
+    await incidents.close();
   });
   await tester.pumpWidget(
     AppProviders(
       authRepository: auth,
       userRepository: users,
       categoryRepository: categories,
-      incidentRepository: TestReportIncidents(),
+      incidentRepository: incidents,
       child: const MyApp(),
     ),
   );

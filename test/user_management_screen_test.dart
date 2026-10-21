@@ -280,18 +280,20 @@ Future<_TestApp> _mount(
   users.profiles['other-user'] = _otherUser();
   final auth = TestAuthRepository(users: users, currentUserId: 'current-user');
   final categories = TestReportCategories();
+  final incidents = TestReportIncidents();
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     await auth.close();
     await users.close();
     await categories.close();
+    await incidents.close();
   });
   await tester.pumpWidget(
     AppProviders(
       authRepository: auth,
       userRepository: users,
       categoryRepository: categories,
-      incidentRepository: TestReportIncidents(),
+      incidentRepository: incidents,
       child: const MyApp(),
     ),
   );

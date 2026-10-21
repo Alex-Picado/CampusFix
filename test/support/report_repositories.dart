@@ -42,6 +42,10 @@ class TestReportIncidents extends Fake implements IncidentRepository {
   bool saveBeforeError = false;
   int allocations = 0;
   int reviews = 0;
+  bool loadOwnImmediately = true;
+  int activeOwnWatches = 0;
+  final ownWatchUserIds = <String>[];
+  final ownChanges = StreamController<List<Incident>>.broadcast();
 
   TestReportIncidents({String Function()? author})
     : author = author ?? (() => 'campus-user');
@@ -84,8 +88,38 @@ class TestReportIncidents extends Fake implements IncidentRepository {
       throw createError!;
     }
     saved[incidentId] = incident;
+    ownChanges.add(saved.values.toList());
     return incident;
   }
+
+  @override
+  Stream<List<Incident>> watchOwn({required String userId}) => Stream.multi((
+    sink,
+  ) {
+    ownWatchUserIds.add(userId);
+    activeOwnWatches++;
+    void emit(List<Incident> reports) {
+      final own = reports
+          .where((incident) => incident.createdByUserId == userId)
+          .toList();
+      own.sort((first, second) {
+        final byDate = second.createdAt.compareTo(first.createdAt);
+        if (byDate != 0) return byDate;
+        final bySequence = second.sequenceNumber.compareTo(
+          first.sequenceNumber,
+        );
+        return bySequence != 0 ? bySequence : first.id.compareTo(second.id);
+      });
+      sink.add(own);
+    }
+
+    if (loadOwnImmediately) emit(saved.values.toList());
+    final subscription = ownChanges.stream.listen(emit, onError: sink.addError);
+    sink.onCancel = () {
+      activeOwnWatches--;
+      subscription.cancel().ignore();
+    };
+  });
 
   @override
   Stream<Incident?> watchById({required String incidentId}) {
@@ -94,4 +128,6 @@ class TestReportIncidents extends Fake implements IncidentRepository {
         ? Stream.value(saved[incidentId])
         : Stream.error(reviewError!);
   }
+
+  Future<void> close() => ownChanges.close();
 }
