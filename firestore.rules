@@ -70,6 +70,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /categories/{categoryId} {
+      // Queries must filter by isActive to request only readable documents.
+      allow get, list: if isSignedIn() && resource.data.isActive == true;
+
+      // Category administration is not exposed by the reporting reader.
+      allow create, update, delete: if false;
+    }
+
     // Other collections require their own module-specific rules.
     match /{document=**} {
       allow read, write: if false;

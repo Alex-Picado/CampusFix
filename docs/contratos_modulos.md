@@ -17,11 +17,13 @@ services.
 | `Incident`, `IncidentStatus`, `IncidentPriority` | Model conversion and copy operations implemented; persistence pending | Incident data |
 | Incidencias, consecutivos, fotografías y avances | Pendientes | Incident reporting and progress |
 | Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |
-| Categorías, consultas, indicadores e integración final | Pendientes | Catalogs and reporting |
+| Active category reader | Service, repository and read rules implemented | Incident report selection |
+| Category administration, queries and indicators | Proposed interfaces | Catalogs and reporting |
 
 La arquitectura acordada es `screen → controller → repository → service`. La pantalla no accede directamente a Firebase. Los controladores usan `ChangeNotifier`; las dependencias se reciben por constructor.
 
-Se mantiene Firebase Spark sin activar facturación. No se incorpora un servidor propio ni Cloud Functions. Las actualizaciones automáticas usarán escuchas de Firestore; la sugerencia de WebSockets no implica crear otro servidor.
+Firebase Authentication and Firestore provide account and metadata services.
+Real-time updates use Firestore listeners.
 
 The evidence contract defines a maximum file size of 3 000 000 bytes. File-provider
 configuration is separate from the incident metadata schema.
@@ -42,7 +44,7 @@ Los nombres siguientes respetan los modelos existentes. El identificador `id` se
 
 Un registro normal crea un reportante. La preparación del primer administrador se realiza administrativamente y está documentada en `autenticacion.md`.
 
-### `categories/{categoryId}`: almacenamiento pendiente
+### `categories/{categoryId}`: active reader implemented
 
 | Campo | Tipo almacenado | Regla |
 |---|---|---|
@@ -52,6 +54,11 @@ Un registro normal crea un reportante. La preparación del primer administrador 
 `Category.toMap()` and `Category.fromMap()` provide model conversion. Category
 administration is a separate interface. Deactivation preserves `categoryId`
 references in existing incidents without requiring deletion.
+
+`CategoryService` queries only active documents. `CategoryRepository` parses
+them into immutable lists sorted by case-insensitive name and then ID.
+[Active category reader](categories.md) documents errors, subscriptions and
+local permission verification.
 
 ### `incidents/{incidentId}`: almacenamiento pendiente
 
@@ -180,14 +187,14 @@ must reread the current incident and validate the related event atomically.
 
 `addProgress` guardará el avance, las referencias de evidencia relacionadas y el evento `progressAdded` de forma atómica en Firestore. La subida externa del archivo ocurre fuera de esa transacción; no se promete atomicidad entre dos proveedores.
 
-### `CategoryRepository` y consultas: propuesta, Parte 4
+### Category repository and query interfaces
 
 | Operación | Entrada → resultado esperado | Permiso y responsable | Historias |
 |---|---|---|---|
-| `watchActive` | Sin argumentos → `Stream<List<Category>>` | Sesión autenticada | Selección en HU-05 |
-| `watchAll` | Sin argumentos → `Stream<List<Category>>` | Administrador | Módulo de catálogos |
-| `create` | Nombre → categoría persistida | Administrador | Módulo de catálogos |
-| `update` | `categoryId`, nombre, `isActive` → `Future<void>` | Administrador | Módulo de catálogos |
+| `watchActive` (implemented) | No arguments → `Stream<List<Category>>` | Authenticated session | Selection in HU-05 |
+| `watchAll` (proposed) | Sin argumentos → `Stream<List<Category>>` | Administrador | Módulo de catálogos |
+| `create` (proposed) | Nombre → categoría persistida | Administrador | Módulo de catálogos |
+| `update` (proposed) | `categoryId`, nombre, `isActive` → `Future<void>` | Administrador | Módulo de catálogos |
 | Consultas e indicadores | Incidencias autorizadas y criterios → resultados/conteos | Según el rol | HU-15 a HU-18 |
 
 Search and combined filters operate on authorized incident data. Historical
@@ -249,10 +256,11 @@ Cada controlador es dueño de sus suscripciones: cancela al salir del módulo y 
 
 Las pantallas distinguen carga, lista vacía, error de lectura y error al guardar. Un snapshot posterior no debe borrar un error de guardado pendiente. Tras perder conexión se indica el estado disponible y se comprueba recuperación; no se confunde una vista local con una escritura confirmada.
 
-The current rules allow authorized operations on `users`; `categories`,
-`incidents`, `counters` and their subcollections remain denied. Each collection
-requires module-specific authorization; a general read/write grant is not part
-of the contract.
+The current rule source allows authorized operations on `users` and
+authenticated reads of active `categories`. Category writes, `incidents`,
+`counters` and their subcollections remain denied. Each collection requires
+module-specific authorization; a general read/write grant is not part of the
+contract.
 
 Se comprobarán consultas y escrituras directas no autorizadas, transiciones inválidas y ausencia de eventos huérfanos. Las pruebas deben intentar modificar UID, rol, consecutivo, actor y fechas; esconder botones no constituye una prueba de seguridad.
 
