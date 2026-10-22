@@ -48,8 +48,8 @@ enum CampusDestination {
     'Consultá los resultados de la atención del campus.',
     [
       'Consultar totales por estado y categoría.',
-      'Buscar incidencias y combinar filtros.',
-      'Dar seguimiento a los resultados.',
+      'Ver indicadores globales actualizados en vivo.',
+      'Incluir categorías inactivas en los resultados históricos.',
     ],
   ),
   categories(

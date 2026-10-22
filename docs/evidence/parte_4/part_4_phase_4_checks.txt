@@ -1,0 +1,100 @@
+CampusFix Part 4, phase 4: live global indicators (HU-17 and HU-18)
+Executed date: October 21, 2026 (America/Costa_Rica)
+Branch: feat/queries-dashboard
+Remote origin: https://github.com/Alex-Picado/CampusFix.git
+Base: 60247a9, the previously published phase 3 commit.
+
+Runtimes reused without modifying repository pins or the global installation:
+Flutter 3.47.5, ignored local checkout .fvm/sdk-3.47.5
+Dart 3.13.4
+Node.js 24.19.0
+Java 21.0.9, selected explicitly for the local Firestore emulator
+
+EXECUTED
+
+node tool/verify_toolchain.mjs (local SDK selected on PATH)
+Node.js 24.19.0: matches .node-version
+Flutter 3.47.5: matches .fvmrc
+Bundled Dart: 3.13.4
+Toolchain verification passed.
+
+flutter analyze --no-pub
+No issues found! (ran in 10.5s)
+
+Targeted tests with --dart-define=CAPTURE_DASHBOARD_EVIDENCE=true:
+- test/features/incidents/models/incident_indicators_test.dart: 3 tests
+- test/features/incidents/controllers/incident_dashboard_controller_test.dart: 14 tests
+- test/incident_dashboard_screen_test.dart: 10 tests
+- test/widget_test.dart: 15 existing shared-navigation/authentication tests
+00:04 +42: All tests passed!
+
+flutter test --no-pub --reporter expanded
+00:12 +293: All tests passed!
+Includes the 266 phase 3 tests plus 27 new dashboard tests.
+
+npm test --prefix tool/firestore_tests
+Java 21.0.9 verified.
+Local Firestore: 127.0.0.1:8085, explicit demo-campusfix project only.
+tests 82, pass 82, fail 0, cancelled 0, skipped 0.
+Includes existing direct-SDK protection of administrative incident queues and
+complete category lists against other roles and unauthenticated sessions.
+The emulator completed the suite and shut down successfully.
+
+flutter build web --no-pub
+Wasm dry run succeeded.
+Built build/web; compilation completed in 36.3s.
+
+git diff --check (phase 4 files)
+Passed.
+
+Acceptance dataset:
+One incident per supported stored status (nine in total), distributed across
+three category IDs. Expected and observed results:
+- Total: 9
+- Open: 4 (REPORTADA, EN_REVISION, ASIGNADA, EN_ATENCION)
+- In progress: 1 (EN_ATENCION, included in open)
+- Resolved: 1 (RESUELTA)
+- Closed: 1 (CERRADA)
+- Categories: lighting 4, network 3, building 2; sum 9.
+REABIERTA, RECHAZADA and CANCELADA remain outside open, while contributing
+to total and their category.
+
+Behavior covered:
+- Independent global counts after a restrictive Management search.
+- Complete snapshots replace prior counts on changes, transitions and removals.
+- Successful empty data displays zero metrics and an explicit empty state.
+- Loading, errors and interrupted observation do not display invented zeros.
+- Category aggregation uses stable IDs, including inactive references.
+- Live renaming/deactivation, identical names and missing catalog records.
+- Independent catalog retry retains valid incident metrics.
+- Incident retry preserves the existing category subscription.
+- No user-profile enumeration is started by the dashboard.
+- Reporter and technician controllers never start either global query.
+- Sign-out, account changes and role loss release both subscriptions and clear data.
+- Rejected buffered snapshots and permanently invalidated old controllers.
+- Leaving/reopening the dashboard releases listeners and reads fresh data.
+- Desktop/tablet layouts and numeric progress-bar accessibility semantics.
+
+Reviewed screenshots stored in Daniel's Part 4 evidence directory:
+- phase_4_dashboard_desktop.png: 1440x1100; all five cards and three category rows.
+- phase_4_dashboard_tablet.png: 768x1024; wrapped cards and all three category rows.
+Both render actual application widgets with synthetic fixtures and real SDK
+Roboto/Material fonts. Both were visually inspected for legibility and complete
+content. Neither contains a mouse pointer, text caret, credentials or production data.
+
+LIMITED
+
+The PNGs provide automated widget-rendering evidence. They are not browser or
+production walkthroughs. Rule checks ran against the demo emulator; they do not
+prove that the real project's category rules have been deployed.
+
+PENDING
+
+Full desktop/tablet browser integration, the public photo-disabled mode and the
+complete local photograph walkthrough belong to phase 5. Hosting publication,
+real-project verification and final 20-story evidence belong to phase 6.
+Photographs retain the previously selected local storage implementation.
+
+No schema, dependency, index, runtime-pin or Firestore-rule changes in phase 4.
+No push, PR, merge or production deployment occurred in this phase.
+Pre-existing generated plugin-file line-ending changes remain outside the commit.

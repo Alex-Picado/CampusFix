@@ -25,7 +25,7 @@ services.
 | Category administration | Implemented in Part 4 phase 1 | Catalogs |
 | Authorized incident search | Implemented in Part 4 phase 2 | Reporting |
 | Administrative filters | Implemented in Part 4 phase 3 | Reporting |
-| Indicators | Proposed interfaces | Reporting |
+| Indicators | Implemented in Part 4 phase 4 | Reporting |
 
 La arquitectura acordada es `screen → controller → repository → service`. La pantalla no accede directamente a Firebase. Los controladores usan `ChangeNotifier`; las dependencias se reciben por constructor.
 
@@ -245,7 +245,7 @@ must reread the current incident and validate the related event atomically.
 | `update` (implemented) | `categoryId`, `name`, `isActive` → `Future<void>` | Administrator | Catalog administration |
 | `IncidentSearch.applyTo` (implemented) | Authorized incidents and text/category criteria → immutable matches | Existing role-scoped source | HU-15 |
 | `IncidentFilters` (implemented) | State, priority, responsible-person criteria → matches combined with search | Administrator | HU-16 |
-| Indicators | Authorized incidents → aggregate counts | Administrator | HU-17, HU-18 |
+| `IncidentIndicators.fromIncidents` (implemented) | Complete authorized incident snapshot → immutable state and category counts | Administrator | HU-17, HU-18 |
 
 Search and combined filters operate on authorized incident data. Historical
 details retain category identifiers, including inactive categories; category
@@ -265,6 +265,14 @@ supplies `UserRepository` for its existing protected `watchAll()` profile reader
 Technician names update live without changing selected UIDs. Former or missing
 responsible UIDs remain filterable when referenced by the loaded data. No query
 or schema extension is required for local filtering.
+
+`IncidentDashboardController` independently observes the global administrative
+incident stream and the complete category catalog. Management filters do not
+affect its population. Category counts group by ID, retaining inactive and missing
+references; names update live. Both subscriptions are cancelled on navigation or
+session invalidation, and incident/catalog failures have separate retries.
+[Global incident indicators](incident_dashboard.md) defines the overlapping
+state totals, category presentation and phase 4 evidence.
 
 The category-reading contract is separate from catalog administration. Selecting
 a category for a report requires an authenticated read of active categories.

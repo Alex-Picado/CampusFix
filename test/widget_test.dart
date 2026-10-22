@@ -199,6 +199,9 @@ void main() {
         } else if (destination == CampusDestination.categories) {
           expect(find.byKey(const ValueKey('categories-page')), findsOneWidget);
           expect(find.text('Nueva categoría'), findsOneWidget);
+        } else if (destination == CampusDestination.dashboard) {
+          expect(find.byKey(const ValueKey('dashboard-page')), findsOneWidget);
+          expect(find.text('Indicadores del campus'), findsOneWidget);
         } else if (destination == CampusDestination.incidents) {
           expect(
             find.byKey(const ValueKey('my-incidents-page')),

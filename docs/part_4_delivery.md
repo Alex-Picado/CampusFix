@@ -15,7 +15,7 @@ a merge commit.
 | 1 | Category creation, renaming, activation, historical names and permissions | Implemented; verification recorded below. |
 | 2 | Authorized incident search (HU-15) | Implemented; verification recorded below. |
 | 3 | Combined administrative filters (HU-16) | Implemented; verification recorded below. |
-| 4 | Live global dashboard and category counts (HU-17, HU-18) | Pending a later requested session. |
+| 4 | Live global dashboard and category counts (HU-17, HU-18) | Implemented; verification recorded below. |
 | 5 | Desktop/tablet integration and explicit public photo limitation | Pending a later requested session. |
 | 6 | Hosting publication, final documentation and 20-story evidence (HU-20) | Pending a later requested session. |
 
@@ -97,6 +97,37 @@ Executed checks are in `evidence/parte_4/part_4_phase_3_checks.txt`.
 Existing verification records were moved without modifying their original
 results; historical screenshot captures were preserved. Versions, incident schema,
 indexes, dependencies and production Firebase state remain unchanged.
+
+## Phase 4 implementation and evidence
+
+HU-17 and HU-18 replace the administrator's dashboard placeholder with live global
+state and category counts. A separate session-bound dashboard controller reuses
+the existing administrative incident source, independently of Management filters.
+The immutable indicators model follows the agreed four-state open definition;
+in-progress is an explicitly labelled subset. Reopened cases count only in total
+and their category, alongside rejected and cancelled cases.
+
+The complete administrative category reader supplies historical and inactive
+names. Aggregates use stable IDs, so renames or identical names do not merge
+groups; unavailable references remain counted. Catalog errors retain global
+metrics and have an independent retry. Loading and incident errors never appear
+as zero incidents. Navigation and session invalidation release both observations
+and reject callbacks from obsolete subscriptions.
+
+| Requirement | Implementation | Executable evidence |
+| --- | --- | --- |
+| HU-17: global state counts | `IncidentIndicators`, independent dashboard controller/screen | Indicator-model tests, controller tests and screen tests |
+| HU-18: counts by stable category ID | Complete catalog subscription; live names, inactive and unavailable references | Rename/deactivation, identical-name and missing-reference tests |
+| Global scope and authorization | Existing `IncidentRepository.watchAll()` and admin-only page/controller | Dashboard after restrictive Management search; role/session tests; existing direct-SDK rule suite |
+| Desktop/tablet layout | Responsive cards and category bars | `evidence/parte_4/phase_4_dashboard_desktop.png`, `phase_4_dashboard_tablet.png` |
+
+The nine-state acceptance fixture produces 9 total, 4 open, 1 in progress,
+1 resolved and 1 closed, with category counts 4 + 3 + 2 = 9. The screenshots
+capture actual application widgets with synthetic data and real fonts, without
+mouse pointers. They are automated UI evidence, not a production walkthrough.
+Executed checks and explicit remaining limits are recorded in
+`evidence/parte_4/part_4_phase_4_checks.txt`. See `incident_dashboard.md` for the
+definitions, lifecycle behavior and screenshot regeneration command.
 
 ## Runtime setup
 

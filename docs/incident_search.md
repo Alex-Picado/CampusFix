@@ -83,6 +83,7 @@ The provided baseline rules reference lacks those phase 1 category changes and
 must not replace the current repository rules without review.
 
 Administrative status, priority and technician filters (HU-16) are implemented
-in phase 3; see [Administrative filters](incident_filters.md). The dashboard
-(HU-17/HU-18), browser-wide integration and Hosting publication remain in their
-later phases. Photograph handling remains the existing local implementation.
+in phase 3; see [Administrative filters](incident_filters.md). Global indicators
+(HU-17/HU-18) are implemented in phase 4; see [Incident dashboard](incident_dashboard.md).
+Browser integration and Hosting publication remain in their later phases.
+Photograph handling remains the existing local implementation.
