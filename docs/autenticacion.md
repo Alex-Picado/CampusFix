@@ -61,6 +61,34 @@ suscripciones de la sesión.
 - `PasswordField` ofrece mostrar u ocultar la contraseña y conserva su valor.
 - Si falla el cierre de sesión, se muestra el error y se permite reintentarlo.
 
+### Web password editing (2026-10-22)
+
+Flutter Web can leave a password input unresponsive after changing its visibility
+and then leaving and refocusing it. The installed Flutter 3.47.7 engine contains
+the affected autofill implementation documented in
+[Flutter issue 192102](https://github.com/flutter/flutter/issues/192102) and
+[the upstream correction](https://github.com/flutter/flutter/pull/193269).
+
+`PasswordField` closes the input connection before changing visibility. On web,
+it also ends the obsolete autofill context with `shouldSave: false`; the next
+connection retains the configured autofill hints. The component restores focus
+and a valid selection without selecting or replacing the entire password. The
+externally owned controller and password characters, including spaces, remain
+unchanged. Ending the context does not request a password-save prompt.
+
+The failure and correction were checked in Edge using the real `AuthScreen` with
+an isolated repository that rejects network operations. No registration or login
+was submitted. Sign-in, registration password and confirmation were checked with
+`123122 → 12312 → 123123`, visibility changes and blur/refocus; subsequent edits
+and repeated cycles remained functional. This reproduction excludes a Firebase
+request as the cause of this input failure.
+
+Regression coverage lives in `test/password_field_test.dart`: incremental edits,
+selection replacement, visibility/focus cycles on Android and Windows, spaces,
+and disabled inputs. `test/widget_test.dart` covers the surrounding access flows.
+The focused suite passed 22 tests, static analysis reported no issues, and
+`flutter build web --no-pub --no-web-resources-cdn` completed successfully.
+
 ### Cuenta creada con perfil pendiente
 
 La creación de una cuenta y el guardado del perfil son operaciones separadas.
