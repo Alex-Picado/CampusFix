@@ -201,6 +201,9 @@ void main() {
             find.byKey(const ValueKey('my-incidents-page')),
             findsOneWidget,
           );
+        } else if (destination == CampusDestination.management ||
+            destination == CampusDestination.workspace) {
+          expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
         } else {
           expect(
             find.byKey(ValueKey('preview-${destination.name}')),

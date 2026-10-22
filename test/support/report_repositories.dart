@@ -51,6 +51,21 @@ class TestReportIncidents extends Fake implements IncidentRepository {
     : author = author ?? (() => 'campus-user');
 
   @override
+  Stream<List<Incident>> watchAll() => Stream.multi((sink) {
+    sink.add(List.unmodifiable(saved.values));
+    final sub = ownChanges.stream.listen(sink.add, onError: sink.addError);
+    sink.onCancel = sub.cancel;
+  });
+
+  @override
+  Stream<List<Incident>> watchAssigned({required String userId}) =>
+      watchAll().map(
+        (rows) => List.unmodifiable(
+          rows.where((row) => row.assignedTechnicianId == userId),
+        ),
+      );
+
+  @override
   String newIncidentId() => 'report-${++allocations}';
 
   @override

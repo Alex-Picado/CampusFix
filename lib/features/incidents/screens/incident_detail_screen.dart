@@ -10,6 +10,7 @@ import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
 import '../repositories/evidence_repository.dart';
 import '../widgets/evidence_widgets.dart';
+import '../widgets/incident_workflow_panel.dart';
 
 /// Protected detail, chronological comments/history and assigned-technician progress.
 class IncidentDetailScreen extends StatelessWidget {
@@ -100,6 +101,7 @@ class _DetailView extends StatelessWidget {
             ],
           ),
         ),
+        IncidentWorkflowPanel(incidentId: incident.id),
         _section(
           context,
           'Fotografías',
@@ -152,36 +154,47 @@ class _DetailView extends StatelessWidget {
         ),
         if (controller.canAddProgress || controller.frozen)
           const _ProgressForm(),
-        _section(
-          context,
-          'Historial',
-          controller.loadingSections.contains('history'),
-          [
-            if (controller.history.isEmpty)
-              const Text('No hay eventos registrados.'),
-            for (final event in controller.history)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+        _section(context, 'Historial', controller.loadingSections.contains('history'), [
+          if (controller.history.isEmpty)
+            const Text('No hay eventos registrados.'),
+          for (final event in controller.history)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${_action(event.action)} · ${_date(event.createdAt)}',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  Text('Por: ${person(event.actorUserId)}'),
+                  if (event.fromStatus != null || event.toStatus != null)
                     Text(
-                      '${_action(event.action)} · ${_date(event.createdAt)}',
-                      style: Theme.of(context).textTheme.labelLarge,
+                      '${event.fromStatus?.label ?? 'Inicio'} → ${event.toStatus?.label ?? 'Sin cambio'}',
                     ),
-                    Text('Por: ${person(event.actorUserId)}'),
-                    if (event.fromStatus != null || event.toStatus != null)
-                      Text(
-                        '${event.fromStatus?.label ?? 'Inicio'} → ${event.toStatus?.label ?? 'Sin cambio'}',
-                      ),
-                    if (event.toTechnicianId != null)
-                      Text('Responsable: ${person(event.toTechnicianId!)}'),
-                    if (event.reason != null) Text(event.reason!),
-                  ],
-                ),
+                  if (event.toTechnicianId != null)
+                    Text('Responsable: ${person(event.toTechnicianId!)}'),
+                  if (event.details?['categoryId'] != null)
+                    Text(
+                      'Categoría: ${event.details!['categoryId']} · Prioridad: ${event.details!['priority']}',
+                    ),
+                  if (event.fromTechnicianId != null &&
+                      event.fromTechnicianId != event.toTechnicianId)
+                    Text(
+                      'Responsable anterior: ${person(event.fromTechnicianId!)}',
+                    ),
+                  if (event.toTechnicianId == null &&
+                      event.fromTechnicianId != null)
+                    const Text('Responsable actual: sin asignar'),
+                  if (event.previousResolutionDescription != null)
+                    Text(
+                      'Solución anterior: ${event.previousResolutionDescription}',
+                    ),
+                  if (event.reason != null) Text(event.reason!),
+                ],
               ),
-          ],
-        ),
+            ),
+        ]),
       ],
     );
   }
