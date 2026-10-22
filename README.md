@@ -36,6 +36,7 @@ protected by Firestore rules.
 ## Documentation
 
 - [Incident management and Part 3 verification](docs/incident_management.md).
+- [Authorized incident search](docs/incident_search.md).
 - [Incident models](docs/part_2_incidents.md).
 - [Incident creation](docs/incident_creation.md).
 - [Incident creation security](docs/incident_security.md).

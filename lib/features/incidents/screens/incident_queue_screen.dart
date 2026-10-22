@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../../../core/widgets/page_heading.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../auth/controllers/session_controller.dart';
+import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../controllers/incident_queue_controller.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
+import '../widgets/incident_search_panel.dart';
 
 /// Displays the administrator's reports or the technician's own assignments.
 class IncidentQueueScreen extends StatelessWidget {
@@ -25,6 +27,7 @@ class IncidentQueueScreen extends StatelessWidget {
       key: ValueKey('queue:${profile.id}:${profile.role.name}'),
       create: (_) => IncidentQueueController(
         repository: context.read<IncidentRepository>(),
+        categoryRepository: context.read<CategoryRepository>(),
         session: session,
         uid: profile.id,
         role: profile.role,
@@ -53,6 +56,10 @@ class _QueueView extends StatelessWidget {
               : 'Consultá y atendé tus incidencias asignadas.',
         ),
         const SizedBox(height: 20),
+        if (!controller.loading && controller.error == null) ...[
+          IncidentSearchPanel(controller: controller.search),
+          const SizedBox(height: 20),
+        ],
         if (controller.loading)
           const Center(child: CircularProgressIndicator())
         else if (controller.error != null)
@@ -68,11 +75,18 @@ class _QueueView extends StatelessWidget {
               ],
             ),
           )
-        else if (controller.incidents.isEmpty)
-          const SectionCard(child: Text('No hay incidencias disponibles.'))
+        else if (controller.search.results.isEmpty)
+          SectionCard(
+            child: Text(
+              controller.search.criteria.hasCriteria
+                  ? 'No hay incidencias que coincidan con la búsqueda.'
+                  : 'No hay incidencias disponibles.',
+            ),
+          )
         else
-          for (final incident in controller.incidents)
+          for (final incident in controller.search.results)
             Padding(
+              key: ValueKey('incident-${incident.id}'),
               padding: const EdgeInsets.only(bottom: 12),
               child: SectionCard(
                 child: Column(
@@ -98,6 +112,7 @@ class _QueueView extends StatelessWidget {
                     Text(incident.location),
                     const SizedBox(height: 8),
                     OutlinedButton(
+                      key: ValueKey('detail-${incident.id}'),
                       onPressed: () async {
                         controller.pause();
                         await Navigator.of(context).pushNamed(

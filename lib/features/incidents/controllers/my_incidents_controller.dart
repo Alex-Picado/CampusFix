@@ -5,9 +5,11 @@ import 'package:flutter/foundation.dart' show ChangeNotifier;
 import '../../../core/errors/app_error_messages.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
+import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../models/incident.dart';
 import '../repositories/incident_repository.dart';
+import 'incident_search_controller.dart';
 
 /// Observes one reporter's incidents for the lifetime of the owning list view.
 class MyIncidentsController extends ChangeNotifier {
@@ -22,12 +24,23 @@ class MyIncidentsController extends ChangeNotifier {
   bool _disposed = false;
   int _watchVersion = 0;
 
+  /// Local criteria, matching records and category names for this reporter.
+  late final IncidentSearchController search;
+
   /// Binds observation to the original authenticated reporter session.
   MyIncidentsController({
     required this._incidentRepository,
     required this._sessionController,
     required this._userId,
+    required CategoryRepository categoryRepository,
   }) {
+    search = IncidentSearchController(
+      categories: categoryRepository,
+      session: _sessionController,
+      uid: _userId,
+      role: UserRole.reporter,
+    );
+    search.addListener(_searchChanged);
     _isActive = _matchesSession();
     if (_isActive) {
       _sessionController.addListener(_handleSession);
@@ -53,6 +66,7 @@ class MyIncidentsController extends ChangeNotifier {
     _subscription?.cancel().ignore();
     _subscription = null;
     _incidents = const [];
+    search.clearIncidents();
     _isLoading = false;
     _errorMessage = null;
     notifyListeners();
@@ -65,6 +79,7 @@ class MyIncidentsController extends ChangeNotifier {
     _subscription?.cancel().ignore();
     _subscription = null;
     _incidents = const [];
+    search.clearIncidents();
     _errorMessage = null;
     _isLoading = true;
     notifyListeners();
@@ -86,6 +101,7 @@ class MyIncidentsController extends ChangeNotifier {
               _incidents = List.unmodifiable(incidents);
               _isLoading = false;
               _errorMessage = null;
+              search.replaceIncidents(_incidents);
               notifyListeners();
             },
             onError: (Object error) {
@@ -116,6 +132,7 @@ class MyIncidentsController extends ChangeNotifier {
     _subscription?.cancel().ignore();
     _subscription = null;
     _incidents = const [];
+    search.clearIncidents();
     _isLoading = false;
     _errorMessage = message;
     notifyListeners();
@@ -146,6 +163,7 @@ class MyIncidentsController extends ChangeNotifier {
     _subscription?.cancel().ignore();
     _subscription = null;
     _incidents = const [];
+    search.clearIncidents(resetCriteria: true);
     _isLoading = false;
     _errorMessage = null;
   }
@@ -155,6 +173,12 @@ class MyIncidentsController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _clear();
+    search.removeListener(_searchChanged);
+    search.dispose();
     super.dispose();
+  }
+
+  void _searchChanged() {
+    if (!_disposed) notifyListeners();
   }
 }

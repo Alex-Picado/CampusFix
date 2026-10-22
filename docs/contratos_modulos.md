@@ -23,7 +23,8 @@ services.
 | Classification, assignment, transitions and audit | Implemented; see `incident_management.md` | Operational workflow |
 | Active category reader | Service, repository and read rules implemented | Incident report selection |
 | Category administration | Implemented in Part 4 phase 1 | Catalogs |
-| Queries and indicators | Proposed interfaces | Reporting |
+| Authorized incident search | Implemented in Part 4 phase 2 | Reporting |
+| Administrative filters and indicators | Proposed interfaces | Reporting |
 
 La arquitectura acordada es `screen → controller → repository → service`. La pantalla no accede directamente a Firebase. Los controladores usan `ChangeNotifier`; las dependencias se reciben por constructor.
 
@@ -241,11 +242,20 @@ must reread the current incident and validate the related event atomically.
 | `watchById` (implemented) | `categoryId` → `Stream<Category?>` | Authenticated session, including inactive records | Historical category names |
 | `create` (implemented) | `name` → `Future<Category>` | Administrator | Catalog administration |
 | `update` (implemented) | `categoryId`, `name`, `isActive` → `Future<void>` | Administrator | Catalog administration |
-| Consultas e indicadores | Incidencias autorizadas y criterios → resultados/conteos | Según el rol | HU-15 a HU-18 |
+| `IncidentSearch.applyTo` (implemented) | Authorized incidents and text/category criteria → immutable matches | Existing role-scoped source | HU-15 |
+| Administrative filters and indicators | Authorized incidents and criteria → results/counts | According to role | HU-16 to HU-18 |
 
 Search and combined filters operate on authorized incident data. Historical
 details retain category identifiers, including inactive categories; category
 reads require explicit authorization.
+
+`IncidentSearchController` consumes the existing list snapshot without replacing
+the incident repository's own, assigned or administrative query. Numeric input
+matches an exact sequence number, optionally prefixed with `#`; other text
+matches title, description or location without case or Spanish accent
+differences. A category ID combines with that criterion using AND. Individual
+lookups resolve only referenced or selected categories, including inactive ones.
+[Authorized incident search](incident_search.md) documents behavior and evidence.
 
 The category-reading contract is separate from catalog administration. Selecting
 a category for a report requires an authenticated read of active categories.

@@ -13,7 +13,7 @@ a merge commit.
 | Phase | Deliverable | Status |
 | --- | --- | --- |
 | 1 | Category creation, renaming, activation, historical names and permissions | Implemented; verification recorded below. |
-| 2 | Authorized incident search (HU-15) | Pending a later requested session. |
+| 2 | Authorized incident search (HU-15) | Implemented; verification recorded below. |
 | 3 | Combined administrative filters (HU-16) | Pending a later requested session. |
 | 4 | Live global dashboard and category counts (HU-17, HU-18) | Pending a later requested session. |
 | 5 | Desktop/tablet integration and explicit public photo limitation | Pending a later requested session. |
@@ -41,6 +41,37 @@ selection still uses the existing active-only query.
 The exact verification results are recorded in `evidence/part_4_phase_1_checks.txt`.
 All database tests target the local `demo-campusfix` emulator. No production data
 or security rules are changed by these tests.
+
+## Phase 2 implementation and evidence
+
+HU-15 is available in the reporter's own incidents, the technician's assignments
+and the administrator's management queue. A shared immutable search model,
+session-bound controller and presentation panel provide exact sequence lookup,
+case/accent-insensitive text search and category selection using AND. Search
+preserves repository ordering and reuses the existing authorized incident stream.
+
+Referenced inactive categories remain selectable. Category failures have explicit
+feedback and separate retries. Criteria survive a detail-route pause in the same
+session and are cleared on sign-out, account changes or role changes. Technician
+queues additionally reject any snapshot containing a foreign assignment before
+forwarding records to search.
+
+| Requirement | Implementation | Executable evidence |
+| --- | --- | --- |
+| HU-15: sequence, text and category | `IncidentSearch`, shared search controller/panel and existing list controllers | `test/features/incidents/models/incident_search_test.dart`, `test/incident_search_screen_test.dart` |
+| Live updates, category names and session cleanup | Shared search controller with individual category subscriptions | `test/features/incidents/controllers/incident_search_controller_test.dart` and screen tests |
+| Role isolation and detail navigation | Existing repository scopes plus list-controller checks | Search screen tests with three roles and foreign assignments; existing Firestore rule suite |
+| Desktop and tablet presentation | Same application widgets at 1440x1100 and 768x1024 | `evidence/phase_2_search_desktop.png`, `evidence/phase_2_search_tablet.png` |
+
+The PNGs are pointer-free captures of rendered application widgets under Flutter
+tests, using synthetic incident fixtures and real fonts. They document the UI,
+not production data or a browser walkthrough. The source test can regenerate
+them with `--dart-define=CAPTURE_SEARCH_EVIDENCE=true`.
+
+Exact executed checks and remaining limits are recorded in
+`evidence/part_4_phase_2_checks.txt`. Search requires no schema, index, dependency,
+runtime-pin or Firestore-rule change. Administrative status/priority/technician
+filters remain part of phase 3.
 
 ## Runtime setup
 

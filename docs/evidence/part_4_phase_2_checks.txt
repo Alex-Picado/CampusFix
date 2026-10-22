@@ -1,0 +1,86 @@
+CampusFix Part 4, phase 2: authorized incident search (HU-15)
+Executed date: October 21, 2026 (America/Costa_Rica)
+Branch: feat/queries-dashboard
+Remote origin: https://github.com/Alex-Picado/CampusFix.git
+Previous phase commit: f17bf62, created at 20:51:09 -06:00.
+
+Runtimes reused without changing the global installation or repository pins:
+Flutter 3.47.5, ignored local checkout .fvm/sdk-3.47.5
+Dart 3.13.4, bundled with that Flutter release
+Node.js 24.19.0
+Java 21.0.9, explicitly selected for local Firestore checks
+
+node tool/verify_toolchain.mjs (local SDK selected on PATH)
+Node.js 24.19.0: matches .node-version
+Flutter 3.47.5: matches .fvmrc
+Bundled Dart: 3.13.4
+Toolchain verification passed.
+
+flutter analyze --no-pub
+No issues found! (ran in 10.3s)
+
+Search-specific Flutter tests with CAPTURE_SEARCH_EVIDENCE=true:
+6 pure search model tests + 8 search-controller tests + 11 screen tests.
+00:04 +25: All tests passed!
+
+flutter test --no-pub --reporter expanded
+00:10 +249: All tests passed!
+Includes the 224 tests from phase 1 plus 25 new search tests.
+
+npm test --prefix tool/firestore_tests
+Java 21.0.9 verified.
+Firestore emulator: 127.0.0.1:8085, demo-campusfix only.
+tests 81, pass 81, fail 0, cancelled 0, skipped 0.
+Existing own/assigned/administrative query authorization remains enforced.
+No production reads, writes or rule deployment were performed.
+
+flutter build web --no-pub
+Wasm dry run succeeded.
+Built build/web; compilation completed in 35.9s.
+
+git diff --check (phase 2 files)
+Passed.
+
+Behavior covered:
+- Exact sequence search with optional #, whitespace and leading zeros.
+- Numeric search never matches a sequence substring; invalid input is empty.
+- Partial title, description and location search, ignoring case and Spanish accents.
+- Exact category selection combined with query using AND, including inactive names.
+- Preserved repository ordering, immutable matches and explicit result counts.
+- Current criteria reapplied to live additions, changes and removals.
+- Search input does not restart incident queries or increase incident reads.
+- One lookup per distinct referenced or selected category, with explicit errors/retry.
+- Existing reporter own-data and technician assignment scopes; no foreign results.
+- Technician foreign snapshots rejected before forwarding records to search.
+- List and category observation cancellation during detail navigation and source failures.
+- Criteria restored after returning from detail in the same session.
+- Record/name/query cleanup on sign-out, account change and role change.
+- Desktop/tablet layouts without overflow.
+
+Reviewed visual evidence:
+- phase_2_search_desktop.png: rendered administrator application at 1440x1100.
+- phase_2_search_tablet.png: rendered administrator application at 768x1024.
+The captures come from actual Flutter application widgets running automated tests
+with synthetic fixtures and SDK-provided Roboto/Material fonts. They contain no
+mouse pointer, text caret, credentials or production data. They were inspected
+visually for legibility and layout. They are not browser or production evidence.
+
+Reproduce captures with the documented targeted test command plus:
+--dart-define=CAPTURE_SEARCH_EVIDENCE=true
+Normal test runs do not write screenshots. Reviewed PNGs were copied from
+ignored build/evidence to docs/evidence.
+
+During validation, opening detail with an active category exposed a dropdown
+invariant while the source was paused. The search panel now hides until its
+owner supplies a current snapshot; navigation and full-suite checks passed.
+
+Compatibility and pending work:
+- No schema, index, dependency, runtime-pin or Firestore-rule changes in phase 2.
+- The provided firestore_security_rules.md reference matches the baseline except
+  for the phase 1 category administration and inactive-name read additions.
+- Reviewed phase 1 rules remain undeployed to the real Firebase project.
+- Status/priority/technician administrative filters remain in phase 3.
+- Dashboard, final integration, browser walkthrough and Hosting remain pending.
+- The photograph provider remains local.
+- No push, remote branch publication, PR, merge or production deployment occurred.
+- Pre-existing generated plugin-file line-ending changes remain outside this commit.
