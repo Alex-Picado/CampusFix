@@ -70,6 +70,89 @@ service cloud.firestore {
         && data.toTechnicianId == null && data.reason == description;
     }
 
+    // Validates the bidirectional link between an incident update and a new event.
+    function validWorkflowEvent(before, next, event) {
+      let details = event.details;
+      return event.keys().hasAll(['actorUserId', 'createdAt', 'action', 'fromStatus',
+          'toStatus', 'fromTechnicianId', 'toTechnicianId', 'reason', 'details', 'previousResolutionDescription'])
+        && event.keys().hasOnly(['actorUserId', 'createdAt', 'action', 'fromStatus',
+          'toStatus', 'fromTechnicianId', 'toTechnicianId', 'reason', 'details', 'previousResolutionDescription'])
+        && details is map && details.keys().hasAll(['categoryId', 'priority', 'technicianId', 'reason'])
+        && details.keys().hasOnly(['categoryId', 'priority', 'technicianId', 'reason'])
+        && event.actorUserId == request.auth.uid && event.createdAt == request.time
+        && event.fromStatus == before.status && event.toStatus == next.status
+        && event.fromTechnicianId == before.assignedTechnicianId
+        && event.toTechnicianId == next.assignedTechnicianId
+        && event.reason == details.reason
+        && ((event.action == 'classified' && details.categoryId == next.categoryId && details.priority == next.priority)
+          || (event.action != 'classified' && details.categoryId == null && details.priority == null))
+        && ((event.action == 'assigned' && details.technicianId == next.assignedTechnicianId)
+          || (event.action != 'assigned' && details.technicianId == null))
+        && ((event.action in ['resolved', 'rejected', 'cancelled', 'reopened'] && isNonblankText(event.reason)
+              && event.reason == event.reason.trim())
+          || (event.action in ['classified', 'assigned', 'started', 'closed'] && event.reason == null))
+        && ((event.action == 'reopened' && event.previousResolutionDescription == before.resolutionDescription)
+          || (event.action != 'reopened' && event.previousResolutionDescription == null));
+    }
+
+    function validWorkflowTransition(before, next, event) {
+      let changed = next.diff(before).affectedKeys();
+      let common = ['status', 'updatedAt', 'lastWorkflowEventId'];
+      return (
+        isAdmin() && (
+          (event.action == 'classified' && before.status in ['REPORTADA', 'EN_REVISION']
+            && next.status == 'EN_REVISION'
+            && changed.hasOnly(common.concat(['categoryId', 'priority']))
+            && isDocumentId(next.categoryId) && isActiveCategory(next.categoryId)
+            && next.priority in ['BAJA', 'MEDIA', 'ALTA'])
+          || (event.action == 'assigned' && before.status == 'EN_REVISION' && next.status == 'ASIGNADA'
+            && changed.hasOnly(common.concat(['assignedTechnicianId']))
+            && next.priority in ['BAJA', 'MEDIA', 'ALTA'] && isActiveCategory(next.categoryId)
+            && isDocumentId(next.assignedTechnicianId)
+            && get(/databases/$(database)/documents/users/$(next.assignedTechnicianId)).data.role == 'technician')
+          || (event.action == 'closed' && before.status == 'RESUELTA' && next.status == 'CERRADA'
+            && changed.hasOnly(common))
+          || (event.action == 'rejected' && before.status == 'EN_REVISION' && next.status == 'RECHAZADA'
+            && changed.hasOnly(common))
+          || (event.action == 'cancelled' && before.status in ['REPORTADA', 'EN_REVISION', 'ASIGNADA', 'EN_ATENCION']
+            && next.status == 'CANCELADA' && changed.hasOnly(common))
+          || (event.action == 'reopened' && before.status in ['RESUELTA', 'CERRADA'] && next.status == 'EN_REVISION'
+            && changed.hasOnly(common.concat(['assignedTechnicianId', 'priority', 'resolutionDescription']))
+            && next.assignedTechnicianId == null && next.priority == null && next.resolutionDescription == null)
+        )
+      ) || (
+        isTechnician() && before.assignedTechnicianId == request.auth.uid && (
+          (event.action == 'started' && before.status == 'ASIGNADA' && next.status == 'EN_ATENCION'
+            && changed.hasOnly(common))
+          || (event.action == 'resolved' && before.status == 'EN_ATENCION' && next.status == 'RESUELTA'
+            && changed.hasOnly(common.concat(['resolutionDescription']))
+            && next.resolutionDescription == event.reason && isNonblankText(next.resolutionDescription))
+        )
+      );
+    }
+
+    function validWorkflowChange(before, next, event) {
+      return next.updatedAt == request.time && isDocumentId(next.lastWorkflowEventId)
+        && before.get('lastWorkflowEventId', null) != next.lastWorkflowEventId
+        && validWorkflowEvent(before, next, event)
+        && validWorkflowTransition(before, next, event);
+    }
+
+    function hasWorkflowEvent(incidentId) {
+      let eventId = request.resource.data.lastWorkflowEventId;
+      let eventPath = /databases/$(database)/documents/incidents/$(incidentId)/history/$(eventId);
+      return eventId != 'created' && !exists(eventPath)
+        && validWorkflowChange(resource.data, request.resource.data, getAfter(eventPath).data);
+    }
+
+    function workflowReferencesUpdate(incidentId, eventId) {
+      let parent = /databases/$(database)/documents/incidents/$(incidentId);
+      let before = get(parent).data;
+      let next = getAfter(parent).data;
+      return eventId != 'created' && next.lastWorkflowEventId == eventId
+        && validWorkflowChange(before, next, request.resource.data);
+    }
+
     function validEvidence(data, incidentId, evidenceId) {
       return data.keys().hasAll(['uploadedByUserId', 'createdAt', 'provider', 'assetId',
           'url', 'fileName', 'contentType', 'sizeBytes', 'progressId'])
@@ -259,14 +342,17 @@ service cloud.firestore {
         && ((resource == null && (isReporter() || isAdmin() || isTechnician()))
           || canReadIncidentData(resource.data));
       // Reporter queries must constrain createdByUserId to their own UID.
-      allow list: if isReporter() && resource.data.createdByUserId == request.auth.uid;
+      allow list: if isAdmin()
+        || (isReporter() && resource.data.createdByUserId == request.auth.uid)
+        || (isTechnician() && resource.data.assignedTechnicianId == request.auth.uid);
 
       allow create: if isReporter()
         && isDocumentId(incidentId)
         && isValidNewIncident(request.resource.data)
         && hasCreationCounter(incidentId, request.resource.data.sequenceNumber)
         && hasNewInitialHistory(incidentId);
-      allow update, delete: if false;
+      allow update: if isSignedIn() && hasWorkflowEvent(incidentId);
+      allow delete: if false;
 
       match /history/{eventId} {
         allow create: if (eventId == 'created'
@@ -277,7 +363,8 @@ service cloud.firestore {
             && !exists(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId))
             && validProgress(getAfter(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId)).data)
             && validProgressHistory(request.resource.data,
-              getAfter(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId)).data.description));
+              getAfter(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId)).data.description))
+          || (isSignedIn() && isDocumentId(eventId) && workflowReferencesUpdate(incidentId, eventId));
         allow read: if canReadIncident(incidentId);
         allow update, delete: if false;
       }

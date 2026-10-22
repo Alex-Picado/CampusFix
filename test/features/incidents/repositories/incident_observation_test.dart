@@ -53,6 +53,52 @@ void main() {
     await auth.states.close();
   });
 
+  test('Technician queues filter by the authenticated UID and cancel on account changes', () async {
+    auth.userId = 'tech';
+    final values = <List<Incident>>[];
+    final errors = <Object>[];
+    subscriptions.add(
+      repository
+          .watchAssigned(userId: 'tech')
+          .listen(values.add, onError: errors.add),
+    );
+    await settle();
+    final channel = database.queries.single;
+    expect(channel.filterField, 'assignedTechnicianId');
+    expect(channel.filterValue, 'tech');
+    channel.emit({
+      'case': {
+        ...incident(),
+        'assignedTechnicianId': 'tech',
+        'status': 'ASIGNADA',
+      },
+    });
+    await settle();
+    expect(values.single.single.assignedTechnicianId, 'tech');
+    channel.emit({'foreign': incident()});
+    await settle();
+    expect(errors.single, isA<FormatException>());
+    auth.changeAccount('other');
+    await settle();
+    expect(channel.events.hasListener, isFalse);
+  });
+
+  test('Administrative queues use confirmed unfiltered snapshots and immutable lists', () async {
+    auth.userId = 'admin';
+    final values = <List<Incident>>[];
+    subscriptions.add(repository.watchAll().listen(values.add));
+    await settle();
+    final channel = database.queries.single;
+    expect(channel.filterField, isNull);
+    channel.emit({'case': incident()}, cache: true);
+    await settle();
+    expect(values, isEmpty);
+    channel.emit({'case': incident()});
+    await settle();
+    expect(values.single.single.id, 'case');
+    expect(() => values.single.clear(), throwsUnsupportedError);
+  });
+
   test('Own reports use a server UID filter date ordering and immutable parsed results', () async {
     final values = <List<Incident>>[];
     subscriptions.add(

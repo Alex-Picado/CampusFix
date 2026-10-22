@@ -1,4 +1,5 @@
 import '../models/incident.dart';
+import '../models/incident_workflow.dart';
 import '../models/incident_history_event.dart';
 import '../models/incident_progress.dart';
 import '../services/incident_service.dart';
@@ -9,6 +10,62 @@ class IncidentRepository {
 
   /// Creates a repository with the provided incident service.
   IncidentRepository({required this._incidentService});
+
+  /// Watches every incident authorized for an administrator.
+  Stream<List<Incident>> watchAll() => _watchQueue();
+
+  /// Watches only the authenticated technician's server-filtered assignments.
+  Stream<List<Incident>> watchAssigned({required String userId}) {
+    _requireIncidentId(userId);
+    return _watchQueue(technicianId: userId);
+  }
+
+  Stream<List<Incident>> _watchQueue({String? technicianId}) =>
+      _incidentService.watchQueue(technicianId: technicianId).map((documents) {
+        final rows = documents.entries
+            .map((entry) => Incident.fromMap(id: entry.key, data: entry.value))
+            .toList();
+        if (technicianId != null &&
+            rows.any((row) => row.assignedTechnicianId != technicianId)) {
+          throw const FormatException(
+            'The assignment query returned a foreign case.',
+          );
+        }
+        rows.sort((a, b) {
+          final byDate = b.updatedAt.compareTo(a.updatedAt);
+          return byDate != 0
+              ? byDate
+              : b.sequenceNumber.compareTo(a.sequenceNumber);
+        });
+        return List<Incident>.unmodifiable(rows);
+      });
+
+  /// Validates identifiers before forwarding a stable lifecycle command.
+  ///
+  /// Commands must use normalized text. State, role and related records are
+  /// checked by the transactional service and independently by Firestore rules.
+  Future<void> applyWorkflow({
+    required String incidentId,
+    required IncidentWorkflowCommand command,
+  }) {
+    _requireIncidentId(incidentId);
+    _requireIncidentId(command.eventId);
+    if (command.eventId == 'created') {
+      throw const FormatException('Reserved event ID.');
+    }
+    for (final id in [command.categoryId, command.technicianId]) {
+      if (id != null) _requireIncidentId(id);
+    }
+    if (command.reason != null &&
+        (command.reason!.trim().isEmpty ||
+            command.reason != command.reason!.trim())) {
+      throw const FormatException('Normalized workflow text is required.');
+    }
+    return _incidentService.applyWorkflow(
+      incidentId: incidentId,
+      command: command,
+    );
+  }
 
   /// Allocates a document ID without writing a report or advancing its sequence.
   ///

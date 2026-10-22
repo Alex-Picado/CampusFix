@@ -20,7 +20,7 @@ services.
 | Personal incident list | Live account-bound list, error recovery and report-form navigation implemented | Reporter interface |
 | Report drafts and submission | Account-bound form and controller with validation, stable retries and reconciliation implemented | Report presentation state |
 | Photographs and progress persistence | Authenticated local storage, metadata association and atomic technician progress implemented | Evidence and progress |
-| Clasificación, asignaciones, transiciones y auditoría | Pendientes | Operational workflow |
+| Classification, assignment, transitions and audit | Implemented; see `incident_management.md` | Operational workflow |
 | Active category reader | Service, repository and read rules implemented | Incident report selection |
 | Category administration, queries and indicators | Proposed interfaces | Catalogs and reporting |
 
@@ -96,6 +96,21 @@ implement lifecycle transitions. Behavior and verification are documented in
 Los roles usan `.name`; estados y prioridades usan `.value`. No guardar `underReview`, `inProgress` o `high` como estados/prioridades. La interfaz puede mostrar tildes aunque el valor almacenado sea `EN_REVISION` o `EN_ATENCION`.
 
 Las fechas de escritura se establecerán con hora del servidor. El límite entre repositorio y servicio convertirá `Timestamp` a `DateTime` y viceversa. Los valores locales aún pendientes de confirmación deben manejarse explícitamente; no sustituir fechas desconocidas por una fecha inventada.
+
+### Workflow metadata and history extensions: Part 3
+
+`incidents.lastWorkflowEventId` is an optional string, absent on newly reported
+incidents and set to a fresh history document ID by every lifecycle operation.
+The rules verify both directions of this link with `getAfter()` and reject
+standalone updates, orphan events and reused IDs. Business model serialization
+retains its existing fields; services preserve the stored metadata when updating.
+
+Lifecycle events retain the existing eight history fields and add `details`
+(`categoryId`, `priority`, `technicianId`, `reason`, with nulls when inapplicable)
+and `previousResolutionDescription` (null except on reopening). `details` records
+the normalized command for retry reconciliation and classification audit.
+`IncidentHistoryEvent` reads these optional extensions without changing existing
+creation and progress events. Dates remain server timestamps.
 
 ### Sequence: `counters/incidents`
 
@@ -179,8 +194,9 @@ its state, methods and lifecycle. `IncidentReportScreen` uses the controller
 through Provider, with independent database authorization.
 
 `newIncidentId()`, `create()`, `watchOwn()`, `watchById()`, `watchHistory()` and
-`watchProgress()` are implemented. Other operations in this table are proposed
-interfaces. [Incident observation](incident_observation.md) documents live
+`watchProgress()`, `addProgress()`, `watchAll()`, `watchAssigned()` and
+`applyWorkflow()` are implemented. Lifecycle actions use one stable
+`IncidentWorkflowCommand` through `applyWorkflow()` rather than separate write methods. [Incident observation](incident_observation.md) documents live
 reader signatures, metadata and session behavior. The creation service derives
 its actor from
 the authenticated session; database authorization is enforced independently.
@@ -195,13 +211,13 @@ the authenticated session; database authorization is enforced independently.
 | `watchProgress` | `incidentId` → `Stream<List<IncidentProgress>>`, chronological | Same parent detail authorization | HU-08, HU-12 |
 | `addProgress` | `incidentId`, descripción, referencias de evidencia opcionales → `Future<void>` | Técnico asignado durante atención | HU-12 |
 | `watchAll` | Sin argumentos → `Stream<List<Incident>>` | Administrador | HU-09 |
-| `classify` | `incidentId`, `categoryId`, prioridad → `Future<void>` | Administrador | HU-09 |
-| `assignTechnician` | `incidentId`, UID técnico → `Future<void>` | Administrador | HU-10 |
+| `applyWorkflow(classified)` | `incidentId`, `categoryId`, prioridad → `Future<void>` | Administrador | HU-09 |
+| `applyWorkflow(assigned)` | `incidentId`, UID técnico → `Future<void>` | Administrador | HU-10 |
 | `watchAssigned` | UID propio → `Stream<List<Incident>>` | Técnico, solo casos asignados | HU-10, HU-11 |
-| `startAttention` | `incidentId` → `Future<void>` | Técnico asignado | HU-11 |
-| `resolve` | `incidentId`, solución no vacía → `Future<void>` | Técnico asignado | HU-13 |
-| `close` | `incidentId` → `Future<void>` | Administrador | HU-14 |
-| `reject`, `cancel`, `reopen` | `incidentId`, motivo no vacío → `Future<void>` | Administrador según matriz siguiente | Flujo acordado |
+| `applyWorkflow(started)` | `incidentId` → `Future<void>` | Técnico asignado | HU-11 |
+| `applyWorkflow(resolved)` | `incidentId`, solución no vacía → `Future<void>` | Técnico asignado | HU-13 |
+| `applyWorkflow(closed)` | `incidentId` → `Future<void>` | Administrador | HU-14 |
+| `applyWorkflow(rejected/cancelled/reopened)` | `incidentId`, motivo no vacío → `Future<void>` | Administrador según matriz siguiente | Flujo acordado |
 
 Las consultas del propietario y del técnico incluirán el filtro de UID en Firestore. No consultar todos los casos para luego ocultar los ajenos en Flutter: las reglas autorizan consultas completas, no filtran sus resultados.
 
@@ -268,11 +284,9 @@ The state enumeration alone does not define their authorization or transitions.
 
 `IncidentStatus.reopened` ya existe con valor `REABIERTA`. El acuerdo actual registra `action: reopened` en el historial y devuelve el caso a `EN_REVISION`, sin dejarlo estacionado en `REABIERTA`. No eliminar ese enum ni producir un flujo distinto sin coordinarlo.
 
-Para concretar la reapertura se propone limpiar `resolutionDescription` y conservar la solución anterior en un campo `previousResolutionDescription` del evento. Esta política adicional deberá acordarse al implementar la Parte 3; no es una condición impuesta por el enunciado.
+Reopening clears `resolutionDescription`, `assignedTechnicianId` and `priority`. The event stores `previousResolutionDescription` before clearing the current solution. A fresh classification and assignment are required. This is the explicit Part 3 policy; existing resolution events also remain immutable.
 
-The proposed reopening contract clears `assignedTechnicianId`, records that
-change in history and requires a new classification and assignment. Reassignment
-during attention requires an explicit transition contract and validation.
+Reassignment during attention is not supported by this matrix.
 
 Para los indicadores, abiertas son `REPORTADA`, `EN_REVISION`, `ASIGNADA` y `EN_ATENCION`. `RESUELTA` sigue pendiente de cierre administrativo, pero se cuenta separadamente; `CERRADA`, `RECHAZADA` y `CANCELADA` no se mezclan con abiertas.
 
@@ -290,7 +304,9 @@ Reporters can query their own incidents and read the creation counter. Valid
 stored profiles can probe absent incident IDs. Owner reporters can attach initial
 evidence. Assigned technicians in attention can create progress with matching
 history and optional evidence atomically. Existing metadata, progress and history
-remain immutable. Incident updates and category writes remain denied.
+remain immutable. Lifecycle updates require a new linked history event and independently validated
+state, role, fields and related records. Administrators can query all incidents;
+technicians must filter by their own assigned UID. Category writes remain denied.
 [Follow-up](incident_followup.md) records these interfaces and permissions.
 
 Se comprobarán consultas y escrituras directas no autorizadas, transiciones inválidas y ausencia de eventos huérfanos. Las pruebas deben intentar modificar UID, rol, consecutivo, actor y fechas; esconder botones no constituye una prueba de seguridad.
