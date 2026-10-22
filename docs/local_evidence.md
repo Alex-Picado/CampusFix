@@ -44,8 +44,9 @@ For a server without opening Chrome, use `node tool/start_local.mjs --demo --ser
 
 All demo accounts use `CampusFixDemo123!`. The assigned case opens at
 `http://127.0.0.1:8080/#/incidents/demo-assigned` after signing in. **Mi trabajo**
-also accepts an existing incident ID. Fixtures prepare assignments and states;
-the application does not implement assignment or lifecycle management.
+now lists the authenticated technician's assignments. **Gestión** lets the demo
+administrator classify reported cases and assign technicians.
+[Incident management](incident_management.md) documents the full Part 3 flow.
 The included `demo-report/demo-photo` image is a synthetic fixture.
 
 ## Configuration

@@ -22,8 +22,15 @@ folder through a local authenticated Node.js service.
 See [Local storage and startup](docs/local_evidence.md) for installation, portable
 startup and the isolated emulator demonstration.
 
+Administrators now classify reports, assign technicians, close resolutions and
+manage rejection, cancellation and reopening through a live management queue.
+Assigned technicians can start attention and resolve their cases. Lifecycle
+updates and immutable audit events commit atomically, with independent Firestore
+rules, stable retries and session-bound controllers.
+
 ## Documentation
 
+- [Incident management and Part 3 verification](docs/incident_management.md).
 - [Incident models](docs/part_2_incidents.md).
 - [Incident creation](docs/incident_creation.md).
 - [Incident creation security](docs/incident_security.md).

@@ -85,3 +85,12 @@ La configuración, el recorrido de autenticación y sus pruebas se documentan en
 
 Abrir con `flutter run -d chrome`, recorrer el menú y reducir la ventana hasta
 que aparezca «Abrir menú».
+
+
+## Part 3 integration
+
+**Gestión** and **Mi trabajo** now display live, session-bound incident queues.
+Their protected detail routes expose permitted lifecycle actions and immutable
+audit records. See [Incident management](incident_management.md) for the final
+behavior, permissions and verification evidence. Category administration and
+indicators continue to use their pending views.
