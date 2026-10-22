@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:campusfix/app/providers/app_providers.dart';
+import 'package:campusfix/features/catalogs/models/category.dart' as catalogs;
 import 'package:campusfix/features/incidents/models/incident.dart';
 import 'package:campusfix/features/incidents/models/incident_evidence.dart';
 import 'package:campusfix/features/incidents/models/incident_history_event.dart';
@@ -29,6 +30,37 @@ FirebaseException _offline() =>
     FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
 
 void main() {
+  testWidgets(
+    'Inactive category names remain live in historical details and release on sign-out',
+    (tester) async {
+      final app = await _mount(tester);
+      expect(find.text('Categoría: Iluminación'), findsOneWidget);
+      app.categories.changes.add(const [
+        catalogs.Category(id: 'lighting', name: 'Alumbrado', isActive: false),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Categoría: Alumbrado (inactiva)'), findsOneWidget);
+      expect(app.categories.activeByIdWatches, 1);
+      app.categories.changes.addError(_offline());
+      await tester.pumpAndSettle();
+      expect(find.text('Categoría: Alumbrado (inactiva)'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('incident-detail-page')),
+        findsOneWidget,
+      );
+      app.categories.initial = const [
+        catalogs.Category(id: 'lighting', name: 'Alumbrado', isActive: false),
+      ];
+      await _tap(tester, 'category-retry');
+      expect(find.text('Categoría: Alumbrado (inactiva)'), findsOneWidget);
+      app.auth.setUser(null);
+      await tester.pumpAndSettle();
+      expect(app.categories.activeByIdWatches, 0);
+      expect(find.text('Categoría: Alumbrado (inactiva)'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Protected routes show detail, history and live comments after authentication',
     (tester) async {
@@ -199,6 +231,7 @@ Future<
     TestUserRepository users,
     _Reports reports,
     _Photos photos,
+    TestReportCategories categories,
   })
 >
 _mount(
@@ -252,7 +285,13 @@ _mount(
         .pushNamed('/incidents/case'),
   );
   await tester.pumpAndSettle();
-  return (auth: auth, users: users, reports: reports, photos: photos);
+  return (
+    auth: auth,
+    users: users,
+    reports: reports,
+    photos: photos,
+    categories: categories,
+  );
 }
 
 class _Reports extends Fake implements IncidentRepository {

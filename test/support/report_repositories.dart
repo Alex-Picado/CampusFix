@@ -13,17 +13,43 @@ class TestReportCategories extends Fake implements CategoryRepository {
   ];
   final changes = StreamController<List<Category>>.broadcast();
   int activeWatches = 0;
+  int activeByIdWatches = 0;
 
   @override
-  Stream<List<Category>> watchActive() => Stream.multi((sink) {
-    activeWatches++;
-    if (initial != null) sink.add(initial!);
+  Stream<List<Category>> watchAll() => Stream.multi((sink) {
+    if (initial != null) sink.add(List.unmodifiable(initial!));
     final subscription = changes.stream.listen(
       sink.add,
       onError: sink.addError,
     );
+    sink.onCancel = subscription.cancel;
+  });
+
+  @override
+  Stream<List<Category>> watchActive() => Stream.multi((sink) {
+    activeWatches++;
+    if (initial != null) {
+      sink.add(List.unmodifiable(initial!.where((row) => row.isActive)));
+    }
+    final subscription = changes.stream.listen(
+      (rows) => sink.add(List.unmodifiable(rows.where((row) => row.isActive))),
+      onError: sink.addError,
+    );
     sink.onCancel = () {
       activeWatches--;
+      subscription.cancel().ignore();
+    };
+  });
+
+  @override
+  Stream<Category?> watchById(String categoryId) => Stream.multi((sink) {
+    activeByIdWatches++;
+    void emit(List<Category> rows) =>
+        sink.add(rows.where((row) => row.id == categoryId).firstOrNull);
+    if (initial != null) emit(initial!);
+    final subscription = changes.stream.listen(emit, onError: sink.addError);
+    sink.onCancel = () {
+      activeByIdWatches--;
       subscription.cancel().ignore();
     };
   });

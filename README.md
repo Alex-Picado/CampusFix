@@ -28,6 +28,11 @@ Assigned technicians can start attention and resolve their cases. Lifecycle
 updates and immutable audit events commit atomically, with independent Firestore
 rules, stable retries and session-bound controllers.
 
+Administrators can create, rename, activate and deactivate categories through a
+live catalog. Existing incident details retain their category reference and show
+its current name even after deactivation. Catalog writes are independently
+protected by Firestore rules.
+
 ## Documentation
 
 - [Incident management and Part 3 verification](docs/incident_management.md).
@@ -39,4 +44,5 @@ rules, stable retries and session-bound controllers.
 - [Local evidence service](docs/local_evidence.md).
 - [Incident detail and follow-up](docs/incident_followup.md).
 - [Active category reader](docs/categories.md).
+- [Part 4 delivery progress](docs/part_4_delivery.md).
 - [Runtime configuration](docs/toolchain.md).

@@ -1,0 +1,77 @@
+# CampusFix: Part 4 Delivery Progress
+
+## Working agreement
+
+Daniel owns HU-15 through HU-18, HU-20, category administration and coordination
+of the final integration and evidence. Work takes place on
+`feat/queries-dashboard`, with one requested session per phase and at least one
+meaningful commit per phase. Commit timestamps are real. Every push requires a
+direct user request; completing a phase does not authorize a push or the next
+phase. Alex reviews the final integration, retaining individual commits through
+a merge commit.
+
+| Phase | Deliverable | Status |
+| --- | --- | --- |
+| 1 | Category creation, renaming, activation, historical names and permissions | Implemented; verification recorded below. |
+| 2 | Authorized incident search (HU-15) | Pending a later requested session. |
+| 3 | Combined administrative filters (HU-16) | Pending a later requested session. |
+| 4 | Live global dashboard and category counts (HU-17, HU-18) | Pending a later requested session. |
+| 5 | Desktop/tablet integration and explicit public photo limitation | Pending a later requested session. |
+| 6 | Hosting publication, final documentation and 20-story evidence (HU-20) | Pending a later requested session. |
+
+## Phase 1 implementation and evidence
+
+The existing category model and incident schema are unchanged. The catalog now
+supports administrator creation, renaming and activation/deactivation through
+screen, controller, repository and service layers. Its controller handles draft
+validation, pending writes, errors, confirmed success and session cleanup.
+
+The incident detail resolves the current name of its referenced category, even
+after deactivation, and observes later renames. Category errors have an explicit
+retry and do not discard the rest of the authorized incident detail. New report
+selection still uses the existing active-only query.
+
+| Requirement | Implementation | Executable evidence |
+| --- | --- | --- |
+| Administrator category management | `CategoryManagementScreen`, `CategoryManagementController`, extended category repository/service | `test/category_management_screen_test.dart`, `test/features/catalogs/repositories/category_management_repository_test.dart` |
+| Historical category references and names | Individual category reader and incident detail subscription | `test/incident_detail_screen_test.dart`, repository tests, category rule tests |
+| Independent authorization and validation | Firestore category get/list/write/delete rules | `tool/firestore_tests/categories.rules.test.mjs` |
+| Session cleanup and tablet layout | Session-bound controller, adaptive category rows | Category screen tests: navigation, role downgrade, pending acknowledgement, account change and tablet layout |
+
+The exact verification results are recorded in `evidence/part_4_phase_1_checks.txt`.
+All database tests target the local `demo-campusfix` emulator. No production data
+or security rules are changed by these tests.
+
+## Runtime setup
+
+The global Flutter installation is not changed. A local checkout of the official
+Flutter `3.47.5` release is available under ignored `.fvm/sdk-3.47.5`, with Dart
+`3.13.4`. Node is `24.19.0`; the tests select Java `21.0.9` explicitly.
+
+On this Windows checkout, use:
+
+```powershell
+& .\.fvm\sdk-3.47.5\bin\flutter.bat pub get --enforce-lockfile
+& .\.fvm\sdk-3.47.5\bin\flutter.bat analyze --no-pub
+& .\.fvm\sdk-3.47.5\bin\flutter.bat test --no-pub
+& .\.fvm\sdk-3.47.5\bin\flutter.bat build web --no-pub
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-21'
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+npm.cmd test --prefix tool/firestore_tests
+```
+
+The SDK checkout is local and not committed. Other contributors can select the
+same release using their existing SDK or FVM as documented in `toolchain.md`.
+
+## Explicit delivery limitations
+
+- Photographs retain the team's local authenticated service and local storage.
+  This was selected by the user; it is not recorded as instructor approval of
+  the difference from the cloud-storage requirement.
+- The full demonstration with photographs remains local. Phase 5 will prepare
+  an explicit public-client mode without local photograph operations.
+- Hosting publication and real-project rule deployment have not been performed
+  in phase 1. New catalog operations need the reviewed rules deployed before
+  they can be verified against the real project.
+- Evidence for all 20 stories and the published three-role walkthrough belong
+  to the final integration. They are not claimed complete by this phase.

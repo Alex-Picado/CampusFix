@@ -1,0 +1,73 @@
+CampusFix Part 4, phase 1: category administration
+Executed date: October 21, 2026 (America/Costa_Rica)
+Branch: feat/queries-dashboard
+Base: fa831b4, including merged Part 3; origin/main checked with fast-forward pull.
+
+Runtimes:
+Flutter 3.47.5, local ignored checkout at .fvm/sdk-3.47.5
+Dart 3.13.4, bundled with that Flutter release
+Node.js 24.19.0
+Java 21.0.9, explicitly selected for Firestore tests
+The global Flutter installation and repository version pins were not changed.
+
+node tool/verify_toolchain.mjs (local SDK selected on PATH)
+Node.js 24.19.0: matches .node-version
+Flutter 3.47.5: matches .fvmrc
+Bundled Dart: 3.13.4
+Toolchain verification passed.
+
+flutter pub get --enforce-lockfile
+Passed; pubspec.lock unchanged.
+
+flutter analyze --no-pub
+No issues found! (ran in 10.3s)
+
+flutter test --no-pub --reporter expanded
+00:09 +224: All tests passed!
+Includes 8 new catalog repository tests, 8 new catalog screen tests and
+1 new historical-category detail test, in addition to the existing 207 tests.
+The navigation test now expects the implemented catalog rather than its preview.
+
+npm ci --prefix tool/firestore_tests
+Passed; dependencies restored from the committed lockfile.
+
+npm test --prefix tool/firestore_tests
+Java 21.0.9 verified.
+Firestore emulator: 127.0.0.1:8085, project demo-campusfix only.
+tests 81, pass 81, fail 0, skipped 0, cancelled 0.
+Includes 14 category/profile checks and existing incident lifecycle suites.
+The emulator started, ran the script successfully and shut down.
+
+flutter build web --no-pub
+Wasm dry run succeeded.
+Built build/web. Compilation completed in 31.6s.
+
+git diff --check (phase 1 files)
+Passed.
+
+Behavior covered:
+- Create and rename categories with trimmed, nonblank names.
+- Activate/deactivate categories, preserve IDs and exclude inactive selections.
+- Read an inactive category's current name from a historical incident detail.
+- Observe category renames live and retry category failures independently.
+- Reject non-administrator writes and all category deletions via independent SDK.
+- Reject invalid/missing/extra write fields and a revoked administrator role.
+- Release subscriptions on navigation, sign-out, account switch and role change.
+- Prevent duplicate pending submissions and ignore obsolete acknowledgements.
+- Fit long category names and editing controls on a 768x1024 tablet viewport.
+
+Environment notes:
+Initial sandbox attempts could not download SDK components, run the Firestore CLI
+or copy Flutter test files. Approved executions outside isolation completed.
+An obsolete preview expectation and a widget-test stream wait were corrected;
+the final complete Flutter run passed with 224 tests.
+
+Not executed or claimed in phase 1:
+- Production Firestore rule deployment or real-project catalog write checks.
+- Firebase Hosting deployment, public URL verification or public photo mode.
+- Final browser walkthrough across the 20 user stories (planned in later phases).
+- Changes to the local photograph provider or production data.
+- Git push or integration into main.
+
+Pre-existing generated plugin-file line-ending changes were preserved and
+excluded from the phase 1 commit.

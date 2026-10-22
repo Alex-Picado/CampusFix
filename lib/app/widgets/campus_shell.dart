@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../features/auth/controllers/auth_controller.dart';
+import '../../features/catalogs/screens/category_management_screen.dart';
 import '../../features/incidents/screens/my_incidents_screen.dart';
 import '../../features/incidents/screens/incident_queue_screen.dart';
 import '../../features/users/models/user_profile.dart';
@@ -168,6 +169,9 @@ class _CampusShellState extends State<CampusShell> {
   }
 
   Widget _page() {
+    if (_selected == CampusDestination.categories) {
+      return const CategoryManagementScreen();
+    }
     if (_selected == CampusDestination.overview) {
       return OverviewScreen(
         onNavigate: _select,
