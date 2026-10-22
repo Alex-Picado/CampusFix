@@ -1,0 +1,97 @@
+CampusFix Part 4, phase 5: integrated local/public clients
+Executed: October 21, 2026, America/Costa_Rica
+Local branch: codex/phase-5-integration
+Base: c91a4e1 (phase 4); official working branch is unchanged.
+
+EXECUTED
+
+Pinned toolchain: Flutter 3.47.5, Dart 3.13.4, Node 24.19.0.
+Java 21.0.9 was selected only for the existing Firebase emulators.
+
+flutter analyze --no-pub
+No issues found! (ran in 11.2s)
+
+flutter test --no-pub --reporter expanded
+00:13 +296: All tests passed!
+Three added regression cases cover the public report notice and saving text-only
+progress without local photo operations on desktop and tablet.
+
+npm test --prefix services/local_evidence
+tests 10, pass 10, fail 0, skipped 0.
+
+npm run test:integration --prefix tool/firestore_tests
+Exit 0. Verified real emulator Firebase sessions, protected uploads/downloads,
+atomic progress/history/evidence, live changes, revoked permissions and cloned
+local storage. Temporary storage was isolated by the existing test workflow.
+
+npm test --prefix tool/firestore_tests
+tests 82, pass 82, fail 0, skipped 0.
+Auth/Firestore verification targets demo-campusfix only, never the real project.
+All emulator runs completed and their tracked processes were stopped.
+
+flutter build web --no-pub --release --dart-define=ENABLE_LOCAL_PHOTOS=false
+  --dart-define=USE_FIREBASE_EMULATORS=false --no-web-resources-cdn
+Wasm dry run succeeded; built build/web in 36.0s.
+
+Actual in-app browser: local-photo workflow
+1. Registered a new synthetic reporter, Daniel Demo, in the Auth emulator.
+2. Created incident #4, Luminaria del aula 204, category Iluminacion,
+   location Edificio A, aula 204; confirmed REPORTADA.
+3. Selected a synthetic PNG and saved its acknowledged local association.
+4. Administrator classified it at ALTA and assigned technician-demo.
+5. The assigned technician started attention, saved a textual advance with a
+   second photograph, and resolved with a nonblank solution.
+6. Administrator closed the resolved report. Chronological history showed
+   creation, classification, assignment, start, progress, resolution and closure.
+7. Reloaded the protected route and recovered the closed report and images.
+8. Dashboard showed 4 total, 3 open, 1 in progress, 0 resolved, 1 closed;
+   category Iluminacion counted all 4. State and history updated without reload
+   throughout the workflow; reload was a separate navigation check.
+
+Actual in-app browser: public photograph-disabled workflow
+Launched --demo --serve --no-photos, without the photograph service.
+Reporter created a new text-only report, Verificacion de atencion sin fotografias.
+Administrator classified at MEDIA and assigned technician-demo. The technician
+started attention, saved a text-only advance, and resolved with a solution.
+Administrator closed it. The photograph limitation remained visible, with no
+photo selection/upload controls. All three roles signed in and out normally.
+
+Reviewed screenshots: actual browser pixels, no mouse pointer or production data.
+The file picker uses a synthetic green PNG; no real problem/photo is asserted.
+- phase_5_local_photo_desktop.jpg: 1440x996, associated photo and success notice.
+- phase_5_progress_tablet.jpg: 768x996, progress description and associated photo.
+- phase_5_closed_tablet.jpg: 768x996, closed state and recorded solution.
+- phase_5_dashboard_desktop.jpg: 1440x996, resulting global counts.
+- phase_5_public_report_desktop.jpg: 1440x996, public notice before submission.
+- phase_5_public_progress_tablet.jpg: 768x996, text progress saved without photos.
+Desktop/tablet overrides were reset and the browser session signed out afterward.
+
+Integration fixes:
+- Replaced unsupported encoded ImageDescriptor dimension access with the shared
+  codec sizing callback, retaining formats, 3 MB/40-million-pixel limits and
+  single-frame checks. Browser selection, upload and progress evidence succeeded.
+- Kept the picker attached to the document during selection and removed it and
+  its listeners in cleanup, rather than leaving a detached picker unresolved.
+- Default builds omit EvidenceRepository construction; the local launcher opts in.
+- Removed obsolete placeholder navigation and pending-module interface copy.
+
+LIMITED
+
+An additional flutter test --platform chrome attempt for the existing photo
+validation test remained at loading and was terminated. It is not counted as a
+pass. The complete native Flutter suite passed, and actual browser selection,
+decoding, upload, download and association were verified as described above.
+Browser demonstrations used emulators and synthetic data, not production Firebase.
+
+CLEANUP AND PENDING
+
+One-off uploaded fixture files were removed from the exact newly created incident
+directory, preserving the previously tracked demo photograph. SDK/dependency
+caches and logs stay ignored; no temporary instrumentation, Java application
+dependency, emulator data export or new account credentials enter lib/ or Git.
+Permanent regression tests remain separate from runtime application code.
+Pre-existing generated plugin line-ending changes were preserved and excluded.
+
+Phase 6 prepares the public Hosting bundle and final documentation locally.
+No push, production Firebase deployment, PR or merge occurred in phase 5.
+Live Hosting verification remains pending under the local-only user instruction.

@@ -30,6 +30,40 @@ FirebaseException _offline() =>
     FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
 
 void main() {
+  for (final tablet in [false, true]) {
+    testWidgets(
+      'Photo-disabled client saves text progress on ${tablet ? 'tablet' : 'desktop'} without local photo operations',
+      (tester) async {
+        final app = await _mount(
+          tester,
+          technician: true,
+          tablet: tablet,
+          photosEnabled: false,
+        );
+        expect(
+          find.textContaining(
+            'Las fotografías están disponibles en la versión local.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('progress-photo')), findsNothing);
+        expect(find.byKey(const ValueKey('photo-select')), findsNothing);
+        await _enter(
+          tester,
+          'progress-description',
+          'Inspección sin fotografía',
+        );
+        await _tap(tester, 'progress-save');
+        expect(find.text('Avance guardado correctamente.'), findsOneWidget);
+        expect(app.reports.entries, hasLength(1));
+        expect(app.reports.photoReference, isNull);
+        expect(app.photos.uploads, 0);
+        expect(app.photos.attachments, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'Inactive category names remain live in historical details and release on sign-out',
     (tester) async {
@@ -240,6 +274,7 @@ _mount(
   bool signedIn = true,
   bool missing = false,
   bool tablet = false,
+  bool photosEnabled = true,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = tablet
@@ -274,7 +309,7 @@ _mount(
       userRepository: users,
       categoryRepository: categories,
       incidentRepository: reports,
-      evidenceRepository: photos,
+      evidenceRepository: photosEnabled ? photos : null,
       child: const MyApp(),
     ),
   );

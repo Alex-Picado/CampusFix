@@ -8,7 +8,11 @@ of the final integration and evidence. Work takes place on
 meaningful commit per phase. Commit timestamps are real. Every push requires a
 direct user request; completing a phase does not authorize a push or the next
 phase. Alex reviews the final integration, retaining individual commits through
-a merge commit.
+a merge commit. A later user instruction requests phases 5 and 6 together on local
+branches `codex/phase-5-integration` and `codex/phase-6-delivery`. Phase 6 builds on
+phase 5. `feat/queries-dashboard` stays at its phase 4 commit until integration is
+requested; neither local branch is pushed automatically. Internet publication is
+also deferred by this local-only instruction.
 
 | Phase | Deliverable | Status |
 | --- | --- | --- |
@@ -16,7 +20,7 @@ a merge commit.
 | 2 | Authorized incident search (HU-15) | Implemented; verification recorded below. |
 | 3 | Combined administrative filters (HU-16) | Implemented; verification recorded below. |
 | 4 | Live global dashboard and category counts (HU-17, HU-18) | Implemented; verification recorded below. |
-| 5 | Desktop/tablet integration and explicit public photo limitation | Pending a later requested session. |
+| 5 | Desktop/tablet integration and explicit public photo limitation | Implemented and verified locally on its separate branch. |
 | 6 | Hosting publication, final documentation and 20-story evidence (HU-20) | Pending a later requested session. |
 
 ## Phase 1 implementation and evidence
@@ -129,6 +133,27 @@ Executed checks and explicit remaining limits are recorded in
 `evidence/parte_4/part_4_phase_4_checks.txt`. See `incident_dashboard.md` for the
 definitions, lifecycle behavior and screenshot regeneration command.
 
+## Phase 5 implementation and evidence
+
+The public client explicitly disables local photograph operations and explains
+the limitation, preserving reports and text progress. The local launcher opts
+into photographs; `--no-photos` previews the public behavior against demo
+emulators. The actual browser walkthrough exposed and fixed unsupported encoded
+image dimension access in Flutter Web and a detached file-picker lifecycle issue.
+Obsolete placeholder navigation and pending-module interface text were removed.
+
+Both local-photo and public text-only workflows completed report creation,
+classification, assignment, attention, progress, resolution and administrator
+closure with synthetic accounts. The photograph run also covered registration,
+live history, protected-route reload and resulting global indicators. Desktop
+and tablet captures document the actual browser. Exact checks and the limited
+extra Chrome test attempt are in `evidence/parte_4/part_4_phase_5_checks.txt`.
+See `integration_delivery.md` for modes, setup and reproducible walkthroughs.
+
+Java was used only by existing verification emulators. The runtime application
+contains no Java dependency or temporary diagnostic instrumentation. One-off
+uploaded files were removed, existing images preserved and demo processes stopped.
+
 ## Runtime setup
 
 The global Flutter installation is not changed. A local checkout of the official
@@ -155,7 +180,7 @@ same release using their existing SDK or FVM as documented in `toolchain.md`.
 - Photographs retain the team's local authenticated service and local storage.
   This was selected by the user; it is not recorded as instructor approval of
   the difference from the cloud-storage requirement.
-- The full demonstration with photographs remains local. Phase 5 will prepare
+- The full demonstration with photographs remains local. Phase 5 implements
   an explicit public-client mode without local photograph operations.
 - Hosting publication and real-project rule deployment have not been performed
   in phase 1. New catalog operations need the reviewed rules deployed before

@@ -122,7 +122,9 @@ class _DetailView extends StatelessWidget {
           'Fotografías',
           controller.loadingSections.contains('evidence'),
           [
-            if (controller.evidence.isEmpty)
+            if (controller.evidenceRepository == null)
+              const PhotoAvailabilityNotice()
+            else if (controller.evidence.isEmpty)
               const Text('No hay fotografías asociadas.')
             else
               EvidenceGallery(uid: profile.id, evidence: controller.evidence),

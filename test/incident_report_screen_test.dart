@@ -19,6 +19,23 @@ FirebaseException _unavailable() =>
 
 void main() {
   testWidgets(
+    'Photo-disabled client explains the limitation before report submission',
+    (tester) async {
+      await _mount(tester);
+      await _openReport(tester);
+      expect(
+        find.textContaining(
+          'Las fotografías están disponibles en la versión local.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('photo-select')), findsNothing);
+      expect(find.byKey(const ValueKey('report-submit')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Observes categories only on the report page and validates fields',
     (tester) async {
       final app = await _mount(tester);

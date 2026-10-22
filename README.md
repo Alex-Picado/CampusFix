@@ -19,6 +19,10 @@ history. Assigned technicians in attention can record progress with optional
 photographs. Image bytes are stored in the versioned `local_storage/evidence/`
 folder through a local authenticated Node.js service.
 
+The default public client disables local photographs and explains that limitation
+while allowing reports and text progress. The local launcher explicitly enables
+photographs. See [Integrated clients](docs/integration_delivery.md).
+
 See [Local storage and startup](docs/local_evidence.md) for installation, portable
 startup and the isolated emulator demonstration.
 
@@ -36,6 +40,7 @@ protected by Firestore rules.
 ## Documentation
 
 - [Incident management and Part 3 verification](docs/incident_management.md).
+- [Desktop/tablet integration and photograph modes](docs/integration_delivery.md).
 - [Authorized incident search](docs/incident_search.md).
 - [Administrative filters](docs/incident_filters.md).
 - [Global incident indicators](docs/incident_dashboard.md).

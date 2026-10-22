@@ -7,6 +7,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const windows = process.platform === 'win32';
 const demo = process.argv.includes('--demo');
 const serve = process.argv.includes('--serve');
+const photos = !process.argv.includes('--no-photos');
 const children = [];
 const env = { ...process.env, ...(demo ? {
   LOCAL_EVIDENCE_EMULATORS: 'true', LOCAL_EVIDENCE_PROJECT_ID: 'demo-campusfix',
@@ -54,7 +55,7 @@ try {
   const check = spawnSync(process.execPath, ['tool/verify_toolchain.mjs'], { cwd: root, env, stdio: 'inherit', windowsHide: true });
   if (check.status !== 0) throw new Error('Select the pinned runtimes before starting the application.');
   const config = readConfig(env);
-  for (const port of [config.port, 8080, ...(demo ? [8085, 9099] : [])]) {
+  for (const port of [...(photos ? [config.port] : []), 8080, ...(demo ? [8085, 9099] : [])]) {
     if (await portOpen(port)) throw new Error(`Port ${port} is in use. Existing listeners were left unchanged.`);
   }
   if (demo) {
@@ -65,10 +66,13 @@ try {
     await waitPort(9099); await waitPort(8085);
     await completed(start(process.execPath, ['services/local_evidence/src/seed_demo.mjs']));
   }
-  start(process.execPath, ['services/local_evidence/src/main.mjs']);
-  await waitPort(config.port, config.host);
+  if (photos) {
+    start(process.execPath, ['services/local_evidence/src/main.mjs']);
+    await waitPort(config.port, config.host);
+  }
   const host = config.host === '::1' ? '[::1]' : config.host;
   const args = ['run', '--no-pub', '-d', serve ? 'web-server' : 'chrome', '--web-hostname', '127.0.0.1', '--web-port', '8080',
+    `--dart-define=ENABLE_LOCAL_PHOTOS=${photos}`,
     `--dart-define=LOCAL_EVIDENCE_URL=http://${host}:${config.port}`, ...(demo ? ['--dart-define=USE_FIREBASE_EMULATORS=true'] : [])];
   const flutter = windows ? start(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `flutter ${args.join(' ')}`]) : start('flutter', args);
   await completed(flutter); stop();

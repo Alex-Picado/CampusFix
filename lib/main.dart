@@ -60,10 +60,12 @@ Future<void> main() async {
         categoryService: CategoryService(firestore: firestore),
       ),
       incidentRepository: IncidentRepository(incidentService: incidentService),
-      evidenceRepository: EvidenceRepository(
-        incidents: incidentService,
-        files: LocalEvidenceService(auth: FirebaseAuth.instance),
-      ),
+      evidenceRepository: const bool.fromEnvironment('ENABLE_LOCAL_PHOTOS')
+          ? EvidenceRepository(
+              incidents: incidentService,
+              files: LocalEvidenceService(auth: FirebaseAuth.instance),
+            )
+          : null,
       child: const MyApp(),
     ),
   );

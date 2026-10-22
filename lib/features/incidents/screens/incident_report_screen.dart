@@ -9,6 +9,7 @@ import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../controllers/incident_report_controller.dart';
 import '../repositories/incident_repository.dart';
+import '../repositories/evidence_repository.dart';
 import '../widgets/evidence_widgets.dart';
 
 /// Owns a report controller while the original reporter's form is mounted.
@@ -110,6 +111,10 @@ class _ReportFormState extends State<_ReportForm> {
             description: 'Describí el problema e indicá dónde ocurre.',
           ),
           const SizedBox(height: 24),
+          if (context.watch<EvidenceRepository?>() == null) ...[
+            const PhotoAvailabilityNotice(),
+            const SizedBox(height: 16),
+          ],
           SectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -230,7 +235,7 @@ class _ReportFormState extends State<_ReportForm> {
             OutlinedButton(
               onPressed: () => Navigator.of(context)
                   .pushNamed('/incidents/${controller.createdIncident!.id}'),
-              child: const Text('Ver detalle y fotografías'),
+              child: const Text('Ver detalle'),
             ),
           ],
         ],

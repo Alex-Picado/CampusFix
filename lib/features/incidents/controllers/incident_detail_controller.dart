@@ -102,6 +102,7 @@ class IncidentDetailController extends ChangeNotifier {
   bool get frozen => progressId != null;
   bool get canSelect =>
       canAddProgress &&
+      evidenceRepository != null &&
       !saving &&
       !selecting &&
       (!frozen || (evidenceId != null && photo == null && uploaded == null));

@@ -9,6 +9,19 @@ import '../controllers/evidence_upload_controller.dart';
 import '../models/incident_evidence.dart';
 import '../repositories/evidence_repository.dart';
 
+/// Explains the public client's photo limitation without attempting local I/O.
+class PhotoAvailabilityNotice extends StatelessWidget {
+  const PhotoAvailabilityNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SectionCard(
+    child: Text(
+      'Las fotografías están disponibles en la versión local. '
+      'En esta versión podés reportar incidencias y registrar avances sin fotos.',
+    ),
+  );
+}
+
 /// Owns one account-bound report-photo upload and recoverable association.
 class ReportPhotoUpload extends StatelessWidget {
   final String incidentId;
@@ -131,18 +144,23 @@ class EvidenceGallery extends StatelessWidget {
   final List<IncidentEvidence> evidence;
   const EvidenceGallery({super.key, required this.uid, required this.evidence});
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 12,
-    runSpacing: 12,
-    children: [
-      for (final photo in evidence)
-        _ProtectedPhoto(
-          key: ValueKey('$uid:${photo.id}'),
-          uid: uid,
-          evidence: photo,
-        ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    if (context.watch<EvidenceRepository?>() == null) {
+      return const PhotoAvailabilityNotice();
+    }
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        for (final photo in evidence)
+          _ProtectedPhoto(
+            key: ValueKey('$uid:${photo.id}'),
+            uid: uid,
+            evidence: photo,
+          ),
+      ],
+    );
+  }
 }
 
 class _ProtectedPhoto extends StatefulWidget {
