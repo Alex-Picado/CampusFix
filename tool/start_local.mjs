@@ -73,7 +73,7 @@ try {
   const host = config.host === '::1' ? '[::1]' : config.host;
   const args = ['run', '--no-pub', '-d', serve ? 'web-server' : 'chrome', '--web-hostname', '127.0.0.1', '--web-port', '8080',
     `--dart-define=ENABLE_LOCAL_PHOTOS=${photos}`,
-    `--dart-define=LOCAL_EVIDENCE_URL=http://${host}:${config.port}`, ...(demo ? ['--dart-define=USE_FIREBASE_EMULATORS=true'] : [])];
+    `--dart-define=LOCAL_EVIDENCE_URL=http://${host}:${config.port}`, ...(demo ? ['--target', 'tool/demo_main.dart'] : [])];
   const flutter = windows ? start(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `flutter ${args.join(' ')}`]) : start('flutter', args);
   await completed(flutter); stop();
 } catch (error) { console.error(`Local startup failed: ${error.message}`); process.exitCode = 1; stop(); }

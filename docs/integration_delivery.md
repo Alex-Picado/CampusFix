@@ -15,8 +15,7 @@ available. The report and detail explain the photograph limitation in Spanish.
 Existing reports retain their photographs and references for the local client.
 
 ```powershell
-flutter build web --release --dart-define=ENABLE_LOCAL_PHOTOS=false `
-  --dart-define=USE_FIREBASE_EMULATORS=false
+flutter build web --release --target lib/main.dart --dart-define=ENABLE_LOCAL_PHOTOS=false
 ```
 
 This is a deliberate delivery limitation, not compliance with the cloud photograph
@@ -41,6 +40,10 @@ and removes itself and its event listeners after completion or cancellation.
 Server-side decoding, size limits and authorization remain unchanged.
 
 ## Isolated demonstration and verification
+
+Phase 6 isolates emulator initialization in `tool/demo_main.dart`. Production
+`lib/main.dart` contains no demo Firebase options or emulator connection branch;
+both entry points share the same production dependency composition.
 
 The existing development tooling remains outside the application runtime. Java 21
 is required by the Firestore emulator, not by the deployed Flutter application.

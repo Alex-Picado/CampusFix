@@ -1,0 +1,61 @@
+CampusFix - Daniel - Phase 6 local delivery preparation
+Date: 2026-10-21, America/Costa_Rica
+Branch: codex/phase-6-delivery
+Base: 781ed4c (local phase 5 integration)
+
+EXECUTED
+
+- Flutter 3.47.5 / Dart 3.13.4 and Node 24.19.0 retained.
+- Flutter analyze --no-pub after production/demo entry-point separation:
+  No issues found (10.6 seconds).
+- Full Flutter suite immediately before that separation: 296 tests passed.
+- Phase 5 backend verification: 82 Firestore-rule tests, 10 local evidence
+  service tests and the emulator evidence integration script passed. Backend
+  rules, service and incident schema were not changed in phase 6.
+- Public release prepared with local photographs disabled, production main.dart
+  and local renderer assets. Rebuilt after final entry-point separation.
+  Final web compilation: passed (34.8 seconds).
+- Standalone bundle: build/release/campusfix-public (ignored build output).
+  Includes compiled web client, Hosting configuration, rule/index copies and
+  release.json with runtime information and seven critical-file SHA-256 hashes.
+- Final rebuilt package: all seven hashes verified, and compiled JavaScript
+  contains no demo project, demo password or local photo-service URL markers.
+- All three changed Node launcher/release scripts passed node --check.
+- Local Hosting check before final entry-point separation: release integrity,
+  absence of demo/password/photo-service markers in compiled JavaScript, entry,
+  SPA fallback, assets, MIME types, no-cache/nosniff headers and manifest passed.
+  Header matching uses the supported regex form for Windows emulator consistency.
+- Actual local Hosting browser: public sign-in page rendered; protected hash
+  route reload returned the sign-in gate. No production credentials submitted.
+  Screenshot: phase_6_hosting_local_desktop.jpg, 1440x996, no mouse pointer.
+- Isolated tool/demo_main.dart launcher compiled and served after separation.
+  Browser smoke was not repeated: the previous browser session was unavailable.
+- README links user manual, architecture/permissions, all 20 stories,
+  demonstration script and publication procedure.
+
+LIMITED / PENDING
+
+- Permission to repeat the full Flutter suite after entry-point separation was
+  rejected. The 296-test result predates that final refactor; final static
+  analysis and public compilation cover the final sources.
+- Hosting HTTP/browser checks were not repeated after that refactor. The final
+  package was rebuilt; UI, Hosting headers and fallback are unchanged.
+- Phase 5's extra Chrome CLI test remained at loading and was terminated, as
+  recorded there. Actual local/public browser workflows already completed.
+- HU-20 Internet deployment, actual public URL and published three-role checks
+  remain pending user authorization. No production rules or data were modified.
+- Photographs remain local by user choice; cloud photograph storage is not
+  delivered and no instructor acceptance of that exception is assumed.
+
+CLEAN DELIVERY
+
+- Production main.dart contains no emulator branches or demo Firebase options.
+  Isolated demo initialization lives in tool/demo_main.dart, outside lib/.
+- No Java runtime files, debug instrumentation, generated SDK/cache directories,
+  verification logs, uploaded fixture bytes or account secrets are committed.
+- Permanent tests and development tooling remain separate from runtime code.
+- Own demo/Hosting processes stopped; prior generated plugin line-ending changes
+  preserved and excluded from the delivery commit.
+- One-off PDF reader, extracted statement text and browser image fixture removed
+  from build/. Reproducible release output and verification logs stay ignored.
+- Local branches only. No Git push, production deployment, PR or merge.

@@ -21,7 +21,7 @@ also deferred by this local-only instruction.
 | 3 | Combined administrative filters (HU-16) | Implemented; verification recorded below. |
 | 4 | Live global dashboard and category counts (HU-17, HU-18) | Implemented; verification recorded below. |
 | 5 | Desktop/tablet integration and explicit public photo limitation | Implemented and verified locally on its separate branch. |
-| 6 | Hosting publication, final documentation and 20-story evidence (HU-20) | Pending a later requested session. |
+| 6 | Hosting preparation, final documentation and 20-story evidence (HU-20) | Prepared and verified locally; Internet publication pending user authorization. |
 
 ## Phase 1 implementation and evidence
 
@@ -154,6 +154,26 @@ Java was used only by existing verification emulators. The runtime application
 contains no Java dependency or temporary diagnostic instrumentation. One-off
 uploaded files were removed, existing images preserved and demo processes stopped.
 
+## Phase 6 local delivery preparation
+
+The production entry point contains no emulator initialization or demo fixtures.
+The isolated demo entry point lives in `tool/demo_main.dart` and shares the same
+repository composition. Java remains verification tooling only. The public
+package contains compiled assets, Hosting configuration, reviewed rule/index
+copies and a critical-file SHA-256 manifest; it contains no tests or local photos.
+`tool/prepare_release.mjs` rebuilds that ignored package without deploying.
+
+Local Firebase Hosting checks covered entry and SPA fallback, assets, MIME types,
+revalidation headers and the manifest. An actual browser capture documents the
+compiled sign-in page. The final production build and static analysis passed
+after entry-point separation. Repeating the Flutter suite after that separation
+was denied permission; the preceding full run passed 296 tests. This distinction
+is retained in `evidence/parte_4/part_4_phase_6_checks.txt`.
+
+The user manual, architecture, 20-story traceability matrix, demonstration script
+and publication instructions are linked from the README. HU-20 remains pending:
+no Internet deployment, published-role walkthrough, push, PR or merge is claimed.
+
 ## Runtime setup
 
 The global Flutter installation is not changed. A local checkout of the official
@@ -183,7 +203,7 @@ same release using their existing SDK or FVM as documented in `toolchain.md`.
 - The full demonstration with photographs remains local. Phase 5 implements
   an explicit public-client mode without local photograph operations.
 - Hosting publication and real-project rule deployment have not been performed
-  in phase 1. New catalog operations need the reviewed rules deployed before
+  in these phases. New catalog operations need the reviewed rules deployed before
   they can be verified against the real project.
-- Evidence for all 20 stories and the published three-role walkthrough belong
-  to the final integration. They are not claimed complete by this phase.
+- The 20-story evidence matrix is prepared. Internet publication and the
+  published three-role walkthrough remain pending and are not marked complete.

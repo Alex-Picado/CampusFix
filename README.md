@@ -39,6 +39,11 @@ protected by Firestore rules.
 
 ## Documentation
 
+- [Public release preparation and deployment status](docs/despliegue.md).
+- [User manual](docs/user_manual.md).
+- [Architecture, data and permissions](docs/architecture_delivery.md).
+- [All 20 user stories and evidence](docs/requirements_traceability.md).
+- [Demonstration script](docs/demo_script.md).
 - [Incident management and Part 3 verification](docs/incident_management.md).
 - [Desktop/tablet integration and photograph modes](docs/integration_delivery.md).
 - [Authorized incident search](docs/incident_search.md).

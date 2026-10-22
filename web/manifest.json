@@ -1,12 +1,12 @@
 {
-    "name": "campusfix",
-    "short_name": "campusfix",
+    "name": "CampusFix",
+    "short_name": "CampusFix",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#f6f7f8",
+    "theme_color": "#28634f",
+    "description": "Reportes, atención y seguimiento de incidencias del campus.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
