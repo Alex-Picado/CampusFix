@@ -103,6 +103,25 @@ void main() {
         SelectedPhoto(bytes: _png, fileName: 'photo.png', contentType: ''),
       );
       expect(valid.contentType, 'image/png');
+      for (final name in ['foto.png', 'IMG_1234.jpg', 'evidencia1.png']) {
+        final photo = await repository.validatePhoto(
+          SelectedPhoto(bytes: _png, fileName: name, contentType: ''),
+        );
+        expect(photo.fileName, name);
+      }
+      for (final name in [
+        'a${String.fromCharCode(10)}b.png',
+        'a${String.fromCharCode(0)}b.png',
+        '../foto.png',
+        'a${String.fromCharCode(92)}b.png',
+      ]) {
+        await expectLater(
+          repository.validatePhoto(
+            SelectedPhoto(bytes: _png, fileName: name, contentType: ''),
+          ),
+          throwsFormatException,
+        );
+      }
       await expectLater(
         repository.validatePhoto(
           SelectedPhoto(

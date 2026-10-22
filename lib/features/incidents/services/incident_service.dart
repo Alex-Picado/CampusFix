@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../auth/services/auth_service.dart';
 import '../../users/models/user_role.dart';
 import '../models/incident_history_action.dart';
+import '../models/incident.dart';
+import '../models/incident_workflow.dart';
 import '../models/incident_status.dart';
 
 /// Handles authenticated incident persistence and confirmed live observations.
@@ -56,6 +58,140 @@ class IncidentService {
             },
           );
     });
+  }
+
+  /// Watches all reports for administrators, or only this technician's reports.
+  ///
+  /// Queries are filtered on the server and tied to the original account.
+  /// Independent rules enforce the stored role; confirmed timestamps are required.
+  Stream<Map<String, Map<String, dynamic>>> watchQueue({String? technicianId}) {
+    final uid = _requireSession(technicianId);
+    return _watchSession(uid, () {
+      Query<Map<String, dynamic>> query = _firestore.collection('incidents');
+      if (technicianId != null) {
+        query = query.where('assignedTechnicianId', isEqualTo: technicianId);
+      }
+      return query
+          .snapshots(includeMetadataChanges: true)
+          .where((snapshot) => _isConfirmed(snapshot.metadata))
+          .map(
+            (snapshot) => {
+              for (final document in snapshot.docs)
+                document.id: _normalizeDates(document.data(), [
+                  'createdAt',
+                  'updatedAt',
+                ]),
+            },
+          );
+    });
+  }
+
+  /// Atomically applies one lifecycle command and its immutable audit event.
+  ///
+  /// Rereads role, state and referenced category/technician inside the transaction.
+  /// A matching existing event confirms an uncertain retry without replaying it.
+  /// Conflicting IDs, stale forms and invalid transitions fail without writes.
+  Future<void> applyWorkflow({
+    required String incidentId,
+    required IncidentWorkflowCommand command,
+  }) async {
+    final uid = _requireSession();
+    final parent = _firestore.collection('incidents').doc(incidentId);
+    final event = parent.collection('history').doc(command.eventId);
+    await _firestore.runTransaction<void>((tx) async {
+      _requireSession(uid);
+      final current = await tx.get(parent);
+      final profile = await tx.get(_firestore.collection('users').doc(uid));
+      final existing = await tx.get(event);
+      final role = profile.data()?['role'];
+      if (role != 'administrator' && role != 'technician') {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+        );
+      }
+      if (existing.exists) {
+        final data = existing.data()!;
+        final details = data['details'];
+        if (data['actorUserId'] != uid ||
+            data['action'] != command.action.value ||
+            data['fromStatus'] != command.expectedStatus.value ||
+            details is! Map ||
+            !command.details.entries.every(
+              (entry) => details[entry.key] == entry.value,
+            )) {
+          throw const FormatException('Conflicting workflow submission.');
+        }
+        return;
+      }
+      if (!current.exists) {
+        throw FirebaseException(plugin: 'cloud_firestore', code: 'not-found');
+      }
+      final data = current.data()!;
+      final incident = Incident.fromMap(
+        id: incidentId,
+        data: _normalizeDates(data, ['createdAt', 'updatedAt']),
+      );
+      final changes = IncidentWorkflow.changes(
+        incident,
+        command,
+        UserRole.values.byName(role as String),
+        uid,
+      );
+      if (command.action == IncidentHistoryAction.classified ||
+          command.action == IncidentHistoryAction.assigned) {
+        final categoryId = command.categoryId ?? incident.categoryId;
+        final category = await tx.get(
+          _firestore.collection('categories').doc(categoryId),
+        );
+        final name = category.data()?['name'];
+        if (category.data()?['isActive'] != true ||
+            name is! String ||
+            name.trim().isEmpty) {
+          throw const FormatException('An active category is required.');
+        }
+      }
+      if (command.technicianId != null) {
+        final technician = await tx.get(
+          _firestore.collection('users').doc(command.technicianId),
+        );
+        if (technician.data()?['role'] != 'technician') {
+          throw const FormatException('The assignee must be a technician.');
+        }
+      }
+      _requireSession(uid);
+      final timestamp = FieldValue.serverTimestamp();
+      tx.set(parent, {
+        ...data,
+        ...changes,
+        'updatedAt': timestamp,
+        'lastWorkflowEventId': command.eventId,
+      });
+      tx.set(event, {
+        'actorUserId': uid,
+        'createdAt': timestamp,
+        'action': command.action.value,
+        'fromStatus': incident.status.value,
+        'toStatus': changes['status'],
+        'fromTechnicianId': incident.assignedTechnicianId,
+        'toTechnicianId': changes.containsKey('assignedTechnicianId')
+            ? changes['assignedTechnicianId']
+            : incident.assignedTechnicianId,
+        'reason': command.reason,
+        'details': command.details,
+        'previousResolutionDescription':
+            command.action == IncidentHistoryAction.reopened
+            ? incident.resolutionDescription
+            : null,
+      });
+    });
+    _requireSession(uid);
+    final confirmed = await event.get(const GetOptions(source: Source.server));
+    _requireSession(uid);
+    if (!_isConfirmed(confirmed.metadata) ||
+        confirmed.data()?['createdAt'] is! Timestamp) {
+      throw FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
+    }
   }
 
   /// Watches one server-confirmed document under Firestore detail permissions.

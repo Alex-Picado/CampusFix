@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../features/auth/controllers/auth_controller.dart';
 import '../../features/incidents/screens/my_incidents_screen.dart';
-import '../../features/incidents/widgets/incident_lookup.dart';
+import '../../features/incidents/screens/incident_queue_screen.dart';
 import '../../features/users/models/user_profile.dart';
 import '../../features/users/presentation/user_role_labels.dart';
 import '../../features/users/screens/profile_screen.dart';
@@ -187,16 +187,16 @@ class _CampusShellState extends State<CampusShell> {
       return MyIncidentsScreen(userId: widget.profile.id);
     }
 
+    if (_selected == CampusDestination.management ||
+        _selected == CampusDestination.workspace) {
+      return const IncidentQueueScreen();
+    }
+
     final preview = ModulePreviewScreen(
       key: ValueKey('preview-${_selected.name}'),
       destination: _selected,
       onBack: () => _select(CampusDestination.overview),
     );
-    if (_selected == CampusDestination.workspace) {
-      return Column(
-        children: [preview, const SizedBox(height: 20), const IncidentLookup()],
-      );
-    }
     return preview;
   }
 }

@@ -1,0 +1,42 @@
+CampusFix Part 3: recorded verification
+Date: October 21, 2026
+Branch: Cris-Branch
+Runtimes: Flutter 3.47.5, Dart 3.13.4, Node 24.19.0, Java 21.0.12.1.
+Node and Java used temporary installations; system runtimes were not changed.
+Firestore and Auth checks targeted local demo-campusfix emulators only.
+
+flutter analyze --no-pub
+No issues found! (ran in 11.4s)
+
+flutter test --no-pub --reporter expanded
+00:55 +207: All tests passed!
+
+flutter build web --no-pub
+Wasm dry run succeeded. Consider building and testing your application with the `--wasm` flag. See docs for more info: https://docs.flutter.dev/platform-integration/web/wasm
+✓ Built build/web
+
+npm test --prefix tool/firestore_tests
+ℹ tests 77
+ℹ pass 77
+ℹ fail 0
+
+npm test --prefix services/local_evidence
+ℹ tests 10
+ℹ pass 10
+ℹ fail 0
+
+npm run test:integration --prefix tool/firestore_tests
+Verified: real Firebase sessions, protected uploads/downloads, atomic progress/history/evidence, live updates, revocation and cloned storage.
+✔  Script exited successfully (code 0)
+
+Coverage added for Part 3:
+9 transaction tests: full lifecycle, reopening, role/assignment checks, required
+fields, terminal states, stable retry, atomic rollback and stale/session races.
+2 observation tests: authenticated technician filter, administrator queue,
+confirmed snapshots, immutable lists and cancellation on account changes.
+6 screen tests: complete lifecycle/reopening, lost acknowledgement retry,
+sign-out, role downgrade, mandatory cancellation reason and tablet queue recovery.
+16 direct SDK rule tests: independent authorization, fields, transitions,
+atomic audit links, event reuse, orphan prevention and two live sessions.
+Existing photograph validation test expanded with normal filenames, control
+characters and path separators. No production filename-validation change needed.

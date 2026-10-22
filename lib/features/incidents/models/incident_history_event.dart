@@ -30,6 +30,12 @@ class IncidentHistoryEvent {
   /// Explanation associated with the action, if applicable.
   final String? reason;
 
+  /// Workflow payload used to reconcile retries and show classification changes.
+  final Map<String, dynamic>? details;
+
+  /// Solution preserved before reopening clears the current resolution.
+  final String? previousResolutionDescription;
+
   /// Creates an event with optional previous and resulting values.
   const IncidentHistoryEvent({
     required this.id,
@@ -41,6 +47,8 @@ class IncidentHistoryEvent {
     this.fromTechnicianId,
     this.toTechnicianId,
     this.reason,
+    this.details,
+    this.previousResolutionDescription,
   });
 
   /// Returns history fields with stored action and status values.
@@ -57,6 +65,9 @@ class IncidentHistoryEvent {
       'fromTechnicianId': fromTechnicianId,
       'toTechnicianId': toTechnicianId,
       'reason': reason,
+      if (details != null) 'details': details,
+      if (details != null || previousResolutionDescription != null)
+        'previousResolutionDescription': previousResolutionDescription,
     };
   }
 
@@ -77,8 +88,12 @@ class IncidentHistoryEvent {
     final fromTechnicianId = data['fromTechnicianId'];
     final toTechnicianId = data['toTechnicianId'];
     final reason = data['reason'];
+    final details = data['details'];
+    final previousResolution = data['previousResolutionDescription'];
 
-    if (id.trim().isEmpty ||
+    if ((details != null && details is! Map<String, dynamic>) ||
+        (previousResolution != null && previousResolution is! String) ||
+        id.trim().isEmpty ||
         actorUserId is! String ||
         actorUserId.trim().isEmpty ||
         createdAt is! DateTime ||
@@ -105,6 +120,10 @@ class IncidentHistoryEvent {
       fromTechnicianId: fromTechnicianId,
       toTechnicianId: toTechnicianId,
       reason: reason,
+      details: details == null
+          ? null
+          : Map<String, dynamic>.unmodifiable(details as Map<String, dynamic>),
+      previousResolutionDescription: previousResolution as String?,
     );
   }
 }

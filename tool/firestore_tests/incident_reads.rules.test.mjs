@@ -102,8 +102,8 @@ test('Unfiltered and foreign-owner queries are rejected rather than filtered by 
   await assertFails(getDocs(collection(database, 'incidents')));
 });
 
-test('Technicians administrators and missing profiles cannot use reporter collection queries', async () => {
-  for (const userId of ['technician-1', 'administrator-1', 'missing-profile']) {
+test('Technicians and missing profiles cannot use reporter collection queries', async () => {
+  for (const userId of ['technician-1', 'missing-profile']) {
     const database = databaseFor(userId);
     await assertFails(getDocs(ownQuery(database, userId)));
   }
@@ -125,14 +125,14 @@ test('Only the currently assigned stored technician role authorizes technician d
   await assertFails(getDocFromServer(doc(database, 'incidents/assigned')));
 });
 
-test('Administrators may read incident details history and progress without granting collection listing', async () => {
+test('Administrators may read incident details history progress and the management queue', async () => {
   const database = databaseFor('administrator-1');
   for (const id of ['own', 'assigned', 'foreign']) {
     await assertSucceeds(getDocFromServer(doc(database, 'incidents', id)));
     await assertSucceeds(getDocs(collection(database, 'incidents', id, 'history')));
     await assertSucceeds(getDocs(collection(database, 'incidents', id, 'progress')));
   }
-  await assertFails(getDocs(collection(database, 'incidents')));
+  await assertSucceeds(getDocs(collection(database, 'incidents')));
 });
 
 test('History and progress direct reads and ordered queries share parent detail permissions', async () => {
