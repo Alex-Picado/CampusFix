@@ -2,15 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 
+import '../../../core/errors/app_error_messages.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
 import '../../catalogs/models/category.dart';
 import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
+import '../../users/models/user_profile.dart';
+import '../../users/repositories/user_repository.dart';
 import '../models/incident.dart';
+import '../models/incident_filters.dart';
 import '../models/incident_search.dart';
+import '../models/incident_status.dart';
 
-/// Filters authorized snapshots and resolves their category names for one session.
+/// Filters authorized snapshots and resolves display names for one session.
 ///
 /// The owning list controller supplies its existing incident stream. Changing a
 /// query does not issue incident reads. One category listener is kept per used
@@ -20,6 +25,13 @@ class IncidentSearchController extends ChangeNotifier {
   final SessionController _session;
   final String _uid;
   final UserRole _role;
+  final UserRepository? _users;
+  StreamSubscription<List<UserProfile>>? _technicianSubscription;
+  final _technicians = <String, UserProfile>{};
+  int _technicianVersion = 0;
+  bool _techniciansStarted = false;
+  bool _techniciansLoading = false;
+  String? _technicianError;
   final _subscriptions = <String, StreamSubscription<Category?>>{};
   final _versions = <String, int>{};
   final _names = <String, Category>{};
@@ -36,11 +48,13 @@ class IncidentSearchController extends ChangeNotifier {
   /// Binds local search and category reads to the original UID and role.
   ///
   /// The owner must dispose this instance. It starts no incident query.
+  /// Administrators supply the user repository for protected technician labels.
   IncidentSearchController({
     required this._categories,
     required this._session,
     required this._uid,
     required this._role,
+    this._users,
   }) {
     _session.addListener(_sessionChanged);
   }
@@ -61,6 +75,44 @@ class IncidentSearchController extends ChangeNotifier {
 
   /// Whether the owner has supplied a current snapshot rather than paused data.
   bool get hasSnapshot => _hasSnapshot;
+
+  /// Whether administrative filter controls belong to this active session.
+  bool get administrative => active && _role == UserRole.administrator;
+
+  /// Whether the administrator's technician names are awaiting their first list.
+  bool get techniciansLoading => _techniciansLoading;
+
+  /// Spanish technician-query feedback; incident results remain usable.
+  String? get technicianError => _technicianError;
+
+  /// Current technician UIDs plus assigned or selected historical UIDs.
+  ///
+  /// Uses only an administrator-authorized profile stream and the loaded source.
+  List<String> get technicianIds {
+    final ids = <String>{
+      for (final profile in _technicians.values)
+        if (profile.role == UserRole.technician) profile.id,
+      for (final incident in _incidents)
+        if (incident.assignedTechnicianId != null)
+          incident.assignedTechnicianId!,
+      if (_criteria.filters.technicianId != null)
+        _criteria.filters.technicianId!,
+    }.toList();
+    ids.sort((a, b) {
+      final name = IncidentSearch.normalizeText(technicianLabel(a))
+          .compareTo(IncidentSearch.normalizeText(technicianLabel(b)));
+      return name != 0 ? name : a.compareTo(b);
+    });
+    return List.unmodifiable(ids);
+  }
+
+  /// Presents a technician's name and email, or an explicit unavailable label.
+  String technicianLabel(String id) {
+    final profile = _technicians[id];
+    return profile == null
+        ? 'Técnico no disponible ($id)'
+        : '${profile.fullName} · ${profile.email}';
+  }
 
   /// Current immutable criteria; cleared when the owning session ends.
   IncidentSearch get criteria => _criteria;
@@ -110,13 +162,14 @@ class IncidentSearchController extends ChangeNotifier {
     _incidents = List.unmodifiable(incidents);
     _results = _criteria.applyTo(_incidents);
     _syncCategories();
+    if (administrative && !_techniciansStarted) _watchTechnicians();
     notifyListeners();
   }
 
   /// Updates text immediately without restarting any database observation.
   void setQuery(String query) {
     if (!active || !_hasSnapshot || query == _criteria.query) return;
-    _criteria = IncidentSearch(query: query, categoryId: _criteria.categoryId);
+    _criteria = _criteria.copyWith(query: query);
     _results = _criteria.applyTo(_incidents);
     notifyListeners();
   }
@@ -130,13 +183,47 @@ class IncidentSearchController extends ChangeNotifier {
         (id != null && !_versions.containsKey(id))) {
       return;
     }
-    _criteria = IncidentSearch(query: _criteria.query, categoryId: id);
+    _criteria = _criteria.copyWith(categoryId: id, clearCategory: id == null);
     _results = _criteria.applyTo(_incidents);
     _syncCategories();
     notifyListeners();
   }
 
-  /// Clears both criteria and replaces the text editor; preserves source order.
+  /// Selects a lifecycle state for administrators, or null to clear that choice.
+  void selectStatus(IncidentStatus? status) => _setFilters(
+    _criteria.filters.copyWith(status: status, clearStatus: status == null),
+  );
+
+  /// Selects a priority or the explicit all/unclassified choice for administrators.
+  void selectPriority(IncidentPriorityFilter priority) =>
+      _setFilters(_criteria.filters.copyWith(priority: priority));
+
+  /// Selects a current/historical responsible UID or the unassigned-only choice.
+  ///
+  /// Null with [unassignedOnly] false clears assignment criteria. Unknown UIDs,
+  /// contradictory inputs and calls outside the administrator session are ignored.
+  void selectTechnician(String? id, {bool unassignedOnly = false}) {
+    if ((id != null && unassignedOnly) ||
+        (id != null && !technicianIds.contains(id))) {
+      return;
+    }
+    _setFilters(
+      _criteria.filters.copyWith(
+        technicianId: id,
+        clearTechnician: id == null,
+        unassignedOnly: unassignedOnly,
+      ),
+    );
+  }
+
+  void _setFilters(IncidentFilters filters) {
+    if (!administrative || !_hasSnapshot) return;
+    _criteria = _criteria.copyWith(filters: filters);
+    _results = _criteria.applyTo(_incidents);
+    notifyListeners();
+  }
+
+  /// Clears every criterion and replaces the text editor; preserves source order.
   void reset() {
     if (!active) return;
     _criteria = const IncidentSearch();
@@ -170,6 +257,7 @@ class IncidentSearchController extends ChangeNotifier {
     _versions.clear();
     _names.clear();
     _failedIds.clear();
+    _stopTechnicians();
     _incidents = const [];
     _results = const [];
     _hasSnapshot = false;
@@ -178,6 +266,69 @@ class IncidentSearchController extends ChangeNotifier {
       _editorVersion++;
     }
     notifyListeners();
+  }
+
+  /// Retries administrative profile names without restarting incident queries.
+  void retryTechnicians() {
+    if (!administrative || !_hasSnapshot) return;
+    _stopTechnicians();
+    _watchTechnicians();
+    notifyListeners();
+  }
+
+  void _watchTechnicians() {
+    _techniciansStarted = true;
+    _techniciansLoading = true;
+    _technicianError = null;
+    final version = ++_technicianVersion;
+    bool current() =>
+        administrative && _hasSnapshot && version == _technicianVersion;
+    void fail(Object error) {
+      if (!current()) return;
+      _technicians.clear();
+      _techniciansLoading = false;
+      _technicianError = AppErrorMessages.fromError(error);
+      notifyListeners();
+    }
+
+    if (_users == null) {
+      fail(StateError('The administrative user repository is required.'));
+      return;
+    }
+    try {
+      final subscription = _users.watchAll().listen(
+        (profiles) {
+          if (!current()) return;
+          _technicians.clear();
+          _technicians.addEntries(
+            profiles.map((profile) => MapEntry(profile.id, profile)),
+          );
+          _techniciansLoading = false;
+          _technicianError = null;
+          notifyListeners();
+        },
+        onError: (Object error) => fail(error),
+        onDone: () => fail(StateError('Technician observation ended.')),
+        cancelOnError: true,
+      );
+      if (current()) {
+        _technicianSubscription = subscription;
+      } else {
+        subscription.cancel().ignore();
+      }
+    } catch (error) {
+      fail(error);
+    }
+  }
+
+  void _stopTechnicians() {
+    _technicianVersion++;
+    _technicianSubscription?.cancel().ignore();
+    _technicianSubscription = null;
+    _technicians.clear();
+    _techniciansStarted = false;
+    _techniciansLoading = false;
+    _technicianError = null;
   }
 
   void _syncCategories() {
@@ -243,7 +394,7 @@ class IncidentSearchController extends ChangeNotifier {
     clearIncidents(resetCriteria: true);
   }
 
-  /// Cancels all category listeners and removes the session listener.
+  /// Cancels category/profile observations and removes the session listener.
   @override
   void dispose() {
     clearIncidents(resetCriteria: true);

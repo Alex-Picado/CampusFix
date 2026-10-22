@@ -24,7 +24,8 @@ services.
 | Active category reader | Service, repository and read rules implemented | Incident report selection |
 | Category administration | Implemented in Part 4 phase 1 | Catalogs |
 | Authorized incident search | Implemented in Part 4 phase 2 | Reporting |
-| Administrative filters and indicators | Proposed interfaces | Reporting |
+| Administrative filters | Implemented in Part 4 phase 3 | Reporting |
+| Indicators | Proposed interfaces | Reporting |
 
 La arquitectura acordada es `screen → controller → repository → service`. La pantalla no accede directamente a Firebase. Los controladores usan `ChangeNotifier`; las dependencias se reciben por constructor.
 
@@ -243,7 +244,8 @@ must reread the current incident and validate the related event atomically.
 | `create` (implemented) | `name` → `Future<Category>` | Administrator | Catalog administration |
 | `update` (implemented) | `categoryId`, `name`, `isActive` → `Future<void>` | Administrator | Catalog administration |
 | `IncidentSearch.applyTo` (implemented) | Authorized incidents and text/category criteria → immutable matches | Existing role-scoped source | HU-15 |
-| Administrative filters and indicators | Authorized incidents and criteria → results/counts | According to role | HU-16 to HU-18 |
+| `IncidentFilters` (implemented) | State, priority, responsible-person criteria → matches combined with search | Administrator | HU-16 |
+| Indicators | Authorized incidents → aggregate counts | Administrator | HU-17, HU-18 |
 
 Search and combined filters operate on authorized incident data. Historical
 details retain category identifiers, including inactive categories; category
@@ -256,6 +258,13 @@ matches title, description or location without case or Spanish accent
 differences. A category ID combines with that criterion using AND. Individual
 lookups resolve only referenced or selected categories, including inactive ones.
 [Authorized incident search](incident_search.md) documents behavior and evidence.
+
+Administrative filters include missing-priority and unassigned choices. The
+shared controller guards those setters by role; only the administrative queue
+supplies `UserRepository` for its existing protected `watchAll()` profile reader.
+Technician names update live without changing selected UIDs. Former or missing
+responsible UIDs remain filterable when referenced by the loaded data. No query
+or schema extension is required for local filtering.
 
 The category-reading contract is separate from catalog administration. Selecting
 a category for a report requires an authenticated read of active categories.

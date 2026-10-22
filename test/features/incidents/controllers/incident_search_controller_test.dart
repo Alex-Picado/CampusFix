@@ -2,6 +2,9 @@ import 'package:campusfix/features/auth/controllers/session_controller.dart';
 import 'package:campusfix/features/catalogs/repositories/category_repository.dart';
 import 'package:campusfix/features/incidents/controllers/incident_search_controller.dart';
 import 'package:campusfix/features/incidents/models/incident.dart';
+import 'package:campusfix/features/incidents/models/incident_filters.dart';
+import 'package:campusfix/features/incidents/models/incident_priority.dart';
+import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:campusfix/features/users/models/user_profile.dart';
 import 'package:campusfix/features/users/models/user_role.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -11,6 +14,128 @@ import '../../../support/category_service.dart';
 import '../../../support/test_repositories.dart';
 
 void main() {
+  test('Only administrators load technician profiles or accept administrative criteria', () async {
+    final app = await _mount();
+    app.search.replaceIncidents([_incident('a')]);
+    await _flush();
+    app.search.selectStatus(IncidentStatus.closed);
+    app.search.selectPriority(IncidentPriorityFilter.high);
+    app.search.selectTechnician(null, unassignedOnly: true);
+    expect(app.search.criteria.filters.hasCriteria, false);
+    expect(app.users.allUsersWatchCalls, 0);
+    expect(app.search.results.length, 1);
+  });
+
+  test(
+    'Administrative criteria survive query category and live source changes',
+    () async {
+      final app = await _mount(role: UserRole.administrator);
+      final matching = _incident('a').copyWith(
+        status: IncidentStatus.inProgress,
+        priority: IncidentPriority.high,
+        assignedTechnicianId: 'tech',
+      );
+      app.search.replaceIncidents([matching, _incident('b')]);
+      await _flush();
+      app.search.selectStatus(IncidentStatus.inProgress);
+      app.search.selectPriority(IncidentPriorityFilter.high);
+      app.search.selectTechnician('tech');
+      app.search.setQuery('AULA');
+      app.search.selectCategory('lighting');
+      expect(app.search.results.single.id, 'a');
+      expect(app.search.criteria.filters.technicianId, 'tech');
+      app.search.replaceIncidents([
+        matching.copyWith(status: IncidentStatus.resolved),
+        _incident('b'),
+      ]);
+      expect(app.search.results, isEmpty);
+      app.search.reset();
+      expect(app.search.results.length, 2);
+      expect(app.search.criteria.hasCriteria, false);
+      expect(app.users.allUsersWatchCalls, 1);
+    },
+  );
+
+  test('Technician labels update live and errors retry independently of the source', () async {
+    final app = await _mount(role: UserRole.administrator);
+    app.users.put(
+      const UserProfile(
+        id: 'tech',
+        fullName: 'Daniel técnico',
+        email: 'tech@campusfix.test',
+        role: UserRole.technician,
+      ),
+    );
+    app.search.replaceIncidents([
+      _incident('a').copyWith(assignedTechnicianId: 'tech'),
+    ]);
+    await _flush();
+    app.search.selectTechnician('tech');
+    expect(app.search.technicianLabel('tech'), contains('Daniel técnico'));
+    app.users.put(
+      const UserProfile(
+        id: 'tech',
+        fullName: 'Nombre actualizado',
+        email: 'tech@campusfix.test',
+        role: UserRole.reporter,
+      ),
+    );
+    await _flush();
+    expect(app.search.technicianLabel('tech'), contains('Nombre actualizado'));
+    expect(app.search.technicianIds, contains('tech'));
+    app.users.failUserList(
+      FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+    );
+    await _flush();
+    expect(app.search.technicianError, isNotNull);
+    expect(app.search.results.single.id, 'a');
+    expect(app.users.activeAllUsersWatches, 0);
+    app.search.retryTechnicians();
+    await _flush();
+    expect(app.search.technicianError, isNull);
+    expect(app.users.activeAllUsersWatches, 1);
+    expect(app.search.criteria.filters.technicianId, 'tech');
+  });
+
+  test('Pausing and role loss release technician observations and clear old criteria', () async {
+    final app = await _mount(role: UserRole.administrator);
+    app.search.replaceIncidents([_incident('a')]);
+    await _flush();
+    app.search.selectPriority(IncidentPriorityFilter.withoutPriority);
+    app.search.clearIncidents();
+    expect(app.users.activeAllUsersWatches, 0);
+    app.search.replaceIncidents([_incident('b')]);
+    await _flush();
+    expect(
+      app.search.criteria.filters.priority,
+      IncidentPriorityFilter.withoutPriority,
+    );
+    app.users.put(_profile(UserRole.reporter));
+    await _flush();
+    expect(app.users.activeAllUsersWatches, 0);
+    expect(app.search.criteria.hasCriteria, false);
+    expect(app.search.results, isEmpty);
+    app.users.put(_profile(UserRole.administrator));
+    await _flush();
+    expect(app.search.active, false);
+  });
+
+  test('Unknown or contradictory technician selections leave valid criteria intact', () async {
+    final app = await _mount(role: UserRole.administrator);
+    app.search.replaceIncidents([
+      _incident('a').copyWith(assignedTechnicianId: 'tech'),
+    ]);
+    await _flush();
+    app.search.selectTechnician('tech');
+    app.search.selectTechnician('not-in-the-source');
+    app.search.selectTechnician('tech', unassignedOnly: true);
+    expect(app.search.criteria.filters.technicianId, 'tech');
+    app.search.selectTechnician(null, unassignedOnly: true);
+    expect(app.search.results, isEmpty);
+    app.search.selectTechnician(null);
+    expect(app.search.results.length, 1);
+  });
+
   test(
     'Keeps one listener per category and text changes issue no new reads',
     () async {
@@ -190,9 +315,8 @@ Future<
     TestUserRepository users,
   })
 >
-_mount() async {
-  final users = TestUserRepository()
-    ..profiles['reporter'] = _profile(UserRole.reporter);
+_mount({UserRole role = UserRole.reporter}) async {
+  final users = TestUserRepository()..profiles['reporter'] = _profile(role);
   final auth = TestAuthRepository(users: users, currentUserId: 'reporter');
   final session = SessionController(
     authRepository: auth,
@@ -208,7 +332,8 @@ _mount() async {
     categories: CategoryRepository(categoryService: categories),
     session: session,
     uid: 'reporter',
-    role: UserRole.reporter,
+    role: role,
+    users: users,
   );
   addTearDown(() async {
     search.dispose();

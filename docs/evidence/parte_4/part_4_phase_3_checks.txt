@@ -1,0 +1,84 @@
+CampusFix Part 4, phase 3: administrative filters (HU-16)
+Executed date: October 21, 2026 (America/Costa_Rica)
+Branch: feat/queries-dashboard
+Remote origin: https://github.com/Alex-Picado/CampusFix.git
+Base: 0eba80b, the previously published phase 2 commit.
+
+Runtimes reused without changing the global installation or repository pins:
+Flutter 3.47.5, ignored local checkout .fvm/sdk-3.47.5
+Dart 3.13.4
+Node.js 24.19.0
+Java 21.0.9, explicitly selected for the local Firestore emulator
+
+node tool/verify_toolchain.mjs (local SDK selected on PATH)
+Node.js 24.19.0: matches .node-version
+Flutter 3.47.5: matches .fvmrc
+Bundled Dart: 3.13.4
+Toolchain verification passed.
+
+flutter analyze --no-pub
+No issues found! (ran in 10.2s)
+
+Targeted search/filter tests with CAPTURE_FILTER_EVIDENCE=true
+5 filter-model + 6 search-model + 13 search-controller + 18 screen tests.
+00:08 +42: All tests passed!
+
+flutter test --no-pub --reporter expanded
+00:12 +266: All tests passed!
+Includes 249 tests from phase 2 plus 17 new filter tests.
+
+npm test --prefix tool/firestore_tests
+Java 21.0.9 verified.
+Local Firestore: 127.0.0.1:8085, explicit demo-campusfix project only.
+tests 82, pass 82, fail 0, cancelled 0, skipped 0.
+Includes the new direct-SDK test of administrator-only profile enumeration for
+technician filter labels, with reporter, technician and unauthenticated denials.
+The emulator started, completed the suite and shut down.
+
+flutter build web --no-pub
+Wasm dry run succeeded.
+Built build/web; compilation completed in 35.3s.
+
+git diff --check (phase 3 files)
+Passed.
+
+Behavior covered:
+- All nine lifecycle states matched exactly.
+- Low/medium/high priorities, all priorities and explicitly missing priority.
+- Exact technician UID, all assignments and explicitly unassigned cases.
+- State, priority, technician, text and category combined using AND.
+- Changing text/category preserves administrative criteria; clear resets all.
+- No matches are explicit and source ordering remains unchanged.
+- Live state changes reapply criteria without restarting incident queries.
+- Technician names update live while stable selected UIDs remain unchanged.
+- Missing/demoted responsible profiles remain filterable for referenced cases.
+- Profile read failures clear names, retain results and have independent retry.
+- Profile observation is administrator-only and stops on pause or role loss.
+- Detail navigation restores filters in the same session.
+- Role/account/session changes clear obsolete criteria and records.
+- Desktop/tablet controls fit without overflow.
+
+Reviewed screenshots, stored together with Daniel's other evidence:
+- phase_3_filters_desktop.png: 1440x1100, all five criteria and 1 of 5 results.
+- phase_3_filters_tablet.png: 768x1024, same criteria and result.
+These are actual Flutter application widgets with synthetic fixtures and real
+Roboto/Material fonts. They have no mouse pointer, text caret or production data.
+Both were inspected for readable text, complete controls and layout.
+They document automated UI rendering, not a browser/production walkthrough.
+
+Evidence organization:
+- docs/evidence/parte_1: index for identity/shared-interface evidence.
+- docs/evidence/parte_2: index for incident-reporting/follow-up evidence.
+- docs/evidence/parte_3: original part_3_checks.txt and its index.
+- docs/evidence/parte_4: Daniel's phase 1/2/3 records and four reviewed PNGs.
+Original records and phase 2 images were moved without content changes. Document
+links point to the new locations. No screenshots were invented for Parts 1/2.
+
+Delivery boundaries:
+- No schema, dependency, index, runtime-pin or Firestore-rule changes.
+- The rule-test suite gained one independent authorization test.
+- Production rule deployment, dashboard, final browser integration and Hosting
+  publication remain pending in their later phases.
+- Photograph storage remains local and was not reorganized as delivery evidence.
+- No push, PR, merge or production deployment occurred in phase 3.
+- Pre-existing generated plugin-file line-ending changes remain outside the commit.

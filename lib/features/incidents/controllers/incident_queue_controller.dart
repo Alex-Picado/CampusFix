@@ -7,6 +7,7 @@ import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
 import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
+import '../../users/repositories/user_repository.dart';
 import '../models/incident.dart';
 import '../repositories/incident_repository.dart';
 import 'incident_search_controller.dart';
@@ -34,12 +35,14 @@ class IncidentQueueController extends ChangeNotifier {
     required this.uid,
     required this.role,
     required CategoryRepository categoryRepository,
+    required UserRepository userRepository,
   }) {
     search = IncidentSearchController(
       categories: categoryRepository,
       session: session,
       uid: uid,
       role: role,
+      users: userRepository,
     );
     search.addListener(_searchChanged);
     session.addListener(_sessionChanged);

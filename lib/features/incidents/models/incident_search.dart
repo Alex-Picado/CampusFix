@@ -1,4 +1,5 @@
 import 'incident.dart';
+import 'incident_filters.dart';
 
 /// Immutable local search criteria for an already authorized incident list.
 ///
@@ -12,11 +13,31 @@ class IncidentSearch {
   /// Exact category identifier, or null to include every authorized category.
   final String? categoryId;
 
+  /// Optional administrative criteria, ignored only when all choices are clear.
+  final IncidentFilters filters;
+
   /// Creates criteria without performing database reads or granting access.
-  const IncidentSearch({this.query = '', this.categoryId});
+  const IncidentSearch({
+    this.query = '',
+    this.categoryId,
+    this.filters = const IncidentFilters(),
+  });
 
   /// Whether any query or category currently restricts the list.
-  bool get hasCriteria => query.trim().isNotEmpty || categoryId != null;
+  bool get hasCriteria =>
+      query.trim().isNotEmpty || categoryId != null || filters.hasCriteria;
+
+  /// Copies text, category or filters without discarding the other criteria.
+  IncidentSearch copyWith({
+    String? query,
+    String? categoryId,
+    bool clearCategory = false,
+    IncidentFilters? filters,
+  }) => IncidentSearch(
+    query: query ?? this.query,
+    categoryId: clearCategory ? null : categoryId ?? this.categoryId,
+    filters: filters ?? this.filters,
+  );
 
   /// Returns immutable matches in their original repository ordering.
   ///
@@ -32,6 +53,7 @@ class IncidentSearch {
     final normalized = normalizeText(text);
     return List.unmodifiable(
       incidents.where((incident) {
+        if (!filters.matches(incident)) return false;
         if (categoryId != null && categoryId != incident.categoryId) {
           return false;
         }

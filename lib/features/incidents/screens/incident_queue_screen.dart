@@ -6,6 +6,7 @@ import '../../../core/widgets/section_card.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
+import '../../users/repositories/user_repository.dart';
 import '../controllers/incident_queue_controller.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
@@ -28,6 +29,7 @@ class IncidentQueueScreen extends StatelessWidget {
       create: (_) => IncidentQueueController(
         repository: context.read<IncidentRepository>(),
         categoryRepository: context.read<CategoryRepository>(),
+        userRepository: context.read<UserRepository>(),
         session: session,
         uid: profile.id,
         role: profile.role,

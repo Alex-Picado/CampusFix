@@ -13,7 +13,8 @@ limited to own reports, assigned cases or the administrative queue respectively.
   Matching ignores case, common Spanish accents and combining accent marks.
 - Select a category to combine its exact ID with the text criterion using AND.
   Names are resolved by ID; referenced inactive categories show `(inactiva)`.
-- **Limpiar búsqueda** clears both criteria. The result count compares matches
+- **Limpiar búsqueda** clears both criteria; administrators use **Limpiar filtros**
+  to also clear their operational choices. The result count compares matches
   with the current authorized source, preserving its existing sort order.
 
 Criteria immediately reapply when a live snapshot arrives. An empty search
@@ -23,8 +24,8 @@ criteria against a fresh snapshot. Leaving the module disposes the controller.
 
 ## Architecture and interfaces
 
-`IncidentSearch` is an immutable local query value with `query` and optional
-`categoryId`. Its `applyTo(Iterable<Incident>)` returns an immutable list in source
+`IncidentSearch` is an immutable local query value with `query`, optional
+`categoryId` and `IncidentFilters`. Its `applyTo(Iterable<Incident>)` returns an immutable list in source
 order. It is not an authorization layer: callers supply already authorized data.
 
 `IncidentSearchController` owns criteria, results and the referenced category
@@ -67,11 +68,11 @@ For pointer-free PNG evidence, add
 `--dart-define=CAPTURE_SEARCH_EVIDENCE=true`. This loads the local pinned SDK's
 Roboto and Material fonts and captures the actual application widget tree with
 synthetic fixtures. It writes to ignored `build/evidence/`; reviewed copies are
-stored under `docs/evidence/phase_2_search_desktop.png` and
-`docs/evidence/phase_2_search_tablet.png`. These are automated UI evidence, not a
+stored under `docs/evidence/parte_4/phase_2_search_desktop.png` and
+`docs/evidence/parte_4/phase_2_search_tablet.png`. These are automated UI evidence, not a
 production browser session. Normal test runs do not generate screenshots.
 
-Results are recorded in `evidence/part_4_phase_2_checks.txt`.
+Results are recorded in `evidence/parte_4/part_4_phase_2_checks.txt`.
 
 ## Compatibility and delivery boundary
 
@@ -81,6 +82,7 @@ have been tested locally but are not claimed deployed to the real project.
 The provided baseline rules reference lacks those phase 1 category changes and
 must not replace the current repository rules without review.
 
-Administrative status, priority and technician filters (HU-16), the dashboard
+Administrative status, priority and technician filters (HU-16) are implemented
+in phase 3; see [Administrative filters](incident_filters.md). The dashboard
 (HU-17/HU-18), browser-wide integration and Hosting publication remain in their
 later phases. Photograph handling remains the existing local implementation.

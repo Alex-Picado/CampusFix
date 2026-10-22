@@ -14,7 +14,7 @@ a merge commit.
 | --- | --- | --- |
 | 1 | Category creation, renaming, activation, historical names and permissions | Implemented; verification recorded below. |
 | 2 | Authorized incident search (HU-15) | Implemented; verification recorded below. |
-| 3 | Combined administrative filters (HU-16) | Pending a later requested session. |
+| 3 | Combined administrative filters (HU-16) | Implemented; verification recorded below. |
 | 4 | Live global dashboard and category counts (HU-17, HU-18) | Pending a later requested session. |
 | 5 | Desktop/tablet integration and explicit public photo limitation | Pending a later requested session. |
 | 6 | Hosting publication, final documentation and 20-story evidence (HU-20) | Pending a later requested session. |
@@ -38,7 +38,7 @@ selection still uses the existing active-only query.
 | Independent authorization and validation | Firestore category get/list/write/delete rules | `tool/firestore_tests/categories.rules.test.mjs` |
 | Session cleanup and tablet layout | Session-bound controller, adaptive category rows | Category screen tests: navigation, role downgrade, pending acknowledgement, account change and tablet layout |
 
-The exact verification results are recorded in `evidence/part_4_phase_1_checks.txt`.
+The exact verification results are recorded in `evidence/parte_4/part_4_phase_1_checks.txt`.
 All database tests target the local `demo-campusfix` emulator. No production data
 or security rules are changed by these tests.
 
@@ -61,7 +61,7 @@ forwarding records to search.
 | HU-15: sequence, text and category | `IncidentSearch`, shared search controller/panel and existing list controllers | `test/features/incidents/models/incident_search_test.dart`, `test/incident_search_screen_test.dart` |
 | Live updates, category names and session cleanup | Shared search controller with individual category subscriptions | `test/features/incidents/controllers/incident_search_controller_test.dart` and screen tests |
 | Role isolation and detail navigation | Existing repository scopes plus list-controller checks | Search screen tests with three roles and foreign assignments; existing Firestore rule suite |
-| Desktop and tablet presentation | Same application widgets at 1440x1100 and 768x1024 | `evidence/phase_2_search_desktop.png`, `evidence/phase_2_search_tablet.png` |
+| Desktop and tablet presentation | Same application widgets at 1440x1100 and 768x1024 | `evidence/parte_4/phase_2_search_desktop.png`, `evidence/parte_4/phase_2_search_tablet.png` |
 
 The PNGs are pointer-free captures of rendered application widgets under Flutter
 tests, using synthetic incident fixtures and real fonts. They document the UI,
@@ -69,9 +69,34 @@ not production data or a browser walkthrough. The source test can regenerate
 them with `--dart-define=CAPTURE_SEARCH_EVIDENCE=true`.
 
 Exact executed checks and remaining limits are recorded in
-`evidence/part_4_phase_2_checks.txt`. Search requires no schema, index, dependency,
+`evidence/parte_4/part_4_phase_2_checks.txt`. Search requires no schema, index, dependency,
 runtime-pin or Firestore-rule change. Administrative status/priority/technician
-filters remain part of phase 3.
+filters are recorded in phase 3 below.
+
+## Phase 3 implementation and evidence
+
+HU-16 adds administrator-only state, priority and responsible-technician choices,
+including unclassified and unassigned cases. They combine with text and category
+using AND, update with live snapshots and preserve the current repository order.
+Clearing resets every choice; detail navigation preserves them within one session.
+
+An administrator-authorized profile observation supplies current technician
+names, while assigned historical UIDs remain available. Profile read failures
+have a separate retry and do not discard filtered cases. Profile subscriptions
+and criteria clear on pause, session change or disposal; other roles neither see
+the administrative controls nor start this profile query.
+
+| Requirement | Implementation | Executable evidence |
+| --- | --- | --- |
+| HU-16: combined state, priority and technician | `IncidentFilters`, shared search controller and administrative filter panel | Filter-model, search-controller and search-screen tests |
+| Independent user-catalog authorization | Existing Firestore user-list rule | Direct SDK rule test covering all roles and unauthenticated sessions |
+| Desktop/tablet and session cleanup | Responsive controls and session-bound profile observation | Filter-screen tests and `evidence/parte_4/phase_3_filters_desktop.png`, `phase_3_filters_tablet.png` |
+| Evidence organization | `docs/evidence/parte_1` through `parte_4` | Versioned indexes, original Part 3 record and all Daniel records/images under Part 4 |
+
+Executed checks are in `evidence/parte_4/part_4_phase_3_checks.txt`.
+Existing verification records were moved without modifying their original
+results; historical screenshot captures were preserved. Versions, incident schema,
+indexes, dependencies and production Firebase state remain unchanged.
 
 ## Runtime setup
 

@@ -211,3 +211,13 @@ test('Existing profile permissions still protect user data', async () => {
   }));
   await assertSucceeds(getDocs(collection(contextFor('administrator').firestore(), 'users')));
 });
+
+test('Only administrators can list profiles for technician filter labels', async () => {
+  const administrator = contextFor('administrator').firestore();
+  const profiles = await assertSucceeds(getDocs(collection(administrator, 'users')));
+  assert.equal(profiles.size, 3);
+  for (const role of ['reporter', 'technician']) {
+    await assertFails(getDocs(collection(contextFor(role).firestore(), 'users')));
+  }
+  await assertFails(getDocs(collection(environment.unauthenticatedContext().firestore(), 'users')));
+});

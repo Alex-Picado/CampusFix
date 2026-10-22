@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/section_card.dart';
 import '../controllers/incident_search_controller.dart';
+import 'incident_administrative_filters.dart';
 
 /// Reusable Spanish search controls for authorized incident lists on any role.
 class IncidentSearchPanel extends StatelessWidget {
@@ -75,6 +76,10 @@ class IncidentSearchPanel extends StatelessWidget {
                   );
                 },
               ),
+              if (controller.administrative) ...[
+                const SizedBox(height: 16),
+                IncidentAdministrativeFilters(controller: controller),
+              ],
               const SizedBox(height: 12),
               Wrap(
                 spacing: 16,
@@ -91,7 +96,11 @@ class IncidentSearchPanel extends StatelessWidget {
                         ? controller.reset
                         : null,
                     icon: const Icon(Icons.clear),
-                    label: const Text('Limpiar búsqueda'),
+                    label: Text(
+                      controller.administrative
+                          ? 'Limpiar filtros'
+                          : 'Limpiar búsqueda',
+                    ),
                   ),
                 ],
               ),

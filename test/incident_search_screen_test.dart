@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 import 'package:campusfix/app/providers/app_providers.dart';
 import 'package:campusfix/features/catalogs/models/category.dart' as catalogs;
 import 'package:campusfix/features/incidents/models/incident.dart';
+import 'package:campusfix/features/incidents/models/incident_priority.dart';
+import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:campusfix/features/incidents/models/incident_history_event.dart';
 import 'package:campusfix/features/incidents/models/incident_progress.dart';
 import 'package:campusfix/features/incidents/repositories/incident_repository.dart';
@@ -22,7 +24,10 @@ import 'support/test_repositories.dart';
 
 void main() {
   setUpAll(() async {
-    if (!const bool.fromEnvironment('CAPTURE_SEARCH_EVIDENCE')) return;
+    if (!const bool.fromEnvironment('CAPTURE_SEARCH_EVIDENCE') &&
+        !const bool.fromEnvironment('CAPTURE_FILTER_EVIDENCE')) {
+      return;
+    }
     const directory = '.fvm/sdk-3.47.5/bin/cache/artifacts/material_fonts';
     for (final entry in {
       'Roboto': 'roboto-regular.ttf',
@@ -44,6 +49,14 @@ void main() {
       '${role.name} searches only authorized cases by sequence text and inactive category',
       (tester) async {
         final app = await _mount(tester, role: role);
+        expect(
+          find.byKey(const ValueKey('incident-administrative-filters')),
+          role == UserRole.administrator ? findsOneWidget : findsNothing,
+        );
+        expect(
+          app.users.activeAllUsersWatches,
+          role == UserRole.administrator ? 1 : 0,
+        );
         expect(app.reports.activeListWatches, 1);
         expect(
           find.byKey(const ValueKey('incident-foreign')),
@@ -210,6 +223,163 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Administrative filters combine with text and category and clear together',
+    (tester) async {
+      final app = await _mount(tester);
+      await _filterFixtures(tester, app.reports);
+      await _selectFilter(tester, 'status', 'En atención');
+      expect(find.text('Resultados: 2 de 5'), findsOneWidget);
+      await _selectFilter(tester, 'priority', 'Alta');
+      await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
+      await _enter(tester, 'ILUMINACION');
+      await _chooseCategory(tester, 'Iluminación');
+      expect(find.text('Resultados: 1 de 5'), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-light')), findsOneWidget);
+      await _enter(tester, 'biblioteca');
+      expect(
+        find.text('No hay incidencias que coincidan con la búsqueda.'),
+        findsOneWidget,
+      );
+      await _tap(tester, 'incident-search-clear');
+      expect(find.text('Resultados: 5 de 5'), findsOneWidget);
+      expect(find.text('Todas las prioridades'), findsOneWidget);
+      expect(app.reports.queryCalls, 1);
+      expect(app.users.allUsersWatchCalls, 1);
+    },
+  );
+
+  testWidgets(
+    'Unclassified and unassigned choices remain distinct from all records',
+    (tester) async {
+      final app = await _mount(tester);
+      await _filterFixtures(tester, app.reports);
+      await _selectFilter(tester, 'technician', 'Sin asignar');
+      await _selectFilter(tester, 'priority', 'Sin prioridad');
+      await _selectFilter(tester, 'status', 'Reportada');
+      expect(find.text('Resultados: 1 de 5'), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-unassigned')), findsOneWidget);
+      await _selectFilter(tester, 'priority', 'Alta');
+      expect(find.text('Resultados: 0 de 5'), findsOneWidget);
+      await _selectFilter(tester, 'priority', 'Todas las prioridades');
+      expect(find.text('Resultados: 1 de 5'), findsOneWidget);
+      await _selectFilter(tester, 'status', 'Todos los estados');
+      expect(find.text('Resultados: 1 de 5'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Live transitions and responsible-person names preserve active filters',
+    (tester) async {
+      final app = await _mount(tester);
+      await _filterFixtures(tester, app.reports);
+      await _selectFilter(tester, 'status', 'En atención');
+      await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
+      app.reports.rows['light'] = app.reports.rows['light']!.copyWith(
+        status: IncidentStatus.resolved,
+      );
+      app.reports.changes.add(null);
+      await tester.pumpAndSettle();
+      expect(find.text('Resultados: 0 de 5'), findsOneWidget);
+      app.users.put(
+        const UserProfile(
+          id: 'tech',
+          fullName: 'Daniel técnico',
+          email: 'tech@campusfix.test',
+          role: UserRole.technician,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Daniel técnico · tech@campusfix.test'), findsOneWidget);
+      await _selectFilter(tester, 'status', 'Resuelta');
+      expect(find.text('Resultados: 2 de 5'), findsOneWidget);
+      expect(app.reports.queryCalls, 1);
+    },
+  );
+
+  testWidgets(
+    'Technician query failures retry without dropping filtered incidents',
+    (tester) async {
+      final app = await _mount(tester);
+      await _filterFixtures(tester, app.reports);
+      await _selectFilter(tester, 'status', 'En atención');
+      await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
+      app.users.failUserList(_offline());
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('incident-filter-retry-technicians')),
+        findsOneWidget,
+      );
+      expect(find.text('Resultados: 1 de 5'), findsOneWidget);
+      expect(app.users.activeAllUsersWatches, 0);
+      await _tap(tester, 'incident-filter-retry-technicians');
+      expect(
+        find.byKey(const ValueKey('incident-filter-retry-technicians')),
+        findsNothing,
+      );
+      expect(find.text('Resultados: 1 de 5'), findsOneWidget);
+      expect(app.users.activeAllUsersWatches, 1);
+      expect(app.reports.queryCalls, 1);
+    },
+  );
+
+  testWidgets(
+    'Administrative criteria survive detail navigation and clear on role downgrade',
+    (tester) async {
+      final app = await _mount(tester);
+      await _filterFixtures(tester, app.reports);
+      await _selectFilter(tester, 'status', 'En atención');
+      await _selectFilter(tester, 'priority', 'Alta');
+      await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
+      await _tap(tester, 'detail-light');
+      expect(
+        find.byKey(const ValueKey('incident-detail-page')),
+        findsOneWidget,
+      );
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Resultados: 1 de 5'), findsOneWidget);
+      app.users.put(
+        const UserProfile(
+          id: 'admin',
+          fullName: 'admin',
+          email: 'admin@campusfix.test',
+          role: UserRole.reporter,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('incident-administrative-filters')),
+        findsNothing,
+      );
+      expect(app.users.activeAllUsersWatches, 0);
+    },
+  );
+
+  for (final tablet in [false, true]) {
+    testWidgets(
+      'Combined administrative filters fit ${tablet ? 'tablet' : 'desktop'}',
+      (tester) async {
+        final app = await _mount(tester, tablet: tablet);
+        await _filterFixtures(tester, app.reports);
+        await _enter(tester, 'iluminacion');
+        await _chooseCategory(tester, 'Iluminación');
+        await _selectFilter(tester, 'status', 'En atención');
+        await _selectFilter(tester, 'priority', 'Alta');
+        await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
+        expect(find.text('Resultados: 1 de 5'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        if (const bool.fromEnvironment('CAPTURE_FILTER_EVIDENCE')) {
+          await _captureEvidence(
+            tester,
+            app.captureKey,
+            'phase_3_filters_${tablet ? 'tablet' : 'desktop'}',
+          );
+        }
+      },
+    );
+  }
+
   for (final tablet in [false, true]) {
     testWidgets(
       'Search layout and results fit ${tablet ? 'tablet' : 'desktop'}',
@@ -289,7 +459,9 @@ Incident _incident(
   String title = 'Iluminación del aula',
   String category = 'lighting',
   String author = 'reporter',
-  String technician = 'tech',
+  String? technician = 'tech',
+  IncidentStatus status = IncidentStatus.reported,
+  IncidentPriority? priority,
   String location = 'Edificio A',
 }) => Incident(
   id: id,
@@ -302,7 +474,77 @@ Incident _incident(
   updatedAt: DateTime.utc(2026),
   createdByUserId: author,
   assignedTechnicianId: technician,
+  status: status,
+  priority: priority,
 );
+
+Future<void> _selectFilter(
+  WidgetTester tester,
+  String type,
+  String label,
+) async {
+  final finder = find.byWidgetPredicate(
+    (widget) =>
+        widget is DropdownButtonFormField &&
+        widget.key.toString().contains('incident-filter-$type-'),
+  );
+  await tester.ensureVisible(finder);
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _filterFixtures(WidgetTester tester, _Reports reports) async {
+  reports.rows['light'] = reports.rows['light']!.copyWith(
+    status: IncidentStatus.inProgress,
+    priority: IncidentPriority.high,
+  );
+  reports.rows['foreign'] = reports.rows['foreign']!.copyWith(
+    status: IncidentStatus.inProgress,
+    priority: IncidentPriority.high,
+  );
+  reports.rows['network'] = reports.rows['network']!.copyWith(
+    status: IncidentStatus.assigned,
+    priority: IncidentPriority.medium,
+  );
+  reports.rows['unassigned'] = _incident(
+    'unassigned',
+    40,
+    title: 'Iluminación del patio',
+    technician: null,
+  );
+  reports.rows['low'] = _incident(
+    'low',
+    41,
+    title: 'Luz del aula',
+    status: IncidentStatus.resolved,
+    priority: IncidentPriority.low,
+  );
+  reports.changes.add(null);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _captureEvidence(
+  WidgetTester tester,
+  GlobalKey captureKey,
+  String name,
+) async {
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.ensureVisible(find.text('Gestión de incidencias'));
+  await tester.pumpAndSettle();
+  await tester.runAsync(() async {
+    final boundary =
+        captureKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: 1);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    final directory = Directory('build/evidence/parte_4')
+      ..createSync(recursive: true);
+    File('${directory.path}/$name.png')
+        .writeAsBytesSync(bytes!.buffer.asUint8List());
+    image.dispose();
+  });
+}
 
 Future<
   ({
