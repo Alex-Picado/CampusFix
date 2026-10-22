@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../features/auth/controllers/auth_controller.dart';
+import '../../features/catalogs/screens/category_management_screen.dart';
+import '../../features/incidents/screens/incident_dashboard_screen.dart';
 import '../../features/incidents/screens/my_incidents_screen.dart';
 import '../../features/incidents/screens/incident_queue_screen.dart';
 import '../../features/users/models/user_profile.dart';
@@ -9,7 +11,6 @@ import '../../features/users/presentation/user_role_labels.dart';
 import '../../features/users/screens/profile_screen.dart';
 import '../../features/users/screens/user_management_screen.dart';
 import '../navigation/campus_destination.dart';
-import '../screens/module_preview_screen.dart';
 import '../screens/overview_screen.dart';
 import '../theme/campus_theme.dart';
 import 'campus_navigation.dart';
@@ -17,7 +18,7 @@ import 'campus_navigation.dart';
 /// Hosts the common interface for an authenticated profile.
 ///
 /// Resets inaccessible selections when the observed role changes.
-/// Pending modules do not read or simulate incident data.
+/// Every destination delegates to its implemented module.
 class CampusShell extends StatefulWidget {
   final UserProfile profile;
 
@@ -167,36 +168,19 @@ class _CampusShellState extends State<CampusShell> {
     );
   }
 
-  Widget _page() {
-    if (_selected == CampusDestination.overview) {
-      return OverviewScreen(
-        onNavigate: _select,
-        destinations: CampusDestination.forRole(widget.profile.role),
-      );
-    }
-
-    if (_selected == CampusDestination.profile) {
-      return ProfileScreen(profile: widget.profile);
-    }
-
-    if (_selected == CampusDestination.users) {
-      return UserManagementScreen(currentUserId: widget.profile.id);
-    }
-
-    if (_selected == CampusDestination.incidents) {
-      return MyIncidentsScreen(userId: widget.profile.id);
-    }
-
-    if (_selected == CampusDestination.management ||
-        _selected == CampusDestination.workspace) {
-      return const IncidentQueueScreen();
-    }
-
-    final preview = ModulePreviewScreen(
-      key: ValueKey('preview-${_selected.name}'),
-      destination: _selected,
-      onBack: () => _select(CampusDestination.overview),
-    );
-    return preview;
-  }
+  Widget _page() => switch (_selected) {
+    CampusDestination.dashboard => const IncidentDashboardScreen(),
+    CampusDestination.categories => const CategoryManagementScreen(),
+    CampusDestination.overview => OverviewScreen(
+      onNavigate: _select,
+      destinations: CampusDestination.forRole(widget.profile.role),
+    ),
+    CampusDestination.profile => ProfileScreen(profile: widget.profile),
+    CampusDestination.users => UserManagementScreen(
+      currentUserId: widget.profile.id,
+    ),
+    CampusDestination.incidents => MyIncidentsScreen(userId: widget.profile.id),
+    CampusDestination.management ||
+    CampusDestination.workspace => const IncidentQueueScreen(),
+  };
 }

@@ -18,7 +18,7 @@ Reviewed Firestore rules and indexes must be deployed separately for real Fireba
 No administrative credential file is required or included.
 
 The service can also run independently with `npm start --prefix services/local_evidence`.
-Flutter then runs with `flutter run -d chrome --web-hostname 127.0.0.1 --web-port 8080`.
+Flutter then runs with `flutter run -d chrome --web-hostname 127.0.0.1 --web-port 8080 --dart-define=ENABLE_LOCAL_PHOTOS=true`.
 `GET http://127.0.0.1:8787/health` checks service availability.
 
 ## Local demonstration
@@ -59,6 +59,11 @@ The included `demo-report/demo-photo` image is a synthetic fixture.
 | `LOCAL_EVIDENCE_PROJECT_ID` | `campus-fix-ucr` | Firebase project used to verify sessions and permissions. |
 | `LOCAL_EVIDENCE_EMULATORS` | Disabled | Requires a demo project and both loopback emulator host variables. |
 | Flutter `LOCAL_EVIDENCE_URL` | `http://127.0.0.1:8787` | Local origin supplied with `--dart-define` for independent Flutter startup. |
+| Flutter `ENABLE_LOCAL_PHOTOS` | `false` | Explicit local photograph capability. The local launcher sets `true`; public builds keep it disabled. |
+
+`node tool/start_local.mjs --demo --serve --no-photos` previews the public
+photograph limitation against isolated demo emulators, without starting the image
+service. See [Integrated clients](integration_delivery.md).
 
 ## Authorization, files and retries
 

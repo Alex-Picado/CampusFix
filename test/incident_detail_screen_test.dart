@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:campusfix/app/providers/app_providers.dart';
+import 'package:campusfix/features/catalogs/models/category.dart' as catalogs;
 import 'package:campusfix/features/incidents/models/incident.dart';
 import 'package:campusfix/features/incidents/models/incident_evidence.dart';
 import 'package:campusfix/features/incidents/models/incident_history_event.dart';
@@ -29,6 +30,71 @@ FirebaseException _offline() =>
     FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
 
 void main() {
+  for (final tablet in [false, true]) {
+    testWidgets(
+      'Photo-disabled client saves text progress on ${tablet ? 'tablet' : 'desktop'} without local photo operations',
+      (tester) async {
+        final app = await _mount(
+          tester,
+          technician: true,
+          tablet: tablet,
+          photosEnabled: false,
+        );
+        expect(
+          find.textContaining(
+            'Las fotografías están disponibles en la versión local.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('progress-photo')), findsNothing);
+        expect(find.byKey(const ValueKey('photo-select')), findsNothing);
+        await _enter(
+          tester,
+          'progress-description',
+          'Inspección sin fotografía',
+        );
+        await _tap(tester, 'progress-save');
+        expect(find.text('Avance guardado correctamente.'), findsOneWidget);
+        expect(app.reports.entries, hasLength(1));
+        expect(app.reports.photoReference, isNull);
+        expect(app.photos.uploads, 0);
+        expect(app.photos.attachments, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Inactive category names remain live in historical details and release on sign-out',
+    (tester) async {
+      final app = await _mount(tester);
+      expect(find.text('Categoría: Iluminación'), findsOneWidget);
+      app.categories.changes.add(const [
+        catalogs.Category(id: 'lighting', name: 'Alumbrado', isActive: false),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Categoría: Alumbrado (inactiva)'), findsOneWidget);
+      expect(app.categories.activeByIdWatches, 1);
+      app.categories.changes.addError(_offline());
+      await tester.pumpAndSettle();
+      expect(find.text('Categoría: Alumbrado (inactiva)'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('incident-detail-page')),
+        findsOneWidget,
+      );
+      app.categories.initial = const [
+        catalogs.Category(id: 'lighting', name: 'Alumbrado', isActive: false),
+      ];
+      await _tap(tester, 'category-retry');
+      expect(find.text('Categoría: Alumbrado (inactiva)'), findsOneWidget);
+      app.auth.setUser(null);
+      await tester.pumpAndSettle();
+      expect(app.categories.activeByIdWatches, 0);
+      expect(find.text('Categoría: Alumbrado (inactiva)'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Protected routes show detail, history and live comments after authentication',
     (tester) async {
@@ -199,6 +265,7 @@ Future<
     TestUserRepository users,
     _Reports reports,
     _Photos photos,
+    TestReportCategories categories,
   })
 >
 _mount(
@@ -207,6 +274,7 @@ _mount(
   bool signedIn = true,
   bool missing = false,
   bool tablet = false,
+  bool photosEnabled = true,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = tablet
@@ -241,7 +309,7 @@ _mount(
       userRepository: users,
       categoryRepository: categories,
       incidentRepository: reports,
-      evidenceRepository: photos,
+      evidenceRepository: photosEnabled ? photos : null,
       child: const MyApp(),
     ),
   );
@@ -252,7 +320,13 @@ _mount(
         .pushNamed('/incidents/case'),
   );
   await tester.pumpAndSettle();
-  return (auth: auth, users: users, reports: reports, photos: photos);
+  return (
+    auth: auth,
+    users: users,
+    reports: reports,
+    photos: photos,
+    categories: categories,
+  );
 }
 
 class _Reports extends Fake implements IncidentRepository {

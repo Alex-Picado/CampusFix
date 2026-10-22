@@ -5,10 +5,12 @@ import '../../../core/widgets/page_heading.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
+import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../controllers/my_incidents_controller.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
+import '../widgets/incident_search_panel.dart';
 import 'incident_report_screen.dart';
 
 /// Switches between the reporter's live list and an independently owned form.
@@ -48,6 +50,7 @@ class _MyIncidentsScreenState extends State<MyIncidentsScreen> {
       key: ValueKey(widget.userId),
       create: (context) => MyIncidentsController(
         incidentRepository: context.read<IncidentRepository>(),
+        categoryRepository: context.read<CategoryRepository>(),
         sessionController: session,
         userId: widget.userId,
       ),
@@ -83,6 +86,10 @@ class _IncidentList extends StatelessWidget {
           label: const Text('Crear incidencia'),
         ),
         const SizedBox(height: 20),
+        if (!controller.isLoading && error == null) ...[
+          IncidentSearchPanel(controller: controller.search),
+          const SizedBox(height: 20),
+        ],
         if (controller.isLoading)
           const SectionCard(
             child: Row(
@@ -121,12 +128,16 @@ class _IncidentList extends StatelessWidget {
               ],
             ),
           )
-        else if (controller.incidents.isEmpty)
-          const SectionCard(
-            child: Text('Todavía no tenés incidencias reportadas.'),
+        else if (controller.search.results.isEmpty)
+          SectionCard(
+            child: Text(
+              controller.search.criteria.hasCriteria
+                  ? 'No hay incidencias que coincidan con la búsqueda.'
+                  : 'Todavía no tenés incidencias reportadas.',
+            ),
           )
         else
-          for (final incident in controller.incidents)
+          for (final incident in controller.search.results)
             Padding(
               key: ValueKey('incident-${incident.id}'),
               padding: const EdgeInsets.only(bottom: 12),

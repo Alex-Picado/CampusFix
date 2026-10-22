@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart' show ChangeNotifier;
 import '../../../core/errors/app_error_messages.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
+import '../../catalogs/models/category.dart';
+import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../models/incident.dart';
 import '../models/incident_evidence.dart';
@@ -18,18 +20,33 @@ import '../repositories/evidence_repository.dart';
 /// Owns authorized detail subscriptions and one stable technician submission.
 class IncidentDetailController extends ChangeNotifier {
   final IncidentRepository repository;
+
+  /// Resolves referenced category names without requiring a full catalog query.
+  final CategoryRepository categoryRepository;
   final EvidenceRepository? evidenceRepository;
   final SessionController session;
   final String incidentId;
   final String uid;
   final UserRole role;
   final _subscriptions = <StreamSubscription<dynamic>>[];
+  StreamSubscription<Category?>? _categorySubscription;
+  int _categoryVersion = 0;
+  String? _categoryId;
   int _version = 0;
   int _operationVersion = 0;
   bool _disposed = false;
   bool _invalidated = false;
   bool _childrenStarted = false;
   Incident? incident;
+
+  /// Current category, including inactive records; null while missing or loading.
+  Category? category;
+
+  /// Whether the referenced category is awaiting its first snapshot.
+  bool categoryLoading = false;
+
+  /// Spanish category feedback, independent of incident and progress failures.
+  String? categoryError;
   List<IncidentHistoryEvent> history = const [];
   List<IncidentProgress> progress = const [];
   List<IncidentEvidence> evidence = const [];
@@ -49,6 +66,7 @@ class IncidentDetailController extends ChangeNotifier {
 
   IncidentDetailController({
     required this.repository,
+    required this.categoryRepository,
     required this.evidenceRepository,
     required this.session,
     required this.incidentId,
@@ -84,6 +102,7 @@ class IncidentDetailController extends ChangeNotifier {
   bool get frozen => progressId != null;
   bool get canSelect =>
       canAddProgress &&
+      evidenceRepository != null &&
       !saving &&
       !selecting &&
       (!frozen || (evidenceId != null && photo == null && uploaded == null));
@@ -117,6 +136,7 @@ class IncidentDetailController extends ChangeNotifier {
         return;
       }
       incident = value;
+      _watchCategory(value.categoryId);
       loading = false;
       if (!_childrenStarted) {
         _childrenStarted = true;
@@ -153,6 +173,64 @@ class IncidentDetailController extends ChangeNotifier {
         }
       }
     });
+  }
+
+  /// Retries only the referenced category without interrupting incident progress.
+  ///
+  /// Does nothing after the original session or authorized incident has ended.
+  void retryCategory() {
+    if (!active || incident == null) return;
+    _categoryId = null;
+    _watchCategory(incident!.categoryId);
+    notifyListeners();
+  }
+
+  void _watchCategory(String id) {
+    if (_categoryId == id) return;
+    _categorySubscription?.cancel().ignore();
+    _categorySubscription = null;
+    _categoryId = id;
+    final version = ++_categoryVersion;
+    category = null;
+    categoryLoading = true;
+    categoryError = null;
+    bool current() =>
+        active && version == _categoryVersion && _categoryId == id;
+    void fail(Object failure) {
+      if (!current()) return;
+      category = null;
+      categoryLoading = false;
+      categoryError = AppErrorMessages.fromError(failure);
+      notifyListeners();
+    }
+
+    try {
+      final subscription = categoryRepository
+          .watchById(id)
+          .listen(
+            (value) {
+              if (!current()) return;
+              category = value;
+              categoryLoading = false;
+              categoryError = value == null
+                  ? 'La categoría ya no está disponible.'
+                  : null;
+              notifyListeners();
+            },
+            onError: (Object failure) => fail(failure),
+            onDone: () {
+              fail(StateError('Category observation ended.'));
+            },
+            cancelOnError: true,
+          );
+      if (current()) {
+        _categorySubscription = subscription;
+      } else {
+        subscription.cancel().ignore();
+      }
+    } catch (failure) {
+      fail(failure);
+    }
   }
 
   void _watch<T>(Stream<T> stream, int version, void Function(T) receive) {
@@ -310,6 +388,10 @@ class IncidentDetailController extends ChangeNotifier {
 
   void _stop() {
     _version++;
+    _categoryVersion++;
+    _categorySubscription?.cancel().ignore();
+    _categorySubscription = null;
+    _categoryId = null;
     _childrenStarted = false;
     for (final subscription in _subscriptions) {
       subscription.cancel().ignore();
@@ -319,6 +401,9 @@ class IncidentDetailController extends ChangeNotifier {
 
   void _clearRecords() {
     incident = null;
+    category = null;
+    categoryError = null;
+    categoryLoading = false;
     history = const [];
     progress = const [];
     evidence = const [];

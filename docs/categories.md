@@ -1,11 +1,12 @@
-# CampusFix: Active Category Reader
+# CampusFix: Categories and Administration
 
 ## Overview
 
 The active category reader supplies the categories available for incident report
-selection. Firestore access is isolated in `CategoryService`; parsing and list
-ordering belong to `CategoryRepository`. Both dependencies are provided through
-their constructors.
+selection. The administrator catalog supports creation, renaming and activation
+or deactivation. Firestore access is isolated in `CategoryService`; validation,
+parsing and ordering belong to `CategoryRepository`. The screen delegates to a
+session-bound `CategoryManagementController`. Dependencies use constructors.
 
 ## Interfaces
 
@@ -15,6 +16,10 @@ their constructors.
 | `CategoryService.watchActive()` | `Stream<Map<String, Map<String, dynamic>>>` | Observes `categories` with `where('isActive', isEqualTo: true)`, indexing document fields by document ID. |
 | `CategoryRepository(categoryService: ...)` | Repository instance | Uses the supplied category service. |
 | `CategoryRepository.watchActive()` | `Stream<List<Category>>` | Parses documents and emits an unmodifiable list ordered by case-insensitive name, then document ID. |
+| `CategoryRepository.watchAll()` | `Stream<List<Category>>` | Administrator-only complete catalog, including inactive records, in the same immutable order. |
+| `CategoryRepository.watchById(categoryId)` | `Stream<Category?>` | Authenticated individual lookup, including inactive records; null when missing. |
+| `CategoryRepository.create(name: ...)` | `Future<Category>` | Creates an active category and returns its acknowledged ID, name and flag. |
+| `CategoryRepository.update(categoryId: ..., name: ..., isActive: ...)` | `Future<void>` | Renames or changes availability without changing identity or incident documents. |
 
 `Category.fromMap()` reads `name` and `isActive` using the existing field
 contract. The repository additionally rejects blank identifiers, blank names
@@ -30,6 +35,11 @@ underlying Firestore observation.
 The query filters active records in Firestore. Name ordering occurs in the
 repository, without adding an `orderBy` clause to the database query.
 
+New write names are trimmed and must be nonblank. Individual lookups and updates
+reject empty, untrimmed, path-like and reserved document IDs before contacting
+Firestore. Full-catalog and individual readers validate the two stored fields;
+malformed snapshots fail explicitly instead of supplying placeholder categories.
+
 ```dart
 final categoryService = CategoryService(firestore: firestore);
 final categoryRepository = CategoryRepository(categoryService: categoryService);
@@ -42,17 +52,35 @@ final subscription = categoryRepository.watchActive().listen(
 await subscription.cancel();
 ```
 
-## Read permissions
+## Permissions and historical references
 
-The category rules in `firestore.rules` permit authenticated reads only when
-the stored `isActive` field is the boolean value `true`. Direct reads of
-inactive categories and collection queries without the active filter are
-rejected. Category creation, modification and deletion remain denied by these
-rules.
+The category rules in `firestore.rules` enforce the following independently of
+menu visibility:
 
-The reader exposes no catalog administration methods. Existing user-profile
-rules retain their authorization conditions. Rule verification uses a local
-emulator; it does not deploy the rules to a Firebase project.
+- Authenticated sessions may read one category, including an inactive one.
+- Reporters and technicians must filter collection queries by `isActive == true`.
+- Administrators may query the full catalog, create categories and update them.
+- Writes require exactly `name` and boolean `isActive`, with a nonblank trimmed
+  name and a valid category ID. Extra fields are rejected.
+- No client, including an administrator, may delete categories.
+
+Deactivation removes a category from new-report and classification selections.
+Existing reports retain `categoryId` and resolve its name through `watchById`.
+The detail displays the current catalog name and an inactive label, observes
+renames live and offers a separate retry for category failures. A rename updates
+the displayed name of existing reports; this does not introduce historical name
+snapshots or change incident serialization. Missing categories remain visible as
+an explicit error rather than a successful name lookup.
+
+The administrative controller cancels its query when its screen closes and
+permanently invalidates itself after a session, account or role change. It clears
+rows, drafts and feedback and ignores late acknowledgements. Writes already sent
+under an authorized session may still finish. Pending writes disable duplicate
+submissions and editing; success is shown only after acknowledgement. List
+failures and write failures have separate feedback and retry behavior.
+
+These checks use local emulators and do not deploy rules to the Firebase project.
+Production catalog writes require the reviewed rules to be deployed separately.
 
 ## Local rule verification
 
@@ -96,7 +124,7 @@ and existing profile permissions. The same test command also runs the
 ordering, live changes, empty results, immutability, malformed snapshots, error
 recovery and subscription cancellation.
 
-Verified on October 21, 2026:
+Historical verification before Part 4, on October 21, 2026:
 
 | Check | Result |
 | --- | --- |
@@ -105,6 +133,10 @@ Verified on October 21, 2026:
 | Category repository tests | 8 tests passed as part of the 190-test Flutter suite. |
 | `flutter analyze --no-pub` | No issues found. |
 | `flutter build web --no-pub` | Web build completed; preliminary WebAssembly check passed. |
+
+Current Part 4 verification and remaining phases are recorded in
+[Part 4 delivery progress](part_4_delivery.md). Historical results above are not
+a claim that the previous deny-all catalog policy remains in effect.
 
 ## References
 

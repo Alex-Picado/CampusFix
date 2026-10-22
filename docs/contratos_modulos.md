@@ -22,7 +22,10 @@ services.
 | Photographs and progress persistence | Authenticated local storage, metadata association and atomic technician progress implemented | Evidence and progress |
 | Classification, assignment, transitions and audit | Implemented; see `incident_management.md` | Operational workflow |
 | Active category reader | Service, repository and read rules implemented | Incident report selection |
-| Category administration, queries and indicators | Proposed interfaces | Catalogs and reporting |
+| Category administration | Implemented in Part 4 phase 1 | Catalogs |
+| Authorized incident search | Implemented in Part 4 phase 2 | Reporting |
+| Administrative filters | Implemented in Part 4 phase 3 | Reporting |
+| Indicators | Implemented in Part 4 phase 4 | Reporting |
 
 La arquitectura acordada es `screen → controller → repository → service`. La pantalla no accede directamente a Firebase. Los controladores usan `ChangeNotifier`; las dependencias se reciben por constructor.
 
@@ -48,7 +51,7 @@ Los nombres siguientes respetan los modelos existentes. El identificador `id` se
 
 Un registro normal crea un reportante. La preparación del primer administrador se realiza administrativamente y está documentada en `autenticacion.md`.
 
-### `categories/{categoryId}`: active reader implemented
+### `categories/{categoryId}`: active reader and administration implemented
 
 | Campo | Tipo almacenado | Regla |
 |---|---|---|
@@ -59,8 +62,10 @@ Un registro normal crea un reportante. La preparación del primer administrador 
 administration is a separate interface. Deactivation preserves `categoryId`
 references in existing incidents without requiring deletion.
 
-`CategoryService` queries only active documents. `CategoryRepository` parses
-them into immutable lists sorted by case-insensitive name and then ID.
+`CategoryService.watchActive()` queries only active documents. Administrative
+`watchAll()` includes inactive records; authenticated `watchById()` resolves one
+record regardless of its active flag. `CategoryRepository` parses lists into
+immutable results sorted by case-insensitive name and then ID.
 [Active category reader](categories.md) documents errors, subscriptions and
 local permission verification.
 
@@ -234,14 +239,40 @@ must reread the current incident and validate the related event atomically.
 | Operación | Entrada → resultado esperado | Permiso y responsable | Historias |
 |---|---|---|---|
 | `watchActive` (implemented) | No arguments → `Stream<List<Category>>` | Authenticated session | Selection in HU-05 |
-| `watchAll` (proposed) | Sin argumentos → `Stream<List<Category>>` | Administrador | Módulo de catálogos |
-| `create` (proposed) | Nombre → categoría persistida | Administrador | Módulo de catálogos |
-| `update` (proposed) | `categoryId`, nombre, `isActive` → `Future<void>` | Administrador | Módulo de catálogos |
-| Consultas e indicadores | Incidencias autorizadas y criterios → resultados/conteos | Según el rol | HU-15 a HU-18 |
+| `watchAll` (implemented) | No arguments → `Stream<List<Category>>` | Administrator | Catalog administration |
+| `watchById` (implemented) | `categoryId` → `Stream<Category?>` | Authenticated session, including inactive records | Historical category names |
+| `create` (implemented) | `name` → `Future<Category>` | Administrator | Catalog administration |
+| `update` (implemented) | `categoryId`, `name`, `isActive` → `Future<void>` | Administrator | Catalog administration |
+| `IncidentSearch.applyTo` (implemented) | Authorized incidents and text/category criteria → immutable matches | Existing role-scoped source | HU-15 |
+| `IncidentFilters` (implemented) | State, priority, responsible-person criteria → matches combined with search | Administrator | HU-16 |
+| `IncidentIndicators.fromIncidents` (implemented) | Complete authorized incident snapshot → immutable state and category counts | Administrator | HU-17, HU-18 |
 
 Search and combined filters operate on authorized incident data. Historical
 details retain category identifiers, including inactive categories; category
 reads require explicit authorization.
+
+`IncidentSearchController` consumes the existing list snapshot without replacing
+the incident repository's own, assigned or administrative query. Numeric input
+matches an exact sequence number, optionally prefixed with `#`; other text
+matches title, description or location without case or Spanish accent
+differences. A category ID combines with that criterion using AND. Individual
+lookups resolve only referenced or selected categories, including inactive ones.
+[Authorized incident search](incident_search.md) documents behavior and evidence.
+
+Administrative filters include missing-priority and unassigned choices. The
+shared controller guards those setters by role; only the administrative queue
+supplies `UserRepository` for its existing protected `watchAll()` profile reader.
+Technician names update live without changing selected UIDs. Former or missing
+responsible UIDs remain filterable when referenced by the loaded data. No query
+or schema extension is required for local filtering.
+
+`IncidentDashboardController` independently observes the global administrative
+incident stream and the complete category catalog. Management filters do not
+affect its population. Category counts group by ID, retaining inactive and missing
+references; names update live. Both subscriptions are cancelled on navigation or
+session invalidation, and incident/catalog failures have separate retries.
+[Global incident indicators](incident_dashboard.md) defines the overlapping
+state totals, category presentation and phase 4 evidence.
 
 The category-reading contract is separate from catalog administration. Selecting
 a category for a report requires an authenticated read of active categories.
@@ -297,7 +328,8 @@ Cada controlador es dueño de sus suscripciones: cancela al salir del módulo y 
 Las pantallas distinguen carga, lista vacía, error de lectura y error al guardar. Un snapshot posterior no debe borrar un error de guardado pendiente. Tras perder conexión se indica el estado disponible y se comprueba recuperación; no se confunde una vista local con una escritura confirmada.
 
 The current rule source allows authorized operations on `users`, authenticated
-reads of active `categories` and atomic reporter creation of incidents with
+active category queries and individual lookups including inactive categories,
+administrator catalog management and atomic reporter creation of incidents with
 their counter increment and initial history. Authors, assigned technicians and
 administrators can read authorized incident details, history and progress.
 Reporters can query their own incidents and read the creation counter. Valid
@@ -306,7 +338,8 @@ evidence. Assigned technicians in attention can create progress with matching
 history and optional evidence atomically. Existing metadata, progress and history
 remain immutable. Lifecycle updates require a new linked history event and independently validated
 state, role, fields and related records. Administrators can query all incidents;
-technicians must filter by their own assigned UID. Category writes remain denied.
+technicians must filter by their own assigned UID. Only administrators create or
+update categories; all clients are denied category deletion.
 [Follow-up](incident_followup.md) records these interfaces and permissions.
 
 Se comprobarán consultas y escrituras directas no autorizadas, transiciones inválidas y ausencia de eventos huérfanos. Las pruebas deben intentar modificar UID, rol, consecutivo, actor y fechas; esconder botones no constituye una prueba de seguridad.

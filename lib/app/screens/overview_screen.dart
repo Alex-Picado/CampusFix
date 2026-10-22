@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/page_heading.dart';
 import '../../core/widgets/section_card.dart';
 import '../navigation/campus_destination.dart';
-import '../theme/campus_theme.dart';
 
 /// Shows the landing page and shortcuts available to the current role.
 class OverviewScreen extends StatelessWidget {
@@ -73,11 +72,6 @@ class OverviewScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'Los módulos pendientes se indican como Próximamente.',
-          style: TextStyle(color: CampusTheme.secondaryText),
         ),
       ],
     );

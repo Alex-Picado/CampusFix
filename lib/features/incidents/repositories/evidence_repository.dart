@@ -81,15 +81,18 @@ class EvidenceRepository {
       throw const FormatException('Invalid photograph.');
     }
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-    ui.ImageDescriptor? descriptor;
     ui.Codec? codec;
     try {
-      descriptor = await ui.ImageDescriptor.encoded(buffer);
-      if (descriptor.width * descriptor.height > 40000000) {
-        throw const FormatException('Image dimensions exceed the limit.');
-      }
-      codec = await descriptor.instantiateCodec(
-        targetWidth: descriptor.width > 1600 ? 1600 : descriptor.width,
+      // This API obtains intrinsic dimensions on both web and native engines.
+      // It takes ownership of the encoded buffer and disposes it after decoding.
+      codec = await ui.instantiateImageCodecWithSize(
+        buffer,
+        getTargetSize: (width, height) {
+          if (width * height > 40000000) {
+            throw const FormatException('Image dimensions exceed the limit.');
+          }
+          return ui.TargetImageSize(width: width > 1600 ? 1600 : width);
+        },
       );
       if (codec.frameCount != 1) {
         throw const FormatException('Select a single-frame photograph.');
@@ -98,8 +101,6 @@ class EvidenceRepository {
       frame.image.dispose();
     } finally {
       codec?.dispose();
-      descriptor?.dispose();
-      buffer.dispose();
     }
     return SelectedPhoto(
       bytes: bytes,

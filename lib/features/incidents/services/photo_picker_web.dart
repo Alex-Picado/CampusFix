@@ -9,7 +9,8 @@ import '../models/selected_photo.dart';
 Future<SelectedPhoto?> pickPhoto() async {
   final input = web.HTMLInputElement()
     ..type = 'file'
-    ..accept = 'image/jpeg,image/png,image/webp';
+    ..accept = 'image/jpeg,image/png,image/webp'
+    ..style.display = 'none';
   final selection = Completer<web.File?>();
   final change = ((web.Event _) {
     if (!selection.isCompleted) selection.complete(input.files?.item(0));
@@ -19,8 +20,9 @@ Future<SelectedPhoto?> pickPhoto() async {
   }).toJS;
   input.addEventListener('change', change);
   input.addEventListener('cancel', cancel);
-  input.click();
+  web.document.body!.append(input);
   try {
+    input.click();
     final file = await selection.future;
     if (file == null) return null;
     if (file.size <= 0 || file.size > 3000000) {
@@ -37,5 +39,6 @@ Future<SelectedPhoto?> pickPhoto() async {
   } finally {
     input.removeEventListener('change', change);
     input.removeEventListener('cancel', cancel);
+    input.remove();
   }
 }

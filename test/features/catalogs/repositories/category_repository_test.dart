@@ -198,7 +198,7 @@ void main() {
 }
 
 /// Supplies category snapshots without opening a Firebase connection.
-class _TestCategoryService implements CategoryService {
+class _TestCategoryService extends Fake implements CategoryService {
   final Stream<_CategoryDocuments> _documents;
 
   _TestCategoryService(this._documents);

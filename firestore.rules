@@ -329,11 +329,24 @@ service cloud.firestore {
     }
 
     match /categories/{categoryId} {
-      // Queries must filter by isActive to request only readable documents.
-      allow get, list: if isSignedIn() && resource.data.isActive == true;
+      // Historical reports may resolve inactive names without listing the catalog.
+      allow get: if isSignedIn();
+      allow list: if isAdmin()
+        || (isSignedIn() && resource.data.isActive == true);
 
-      // Category administration is not exposed by the reporting reader.
-      allow create, update, delete: if false;
+      function isValidCategory() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['name', 'isActive'])
+          && data.keys().hasOnly(['name', 'isActive'])
+          && isNonblankText(data.name)
+          && data.name == data.name.trim()
+          && data.isActive is bool;
+      }
+
+      allow create, update: if isAdmin() && isDocumentId(categoryId)
+        && isValidCategory();
+      // Deactivation preserves existing incident and audit references.
+      allow delete: if false;
     }
 
     match /incidents/{incidentId} {

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/widgets/page_heading.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../auth/controllers/session_controller.dart';
+import '../../catalogs/repositories/category_repository.dart';
 import '../controllers/incident_detail_controller.dart';
 import '../models/incident_history_action.dart';
 import '../presentation/incident_status_labels.dart';
@@ -26,6 +27,7 @@ class IncidentDetailScreen extends StatelessWidget {
       key: ValueKey('${profile.id}:${profile.role.name}:$incidentId'),
       create: (context) => IncidentDetailController(
         repository: context.read<IncidentRepository>(),
+        categoryRepository: context.read<CategoryRepository>(),
         evidenceRepository: context.read<EvidenceRepository?>(),
         session: session,
         incidentId: incidentId,
@@ -86,7 +88,20 @@ class _DetailView extends StatelessWidget {
               SelectableText(incident.description),
               const SizedBox(height: 12),
               Text('Ubicación: ${incident.location}'),
-              Text('Categoría: ${incident.categoryId}'),
+              if (controller.categoryLoading)
+                const Text('Categoría: Cargando...')
+              else if (controller.categoryError != null) ...[
+                Text('Categoría: ${controller.categoryError}'),
+                TextButton(
+                  key: const ValueKey('category-retry'),
+                  onPressed: controller.retryCategory,
+                  child: const Text('Reintentar categoría'),
+                ),
+              ] else
+                Text(
+                  'Categoría: ${controller.category!.name}'
+                  '${controller.category!.isActive ? '' : ' (inactiva)'}',
+                ),
               Text(
                 'Prioridad: ${incident.priority?.value ?? 'Sin clasificar'}',
               ),
@@ -107,7 +122,9 @@ class _DetailView extends StatelessWidget {
           'Fotografías',
           controller.loadingSections.contains('evidence'),
           [
-            if (controller.evidence.isEmpty)
+            if (controller.evidenceRepository == null)
+              const PhotoAvailabilityNotice()
+            else if (controller.evidence.isEmpty)
               const Text('No hay fotografías asociadas.')
             else
               EvidenceGallery(uid: profile.id, evidence: controller.evidence),

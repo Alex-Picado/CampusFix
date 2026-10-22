@@ -110,10 +110,12 @@ test('Authenticated sessions can read an active category directly', async () => 
   assert.equal(snapshot.data().name, 'Lighting');
 });
 
-test('Inactive categories are denied to every role', async () => {
+test('Authenticated roles can resolve inactive names without listing the catalog', async () => {
   for (const role of ['reporter', 'technician', 'administrator']) {
-    await assertFails(getDoc(doc(contextFor(role).firestore(), 'categories/inactive')));
+    const snapshot = await assertSucceeds(getDoc(doc(contextFor(role).firestore(), 'categories/inactive')));
+    assert.equal(snapshot.data().name, 'Old category');
   }
+  await assertFails(getDoc(doc(environment.unauthenticatedContext().firestore(), 'categories/inactive')));
 });
 
 test('Queries for inactive categories are rejected', async () => {
@@ -130,8 +132,8 @@ test('Unfiltered queries remain denied even when all stored categories are activ
   await assertFails(getDocs(collection(contextFor('reporter').firestore(), 'categories')));
 });
 
-test('Category creation modification and deletion remain denied for every role', async () => {
-  for (const role of ['reporter', 'technician', 'administrator']) {
+test('Reporters and technicians cannot create modify or delete categories', async () => {
+  for (const role of ['reporter', 'technician']) {
     const database = contextFor(role).firestore();
     await assertFails(setDoc(doc(database, 'categories/new-category'), {
       name: 'Unauthorized category', isActive: true,
@@ -143,18 +145,61 @@ test('Category creation modification and deletion remain denied for every role',
   }
 });
 
-test('Only an explicit boolean active flag permits a category read', async () => {
-  await environment.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), 'categories/invalid-flag'), {
-      name: 'Invalid flag', isActive: 'true',
-    });
-    await setDoc(doc(context.firestore(), 'categories/missing-flag'), {
-      name: 'Missing flag',
-    });
-  });
-  const database = contextFor('reporter').firestore();
-  await assertFails(getDoc(doc(database, 'categories/invalid-flag')));
-  await assertFails(getDoc(doc(database, 'categories/missing-flag')));
+test('Administrators can list the complete catalog including inactive categories', async () => {
+  const database = contextFor('administrator').firestore();
+  const snapshot = await assertSucceeds(getDocs(collection(database, 'categories')));
+  assert.deepEqual(snapshot.docs.map((record) => record.id).sort(), ['inactive', 'lighting', 'plumbing']);
+  await assertSucceeds(getDocs(query(collection(database, 'categories'), where('isActive', '==', false))));
+});
+
+test('Administrators create rename deactivate and reactivate without deleting', async () => {
+  const database = contextFor('administrator').firestore();
+  const reference = doc(database, 'categories/accessibility');
+  await assertSucceeds(setDoc(reference, { name: 'Accessibility', isActive: true }));
+  await assertSucceeds(updateDoc(reference, { name: 'Access', isActive: false }));
+  assert.equal((await getDoc(reference)).data().name, 'Access');
+  await assertSucceeds(updateDoc(reference, { isActive: true }));
+  await assertFails(deleteDoc(reference));
+  await assertFails(deleteDoc(doc(database, 'categories/inactive')));
+});
+
+test('Catalog writes reject blank untrimmed missing mistyped and unexpected fields', async () => {
+  const database = contextFor('administrator').firestore();
+  for (const data of [
+    { name: '', isActive: true }, { name: ' \t ', isActive: true },
+    { name: ' Lighting ', isActive: true }, { name: 123, isActive: true },
+    { name: 'Lighting', isActive: 'true' }, { name: 'Lighting' },
+    { isActive: true }, { name: 'Lighting', isActive: true, extra: 'unexpected' },
+  ]) {
+    await assertFails(setDoc(doc(database, 'categories/invalid'), data));
+    await assertFails(setDoc(doc(database, 'categories/lighting'), data));
+  }
+});
+
+test('Unauthenticated catalog writes and a revoked administrator are denied', async () => {
+  const anonymous = environment.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(anonymous, 'categories/new'), { name: 'New', isActive: true }));
+  await assertFails(updateDoc(doc(anonymous, 'categories/lighting'), { isActive: false }));
+  await assertFails(deleteDoc(doc(anonymous, 'categories/lighting')));
+  const database = contextFor('administrator').firestore();
+  await environment.withSecurityRulesDisabled((context) =>
+    updateDoc(doc(context.firestore(), 'users/administrator-1'), { role: 'reporter' }));
+  await assertFails(updateDoc(doc(database, 'categories/lighting'), { isActive: false }));
+  await assertFails(getDocs(collection(database, 'categories')));
+});
+
+test('Deactivation preserves existing incident references and historical names', async () => {
+  await environment.withSecurityRulesDisabled((context) =>
+    setDoc(doc(context.firestore(), 'incidents/historical'), {
+      categoryId: 'lighting', createdByUserId: 'reporter-1', assignedTechnicianId: null,
+    }));
+  const database = contextFor('administrator').firestore();
+  await assertSucceeds(updateDoc(doc(database, 'categories/lighting'), { isActive: false }));
+  const reporter = contextFor('reporter').firestore();
+  assert.equal((await getDoc(doc(reporter, 'incidents/historical'))).data().categoryId, 'lighting');
+  assert.equal((await getDoc(doc(reporter, 'categories/lighting'))).data().name, 'Lighting');
+  const active = await getDocs(activeCategories(reporter));
+  assert.deepEqual(active.docs.map((record) => record.id), ['plumbing']);
 });
 
 test('Existing profile permissions still protect user data', async () => {
@@ -165,4 +210,14 @@ test('Existing profile permissions still protect user data', async () => {
     role: 'administrator',
   }));
   await assertSucceeds(getDocs(collection(contextFor('administrator').firestore(), 'users')));
+});
+
+test('Only administrators can list profiles for technician filter labels', async () => {
+  const administrator = contextFor('administrator').firestore();
+  const profiles = await assertSucceeds(getDocs(collection(administrator, 'users')));
+  assert.equal(profiles.size, 3);
+  for (const role of ['reporter', 'technician']) {
+    await assertFails(getDocs(collection(contextFor(role).firestore(), 'users')));
+  }
+  await assertFails(getDocs(collection(environment.unauthenticatedContext().firestore(), 'users')));
 });

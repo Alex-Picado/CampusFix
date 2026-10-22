@@ -19,6 +19,10 @@ history. Assigned technicians in attention can record progress with optional
 photographs. Image bytes are stored in the versioned `local_storage/evidence/`
 folder through a local authenticated Node.js service.
 
+The default public client disables local photographs and explains that limitation
+while allowing reports and text progress. The local launcher explicitly enables
+photographs. See [Integrated clients](docs/integration_delivery.md).
+
 See [Local storage and startup](docs/local_evidence.md) for installation, portable
 startup and the isolated emulator demonstration.
 
@@ -28,9 +32,24 @@ Assigned technicians can start attention and resolve their cases. Lifecycle
 updates and immutable audit events commit atomically, with independent Firestore
 rules, stable retries and session-bound controllers.
 
+Administrators can create, rename, activate and deactivate categories through a
+live catalog. Existing incident details retain their category reference and show
+its current name even after deactivation. Catalog writes are independently
+protected by Firestore rules.
+
 ## Documentation
 
+- [Public release preparation and deployment status](docs/despliegue.md).
+- [User manual](docs/user_manual.md).
+- [Architecture, data and permissions](docs/architecture_delivery.md).
+- [All 20 user stories and evidence](docs/requirements_traceability.md).
+- [Demonstration script](docs/demo_script.md).
 - [Incident management and Part 3 verification](docs/incident_management.md).
+- [Desktop/tablet integration and photograph modes](docs/integration_delivery.md).
+- [Authorized incident search](docs/incident_search.md).
+- [Administrative filters](docs/incident_filters.md).
+- [Global incident indicators](docs/incident_dashboard.md).
+- [Evidence organized by team part](docs/evidence/README.md).
 - [Incident models](docs/part_2_incidents.md).
 - [Incident creation](docs/incident_creation.md).
 - [Incident creation security](docs/incident_security.md).
@@ -39,4 +58,5 @@ rules, stable retries and session-bound controllers.
 - [Local evidence service](docs/local_evidence.md).
 - [Incident detail and follow-up](docs/incident_followup.md).
 - [Active category reader](docs/categories.md).
+- [Part 4 delivery progress](docs/part_4_delivery.md).
 - [Runtime configuration](docs/toolchain.md).

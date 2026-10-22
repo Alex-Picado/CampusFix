@@ -121,7 +121,7 @@ workflow against real Firebase. No production deployment is part of these checks
 
 ## Verification on October 21, 2026
 
-See [Recorded verification](evidence/part_3_checks.txt) for command results.
+See [Recorded verification](evidence/parte_3/part_3_checks.txt) for command results.
 Flutter `3.47.5` / Dart `3.13.4`, Node `24.19.0` and Java `21.0.12.1` were used.
 Node and Java were prepared in temporary folders; the system runtimes were left
 unchanged. All checks use the existing lockfiles without dependency upgrades.
