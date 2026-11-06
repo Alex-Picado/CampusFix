@@ -156,6 +156,41 @@ void main() {
     await expectLater(assign(), throwsFormatException);
     expect(current().status, IncidentStatus.underReview);
   });
+  test(
+    'Reassignment records both technicians and reconciles a retried transfer',
+    () async {
+      await classify();
+      await assign();
+      auth.userId = 'tech';
+      await save(command(IncidentHistoryAction.started));
+      auth.userId = 'admin';
+      final transfer = command(
+        IncidentHistoryAction.reassigned,
+        technicianId: 'other-tech',
+        reason: 'The original technician is unavailable',
+      );
+      await save(transfer);
+      final transferred = current();
+      await save(transfer);
+      expect(current().updatedAt, transferred.updatedAt);
+      expect(current().status, IncidentStatus.inProgress);
+      expect(current().priority, IncidentPriority.high);
+      expect(current().assignedTechnicianId, 'other-tech');
+      final event =
+          database.documents['incidents/case/history/${transfer.eventId}']!;
+      expect(event['fromTechnicianId'], 'tech');
+      expect(event['toTechnicianId'], 'other-tech');
+      expect(event['reason'], transfer.reason);
+      auth.userId = 'tech';
+      await expectLater(
+        save(command(IncidentHistoryAction.resolved, reason: 'Repaired')),
+        throwsStateError,
+      );
+      auth.userId = 'other-tech';
+      await save(command(IncidentHistoryAction.resolved, reason: 'Repaired'));
+      expect(current().status, IncidentStatus.resolved);
+    },
+  );
   test('Only a resolved case can be closed and solutions or reasons cannot be blank', () async {
     await expectLater(
       save(command(IncidentHistoryAction.closed)),

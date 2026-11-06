@@ -2,7 +2,7 @@ import 'incident.dart';
 import 'incident_priority.dart';
 import 'incident_status.dart';
 
-/// Available administrative priority choices, including unclassified reports.
+/// Available priority choices for authorized queues, including unclassified reports.
 enum IncidentPriorityFilter {
   /// Includes assigned and missing priorities.
   all(null),
@@ -24,7 +24,7 @@ enum IncidentPriorityFilter {
   const IncidentPriorityFilter(this.priority);
 }
 
-/// Immutable administrative criteria combined with local search using AND.
+/// Immutable queue criteria combined with local search using AND.
 ///
 /// These criteria never authorize reads or change incident records.
 class IncidentFilters {
@@ -48,7 +48,7 @@ class IncidentFilters {
     this.unassignedOnly = false,
   }) : assert(!unassignedOnly || technicianId == null);
 
-  /// Whether at least one administrative criterion restricts the source.
+  /// Whether at least one queue criterion restricts the source.
   bool get hasCriteria =>
       status != null ||
       priority != IncidentPriorityFilter.all ||

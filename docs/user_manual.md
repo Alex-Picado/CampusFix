@@ -23,6 +23,10 @@ unassigned technician cannot open your report.
 5. Use **Ver detalle** for current state, responsible references, solution,
    progress comments and chronological history.
 
+The status explanation in **Mis incidencias** and the incident detail tells you
+what happened and what comes next. **Resuelta** means a solution was recorded;
+the administrator still needs to close the case.
+
 Search your own reports by exact consecutive number (with or without `#`), text
 or category. Use **Limpiar búsqueda** to reset the criteria.
 
@@ -32,8 +36,10 @@ retained; their absence from the public client does not mean they were deleted.
 
 ## Technician
 
-**Mi trabajo** contains your assignments. Open an assigned case and select
-**Iniciar atención**. During attention, enter a nonblank **Descripción del avance**
+**Mi trabajo** groups your cases under **Nuevas asignaciones**, **En atención**
+and **Historial**. Use **Prioridad** together with text or category search to
+find the cases you need. Open an assigned case and press **Iniciar atención**.
+During attention, enter a nonblank **Descripción del avance**
 and use **Guardar avance**. A local photograph is optional. To finish, enter
 **Solución realizada** and select **Resolver incidencia**. An administrator performs
 formal closure. Follow retry instructions if a write cannot be confirmed; the
@@ -46,6 +52,11 @@ category and priority before selecting **Asignar técnico**. Assign a current
 technician. Close a case only after it is **Resuelta**. Rejection, cancellation
 and reopening require a reason and a permitted state. Reopening preserves the
 prior solution in history and clears priority and the assigned technician.
+
+For a case in **Asignada** or **En atención**, use **Reasignar técnico** to
+select another technician and explain why. The case keeps its state, priority
+and progress; the new technician sees it in **Mi trabajo**. The history records
+both technicians, the reason and the administrator who made the change.
 
 Combine text/consecutive/category search with state, priority and technician
 filters. **Sin prioridad** and **Sin asignar** are explicit choices. The result

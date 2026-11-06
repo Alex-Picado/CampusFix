@@ -95,6 +95,7 @@ void main() {
       'created': IncidentHistoryAction.created,
       'classified': IncidentHistoryAction.classified,
       'assigned': IncidentHistoryAction.assigned,
+      'reassigned': IncidentHistoryAction.reassigned,
       'started': IncidentHistoryAction.started,
       'progressAdded': IncidentHistoryAction.progressAdded,
       'resolved': IncidentHistoryAction.resolved,

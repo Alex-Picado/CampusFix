@@ -39,6 +39,11 @@ void main() {
       expect(app.reports.incident.assignedTechnicianId, 'tech');
       app.auth.setUser('tech');
       await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('workflow-action-started')),
+        findsNothing,
+      );
+      expect(find.text('Iniciar atención'), findsOneWidget);
       await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.status, IncidentStatus.inProgress);
       await _tapKey(tester, 'workflow-save');
@@ -78,6 +83,46 @@ void main() {
         'admin',
         'admin',
       ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'Administrator can transfer an in-progress case using a different technician and a reason',
+    (tester) async {
+      final app = await _mount(tester);
+      app.users.put(
+        const UserProfile(
+          id: 'other-tech',
+          fullName: 'Other technician',
+          email: 'other-tech@test.invalid',
+          role: UserRole.technician,
+        ),
+      );
+      app.reports.incident = app.reports.incident.copyWith(
+        status: IncidentStatus.inProgress,
+        assignedTechnicianId: 'tech',
+        priority: IncidentPriority.high,
+      );
+      app.reports.changes.add(null);
+      await tester.pumpAndSettle();
+      await _tapText(tester, 'Abrir incidencia');
+      await _choose<IncidentHistoryAction>(tester, 'Reasignar técnico');
+      await _choose<String>(
+        tester,
+        'Other technician · other-tech@test.invalid',
+      );
+      await _tapKey(tester, 'workflow-save');
+      expect(find.text('Escribí el motivo de la operación.'), findsOneWidget);
+      expect(app.reports.submissions, isEmpty);
+      final reason = find.byKey(const ValueKey('workflow-reason'));
+      await tester.ensureVisible(reason);
+      await tester.enterText(reason, 'Cambio de turno');
+      await _tapKey(tester, 'workflow-save');
+      expect(app.reports.incident.assignedTechnicianId, 'other-tech');
+      expect(app.reports.incident.status, IncidentStatus.inProgress);
+      expect(app.reports.history.single.fromTechnicianId, 'tech');
+      expect(app.reports.history.single.reason, 'Cambio de turno');
+      expect(find.textContaining('Técnico reasignado'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

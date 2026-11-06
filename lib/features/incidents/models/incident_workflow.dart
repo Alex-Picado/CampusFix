@@ -58,6 +58,10 @@ abstract final class IncidentWorkflow {
           if (incident.priority != null) IncidentHistoryAction.assigned,
           IncidentHistoryAction.rejected,
         ],
+        if (incident.assignedTechnicianId != null &&
+            (status == IncidentStatus.assigned ||
+                status == IncidentStatus.inProgress))
+          IncidentHistoryAction.reassigned,
         if ([
           IncidentStatus.reported,
           IncidentStatus.underReview,
@@ -103,26 +107,24 @@ abstract final class IncidentWorkflow {
     }
     final action = command.action;
     final classification = action == IncidentHistoryAction.classified;
-    final assignment = action == IncidentHistoryAction.assigned;
-    final needsReason = [
-      IncidentHistoryAction.resolved,
-      IncidentHistoryAction.rejected,
-      IncidentHistoryAction.cancelled,
-      IncidentHistoryAction.reopened,
-    ].contains(action);
     if ((classification &&
             (command.categoryId == null || command.priority == null)) ||
         (!classification &&
             (command.categoryId != null || command.priority != null)) ||
-        (assignment != (command.technicianId != null)) ||
-        (needsReason != (command.reason != null)) ||
+        (action.selectsTechnician != (command.technicianId != null)) ||
+        (action.requiresWorkflowReason != (command.reason != null)) ||
         (command.reason != null && command.reason!.trim().isEmpty)) {
       throw const FormatException('Invalid workflow fields.');
+    }
+    if (action == IncidentHistoryAction.reassigned &&
+        command.technicianId == incident.assignedTechnicianId) {
+      throw const FormatException('Select a different technician.');
     }
     final status = switch (action) {
       IncidentHistoryAction.classified ||
       IncidentHistoryAction.reopened => IncidentStatus.underReview,
       IncidentHistoryAction.assigned => IncidentStatus.assigned,
+      IncidentHistoryAction.reassigned => incident.status,
       IncidentHistoryAction.started => IncidentStatus.inProgress,
       IncidentHistoryAction.resolved => IncidentStatus.resolved,
       IncidentHistoryAction.closed => IncidentStatus.closed,
@@ -130,7 +132,7 @@ abstract final class IncidentWorkflow {
       IncidentHistoryAction.cancelled => IncidentStatus.cancelled,
       _ => throw const FormatException('Unsupported workflow action.'),
     };
-    if (assignment && incident.priority == null) {
+    if (action == IncidentHistoryAction.assigned && incident.priority == null) {
       throw const FormatException(
         'Classification is required before assignment.',
       );
@@ -139,7 +141,8 @@ abstract final class IncidentWorkflow {
       'status': status.value,
       if (classification) 'categoryId': command.categoryId,
       if (classification) 'priority': command.priority!.value,
-      if (assignment) 'assignedTechnicianId': command.technicianId,
+      if (action.selectsTechnician)
+        'assignedTechnicianId': command.technicianId,
       if (action == IncidentHistoryAction.resolved)
         'resolutionDescription': command.reason,
       if (action == IncidentHistoryAction.reopened) ...{

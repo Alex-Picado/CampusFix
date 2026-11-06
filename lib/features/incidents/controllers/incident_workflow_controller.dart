@@ -177,16 +177,15 @@ class IncidentWorkflowController extends ChangeNotifier {
         'Clasificá nuevamente la incidencia con una categoría activa.',
       );
     }
-    if (action == IncidentHistoryAction.assigned &&
+    if (action.selectsTechnician &&
         !technicians.any((row) => row.id == technicianId)) {
       return _invalid('Seleccioná un usuario con rol Técnico.');
     }
-    if ([
-          IncidentHistoryAction.resolved,
-          IncidentHistoryAction.rejected,
-          IncidentHistoryAction.cancelled,
-          IncidentHistoryAction.reopened,
-        ].contains(action) &&
+    if (action == IncidentHistoryAction.reassigned &&
+        technicianId == incident?.assignedTechnicianId) {
+      return _invalid('Seleccioná un técnico distinto del actual.');
+    }
+    if (action.requiresWorkflowReason &&
         (reason == null || reason.trim().isEmpty)) {
       return _invalid(
         action == IncidentHistoryAction.resolved

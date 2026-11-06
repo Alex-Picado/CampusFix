@@ -79,6 +79,9 @@ class IncidentSearchController extends ChangeNotifier {
   /// Whether administrative filter controls belong to this active session.
   bool get administrative => active && _role == UserRole.administrator;
 
+  /// Whether priority filtering belongs to an assigned technician's queue.
+  bool get technician => active && _role == UserRole.technician;
+
   /// Whether the administrator's technician names are awaiting their first list.
   bool get techniciansLoading => _techniciansLoading;
 
@@ -190,20 +193,26 @@ class IncidentSearchController extends ChangeNotifier {
   }
 
   /// Selects a lifecycle state for administrators, or null to clear that choice.
-  void selectStatus(IncidentStatus? status) => _setFilters(
-    _criteria.filters.copyWith(status: status, clearStatus: status == null),
-  );
+  void selectStatus(IncidentStatus? status) {
+    if (!administrative) return;
+    _setFilters(
+      _criteria.filters.copyWith(status: status, clearStatus: status == null),
+    );
+  }
 
-  /// Selects a priority or the explicit all/unclassified choice for administrators.
-  void selectPriority(IncidentPriorityFilter priority) =>
-      _setFilters(_criteria.filters.copyWith(priority: priority));
+  /// Selects a priority within an administrator or technician's authorized list.
+  void selectPriority(IncidentPriorityFilter priority) {
+    if (!administrative && !technician) return;
+    _setFilters(_criteria.filters.copyWith(priority: priority));
+  }
 
   /// Selects a current/historical responsible UID or the unassigned-only choice.
   ///
   /// Null with [unassignedOnly] false clears assignment criteria. Unknown UIDs,
   /// contradictory inputs and calls outside the administrator session are ignored.
   void selectTechnician(String? id, {bool unassignedOnly = false}) {
-    if ((id != null && unassignedOnly) ||
+    if (!administrative ||
+        (id != null && unassignedOnly) ||
         (id != null && !technicianIds.contains(id))) {
       return;
     }
@@ -217,7 +226,7 @@ class IncidentSearchController extends ChangeNotifier {
   }
 
   void _setFilters(IncidentFilters filters) {
-    if (!administrative || !_hasSnapshot) return;
+    if (!active || !_hasSnapshot) return;
     _criteria = _criteria.copyWith(filters: filters);
     _results = _criteria.applyTo(_incidents);
     notifyListeners();

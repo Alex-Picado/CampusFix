@@ -86,9 +86,9 @@ service cloud.firestore {
         && event.reason == details.reason
         && ((event.action == 'classified' && details.categoryId == next.categoryId && details.priority == next.priority)
           || (event.action != 'classified' && details.categoryId == null && details.priority == null))
-        && ((event.action == 'assigned' && details.technicianId == next.assignedTechnicianId)
-          || (event.action != 'assigned' && details.technicianId == null))
-        && ((event.action in ['resolved', 'rejected', 'cancelled', 'reopened'] && isNonblankText(event.reason)
+        && ((event.action in ['assigned', 'reassigned'] && details.technicianId == next.assignedTechnicianId)
+          || (!(event.action in ['assigned', 'reassigned']) && details.technicianId == null))
+        && ((event.action in ['reassigned', 'resolved', 'rejected', 'cancelled', 'reopened'] && isNonblankText(event.reason)
               && event.reason == event.reason.trim())
           || (event.action in ['classified', 'assigned', 'started', 'closed'] && event.reason == null))
         && ((event.action == 'reopened' && event.previousResolutionDescription == before.resolutionDescription)
@@ -109,6 +109,13 @@ service cloud.firestore {
             && changed.hasOnly(common.concat(['assignedTechnicianId']))
             && next.priority in ['BAJA', 'MEDIA', 'ALTA'] && isActiveCategory(next.categoryId)
             && isDocumentId(next.assignedTechnicianId)
+            && get(/databases/$(database)/documents/users/$(next.assignedTechnicianId)).data.role == 'technician')
+          || (event.action == 'reassigned' && before.status in ['ASIGNADA', 'EN_ATENCION']
+            && next.status == before.status
+            && changed.hasOnly(['assignedTechnicianId', 'updatedAt', 'lastWorkflowEventId'])
+            && isDocumentId(before.assignedTechnicianId)
+            && isDocumentId(next.assignedTechnicianId)
+            && next.assignedTechnicianId != before.assignedTechnicianId
             && get(/databases/$(database)/documents/users/$(next.assignedTechnicianId)).data.role == 'technician')
           || (event.action == 'closed' && before.status == 'RESUELTA' && next.status == 'CERRADA'
             && changed.hasOnly(common))

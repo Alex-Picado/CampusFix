@@ -9,6 +9,9 @@ enum IncidentHistoryAction {
   /// A technician was assigned to an incident.
   assigned('assigned'),
 
+  /// An administrator transferred an active assignment to another technician.
+  reassigned('reassigned'),
+
   /// The assigned technician started attention.
   started('started'),
 
@@ -35,6 +38,15 @@ enum IncidentHistoryAction {
 
   /// Creates a history action with its stored code.
   const IncidentHistoryAction(this.value);
+
+  /// Whether the workflow form must select a technician.
+  bool get selectsTechnician => this == assigned || this == reassigned;
+
+  /// Whether the workflow form must include an explanation.
+  bool get requiresWorkflowReason => switch (this) {
+    reassigned || resolved || rejected || cancelled || reopened => true,
+    _ => false,
+  };
 
   /// Returns the action associated with a stored code.
   ///

@@ -65,16 +65,18 @@ class _WorkflowFormState extends State<_WorkflowForm> {
         controller.categories.any((row) => row.id == categoryId)
         ? categoryId
         : null;
+    final reassigning = action == IncidentHistoryAction.reassigned;
+    final eligibleTechnicians = controller.technicians
+        .where(
+          (row) =>
+              !reassigning ||
+              row.id != controller.incident?.assignedTechnicianId,
+        )
+        .toList();
     final selectedTechnician =
-        controller.technicians.any((row) => row.id == _technicianId)
+        eligibleTechnicians.any((row) => row.id == _technicianId)
         ? _technicianId
         : null;
-    final needsReason = [
-      IncidentHistoryAction.resolved,
-      IncidentHistoryAction.rejected,
-      IncidentHistoryAction.cancelled,
-      IncidentHistoryAction.reopened,
-    ].contains(action);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: SectionCard(
@@ -99,7 +101,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                 controller.ready &&
                 controller.pending == null)
               const Text('No hay acciones disponibles para este estado.'),
-            if (action != null) ...[
+            if (action != null && actions.length > 1) ...[
               DropdownButtonFormField<IncidentHistoryAction>(
                 key: ValueKey('workflow-action-${action.name}'),
                 initialValue: action,
@@ -112,11 +114,14 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                 onChanged: enabled
                     ? (value) => setState(() {
                         _action = value;
+                        _technicianId = null;
                         _reason.clear();
                       })
                     : null,
               ),
               const SizedBox(height: 12),
+            ],
+            if (action != null) ...[
               if (action == IncidentHistoryAction.classified) ...[
                 DropdownButtonFormField<String>(
                   key: ValueKey('workflow-category-$selectedCategory'),
@@ -158,18 +163,21 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                     'No hay categorías activas. Contactá a quien administra el catálogo.',
                   ),
               ],
-              if (action == IncidentHistoryAction.assigned) ...[
+              if (action.selectsTechnician) ...[
                 DropdownButtonFormField<String>(
                   key: ValueKey('workflow-technician-$selectedTechnician'),
                   initialValue: selectedTechnician,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Técnico'),
+                  decoration: InputDecoration(
+                    labelText: reassigning ? 'Nuevo técnico' : 'Técnico',
+                  ),
                   items: [
-                    for (final technician in controller.technicians)
+                    for (final technician in eligibleTechnicians)
                       DropdownMenuItem(
                         value: technician.id,
                         child: Text(
                           '${technician.fullName} · ${technician.email}',
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                   ],
@@ -177,10 +185,14 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                       ? (value) => setState(() => _technicianId = value)
                       : null,
                 ),
-                if (controller.technicians.isEmpty && controller.ready)
-                  const Text('No hay usuarios con rol Técnico disponibles.'),
+                if (eligibleTechnicians.isEmpty && controller.ready)
+                  Text(
+                    reassigning
+                        ? 'No hay otro técnico disponible para reasignar.'
+                        : 'No hay usuarios con rol Técnico disponibles.',
+                  ),
               ],
-              if (needsReason) ...[
+              if (action.requiresWorkflowReason) ...[
                 TextField(
                   key: const ValueKey('workflow-reason'),
                   controller: _reason,
@@ -188,11 +200,16 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                   minLines: 3,
                   maxLines: 8,
                   decoration: InputDecoration(
-                    labelText: action == IncidentHistoryAction.resolved
-                        ? 'Solución realizada'
-                        : 'Motivo obligatorio',
+                    labelText: switch (action) {
+                      IncidentHistoryAction.resolved => 'Solución realizada',
+                      IncidentHistoryAction.reassigned =>
+                        'Motivo de la reasignación',
+                      _ => 'Motivo obligatorio',
+                    },
                   ),
                 ),
+                if (reassigning)
+                  const Text('Se conservan el estado y los avances del caso.'),
                 if (action == IncidentHistoryAction.reopened)
                   const Text(
                     'La solución anterior quedará en el historial. Se quitarán el técnico y la prioridad para revisar y asignar nuevamente.',
@@ -244,10 +261,12 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                           priority: action == IncidentHistoryAction.classified
                               ? (_priority ?? controller.incident?.priority)
                               : null,
-                          technicianId: action == IncidentHistoryAction.assigned
+                          technicianId: action.selectsTechnician
                               ? selectedTechnician
                               : null,
-                          reason: needsReason ? _reason.text : null,
+                          reason: action.requiresWorkflowReason
+                              ? _reason.text
+                              : null,
                         );
                         if (saved && mounted) {
                           setState(() {

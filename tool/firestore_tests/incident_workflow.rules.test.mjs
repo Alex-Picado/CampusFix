@@ -45,17 +45,18 @@ async function attempt(uid, action, options = {}) {
   const changes = {
     classified: { status: 'EN_REVISION', categoryId: 'lighting', priority: 'ALTA' },
     assigned: { status: 'ASIGNADA', assignedTechnicianId: 'tech' },
+    reassigned: { assignedTechnicianId: 'other-tech' },
     started: { status: 'EN_ATENCION' }, resolved: { status: 'RESUELTA', resolutionDescription: 'Replaced' },
     closed: { status: 'CERRADA' }, rejected: { status: 'RECHAZADA' }, cancelled: { status: 'CANCELADA' },
     reopened: { status: 'EN_REVISION', assignedTechnicianId: null, priority: null, resolutionDescription: null },
   }[action] ?? {};
   const next = { ...old, ...changes, updatedAt: serverTimestamp(), lastWorkflowEventId: eventId, ...options.changeIncident };
-  const reason = action === 'resolved' ? 'Replaced' : ['rejected','cancelled','reopened'].includes(action) ? 'Reason supplied' : null;
+  const reason = action === 'resolved' ? 'Replaced' : ['reassigned','rejected','cancelled','reopened'].includes(action) ? 'Reason supplied' : null;
   const event = { actorUserId: uid, createdAt: serverTimestamp(), action, fromStatus: old.status,
     toStatus: next.status, fromTechnicianId: old.assignedTechnicianId, toTechnicianId: next.assignedTechnicianId,
     reason, details: { categoryId: action === 'classified' ? next.categoryId : null,
       priority: action === 'classified' ? next.priority : null,
-      technicianId: action === 'assigned' ? next.assignedTechnicianId : null, reason },
+      technicianId: ['assigned','reassigned'].includes(action) ? next.assignedTechnicianId : null, reason },
     previousResolutionDescription: action === 'reopened' ? old.resolutionDescription : null,
     ...options.changeEvent };
   const db = dbFor(uid);
@@ -113,6 +114,56 @@ test('Classification rejects inactive or absent categories and unsupported prior
   for (const categoryId of ['inactive','absent']) await assertFails(attempt('admin','classified',{changeIncident:{categoryId}}));
   for (const priority of [null,'URGENTE',3]) await assertFails(attempt('admin','classified',{changeIncident:{priority}}));
   await classified(); await assertSucceeds(attempt('admin','classified',{changeIncident:{priority:'BAJA'}}));
+});
+test('Reassignment transfers access in both active stages without losing progress or priority', async () => {
+  await assigned();
+  await assertSucceeds(attempt('admin', 'reassigned'));
+  await assertFails(attempt('tech', 'started'));
+  await assertSucceeds(attempt('other-tech', 'started'));
+  const progressPath = 'incidents/case/progress/first';
+  await inspect((db) => setDoc(doc(db, progressPath), {
+    authorUserId: 'other-tech', createdAt: Timestamp.now(), description: 'Checked the circuit',
+  }));
+  await assertSucceeds(attempt('admin', 'reassigned', { changeIncident: { assignedTechnicianId: 'tech' } }));
+
+  const transferred = (await getDoc(doc(dbFor('tech'), 'incidents/case'))).data();
+  assert.equal(transferred.status, 'EN_ATENCION');
+  assert.equal(transferred.priority, 'ALTA');
+  assert.equal(transferred.sequenceNumber, 1);
+  const event = (await getDoc(doc(dbFor('tech'), 'incidents/case/history', transferred.lastWorkflowEventId))).data();
+  assert.equal(event.action, 'reassigned');
+  assert.equal(event.actorUserId, 'admin');
+  assert.equal(event.fromTechnicianId, 'other-tech');
+  assert.equal(event.toTechnicianId, 'tech');
+  assert.equal(event.reason, 'Reason supplied');
+  assert.equal((await getDoc(doc(dbFor('tech'), progressPath))).data().description, 'Checked the circuit');
+  await assertFails(getDoc(doc(dbFor('other-tech'), 'incidents/case')));
+  await assertFails(getDoc(doc(dbFor('other-tech'), progressPath)));
+  await assertFails(attempt('other-tech', 'resolved'));
+  await assertSucceeds(attempt('tech', 'resolved'));
+});
+test('Reassignment rejects unauthorized actors, invalid targets and incomplete or forged audit writes', async () => {
+  await attending();
+  for (const uid of ['tech','other-tech','owner']) await assertFails(attempt(uid, 'reassigned'));
+  for (const id of [null, 'tech', 'owner', 'missing']) {
+    await assertFails(attempt('admin', 'reassigned', { changeIncident: { assignedTechnicianId: id } }));
+  }
+  for (const reason of [null, '', '   ', ' untrimmed ']) {
+    await assertFails(attempt('admin', 'reassigned', {
+      changeEvent: { reason, details: { categoryId: null, priority: null, technicianId: 'other-tech', reason } },
+    }));
+  }
+  for (const options of [
+    { incidentOnly: true }, { eventOnly: true },
+    { changeIncident: { status: 'ASIGNADA' } }, { changeIncident: { priority: 'BAJA' } },
+    { changeEvent: { fromTechnicianId: 'owner' } },
+  ]) await assertFails(attempt('admin', 'reassigned', options));
+  await assertSucceeds(attempt('tech', 'resolved'));
+  await assertFails(attempt('admin', 'reassigned'));
+  await assertSucceeds(attempt('admin', 'closed'));
+  await assertFails(attempt('admin', 'reassigned'));
+  const incident = (await getDoc(doc(dbFor('admin'), 'incidents/case'))).data();
+  assert.equal(incident.assignedTechnicianId, 'tech');
 });
 test('Resolution requires attention, the current assigned role and a nonblank solution', async () => {
   await assigned(); await assertFails(attempt('tech','resolved'));

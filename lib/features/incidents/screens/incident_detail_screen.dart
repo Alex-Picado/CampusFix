@@ -5,6 +5,7 @@ import '../../../core/widgets/page_heading.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../catalogs/repositories/category_repository.dart';
+import '../../users/models/user_role.dart';
 import '../controllers/incident_detail_controller.dart';
 import '../models/incident_history_action.dart';
 import '../presentation/incident_status_labels.dart';
@@ -69,6 +70,8 @@ class _DetailView extends StatelessWidget {
     }
     final incident = controller.incident!;
     final profile = controller.session.profile!;
+    final isReporter = profile.role == UserRole.reporter;
+    final assignedTechnicianId = incident.assignedTechnicianId;
     String person(String id) => id == profile.id ? profile.fullName : id;
     return Column(
       key: const ValueKey('incident-detail-page'),
@@ -84,6 +87,7 @@ class _DetailView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Chip(label: Text(incident.status.label)),
+              if (isReporter) Text(incident.status.reporterExplanation),
               const SizedBox(height: 12),
               SelectableText(incident.description),
               const SizedBox(height: 12),
@@ -103,12 +107,15 @@ class _DetailView extends StatelessWidget {
                   '${controller.category!.isActive ? '' : ' (inactiva)'}',
                 ),
               Text(
-                'Prioridad: ${incident.priority?.value ?? 'Sin clasificar'}',
+                'Prioridad: ${incident.priority?.value ?? 'Pendiente de definir'}',
               ),
               Text('Reportante: ${person(incident.createdByUserId)}'),
-              Text(
-                'Técnico asignado: ${incident.assignedTechnicianId == null ? 'Sin asignar' : person(incident.assignedTechnicianId!)}',
-              ),
+              if (assignedTechnicianId == null)
+                const Text('Técnico: pendiente de asignación')
+              else if (isReporter)
+                const Text('Técnico: asignado')
+              else
+                Text('Técnico asignado: ${person(assignedTechnicianId)}'),
               Text('Creada: ${_date(incident.createdAt)}'),
               Text('Última actualización: ${_date(incident.updatedAt)}'),
               if (incident.resolutionDescription != null)
@@ -245,6 +252,7 @@ class _DetailView extends StatelessWidget {
     IncidentHistoryAction.created => 'Incidencia reportada',
     IncidentHistoryAction.classified => 'Clasificación actualizada',
     IncidentHistoryAction.assigned => 'Técnico asignado',
+    IncidentHistoryAction.reassigned => 'Técnico reasignado',
     IncidentHistoryAction.started => 'Atención iniciada',
     IncidentHistoryAction.progressAdded => 'Avance registrado',
     IncidentHistoryAction.resolved => 'Incidencia resuelta',

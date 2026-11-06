@@ -152,6 +152,8 @@ class _IncidentList extends StatelessWidget {
                     const SizedBox(height: 8),
                     Chip(label: Text(incident.status.label)),
                     const SizedBox(height: 8),
+                    Text(incident.status.reporterExplanation),
+                    const SizedBox(height: 8),
                     Text('Ubicación: ${incident.location}'),
                     const SizedBox(height: 4),
                     Text('Reportada: ${_date(incident.createdAt)}'),

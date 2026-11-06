@@ -207,6 +207,41 @@ void main() {
   );
 
   testWidgets(
+    'Technician groups authorized work by stage and combines priority with search',
+    (tester) async {
+      final app = await _mount(tester, role: UserRole.technician, tablet: true);
+      await _filterFixtures(tester, app.reports);
+      Finder inSection(String section, String incident) => find.descendant(
+        of: find.byKey(ValueKey('technician-queue-$section')),
+        matching: find.byKey(ValueKey('incident-$incident')),
+      );
+      expect(inSection('newAssignments', 'network'), findsOneWidget);
+      expect(inSection('inProgress', 'light'), findsOneWidget);
+      expect(inSection('history', 'low'), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-foreign')), findsNothing);
+      expect(
+        find.text('Pendiente de cierre por un administrador.'),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('incident-administrative-filters')),
+        findsNothing,
+      );
+      await _selectFilter(tester, 'priority', 'Alta');
+      expect(find.text('Resultados: 1 de 3'), findsOneWidget);
+      expect(inSection('inProgress', 'light'), findsOneWidget);
+      expect(inSection('history', 'low'), findsNothing);
+      await _enter(tester, 'inexistente');
+      expect(find.text('Resultados: 0 de 3'), findsOneWidget);
+      await _tap(tester, 'incident-search-clear');
+      expect(find.text('Resultados: 3 de 3'), findsOneWidget);
+      expect(inSection('history', 'low'), findsOneWidget);
+      expect(app.reports.queryCalls, 1);
+      expect(app.users.allUsersWatchCalls, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'A foreign assignment snapshot is rejected before it reaches technician search',
     (tester) async {
       final app = await _mount(tester, role: UserRole.technician);

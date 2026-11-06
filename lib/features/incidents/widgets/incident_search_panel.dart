@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/section_card.dart';
 import '../controllers/incident_search_controller.dart';
 import 'incident_administrative_filters.dart';
+import 'incident_priority_filter_field.dart';
 
 /// Reusable Spanish search controls for authorized incident lists on any role.
 class IncidentSearchPanel extends StatelessWidget {
@@ -79,6 +80,18 @@ class IncidentSearchPanel extends StatelessWidget {
               if (controller.administrative) ...[
                 const SizedBox(height: 16),
                 IncidentAdministrativeFilters(controller: controller),
+              ] else if (controller.technician) ...[
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 280),
+                    child: IncidentPriorityFilterField(
+                      value: controller.criteria.filters.priority,
+                      onChanged: controller.selectPriority,
+                    ),
+                  ),
+                ),
               ],
               const SizedBox(height: 12),
               Wrap(
@@ -97,7 +110,7 @@ class IncidentSearchPanel extends StatelessWidget {
                         : null,
                     icon: const Icon(Icons.clear),
                     label: Text(
-                      controller.administrative
+                      controller.administrative || controller.technician
                           ? 'Limpiar filtros'
                           : 'Limpiar búsqueda',
                     ),

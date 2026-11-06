@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/incident_search_controller.dart';
-import '../models/incident_filters.dart';
 import '../models/incident_status.dart';
 import '../presentation/incident_status_labels.dart';
+import 'incident_priority_filter_field.dart';
 
 /// Presents administrator-only state, priority and responsible-person criteria.
 class IncidentAdministrativeFilters extends StatelessWidget {
@@ -35,18 +35,9 @@ class IncidentAdministrativeFilters extends StatelessWidget {
       ],
       onChanged: controller.selectStatus,
     );
-    final priority = DropdownButtonFormField<IncidentPriorityFilter>(
-      key: ValueKey('incident-filter-priority-${filters.priority.name}'),
-      initialValue: filters.priority,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Prioridad'),
-      items: [
-        for (final value in IncidentPriorityFilter.values)
-          DropdownMenuItem(value: value, child: Text(_priorityLabel(value))),
-      ],
-      onChanged: (value) {
-        if (value != null) controller.selectPriority(value);
-      },
+    final priority = IncidentPriorityFilterField(
+      value: filters.priority,
+      onChanged: controller.selectPriority,
     );
     final technician = DropdownButtonFormField<String>(
       key: ValueKey('incident-filter-technician-$technicianValue'),
@@ -146,12 +137,4 @@ class IncidentAdministrativeFilters extends StatelessWidget {
       ],
     );
   }
-
-  String _priorityLabel(IncidentPriorityFilter value) => switch (value) {
-    IncidentPriorityFilter.all => 'Todas las prioridades',
-    IncidentPriorityFilter.withoutPriority => 'Sin prioridad',
-    IncidentPriorityFilter.low => 'Baja',
-    IncidentPriorityFilter.medium => 'Media',
-    IncidentPriorityFilter.high => 'Alta',
-  };
 }
