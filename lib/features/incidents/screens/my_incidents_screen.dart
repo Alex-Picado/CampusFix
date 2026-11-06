@@ -150,7 +150,7 @@ class _IncidentList extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
-                    Chip(label: Text(incident.status.label)),
+                    Chip(label: Text(incident.status.reporterLabel)),
                     const SizedBox(height: 8),
                     Text(incident.status.reporterExplanation),
                     const SizedBox(height: 8),

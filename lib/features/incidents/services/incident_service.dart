@@ -100,7 +100,6 @@ class IncidentService {
     final event = parent.collection('history').doc(command.eventId);
     await _firestore.runTransaction<void>((tx) async {
       _requireSession(uid);
-      final current = await tx.get(parent);
       final profile = await tx.get(_firestore.collection('users').doc(uid));
       final existing = await tx.get(event);
       final role = profile.data()?['role'];
@@ -124,6 +123,8 @@ class IncidentService {
         }
         return;
       }
+      // A confirmed decline can be retried without reading the now-unassigned case.
+      final current = await tx.get(parent);
       if (!current.exists) {
         throw FirebaseException(plugin: 'cloud_firestore', code: 'not-found');
       }

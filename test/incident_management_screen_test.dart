@@ -127,6 +127,38 @@ void main() {
     },
   );
   testWidgets(
+    'A technician can decline with a reason even when case access ends before confirmation',
+    (tester) async {
+      final app = await _mount(tester, technician: true);
+      await _tapText(tester, 'Abrir incidencia');
+      await _tapKey(tester, 'workflow-decline-assignment');
+      await _tapKey(tester, 'decline-confirm');
+      expect(find.text('Escribí el motivo de la operación.'), findsOneWidget);
+      expect(app.reports.submissions, isEmpty);
+      await tester.enterText(
+        find.byKey(const ValueKey('decline-reason')),
+        'No estoy disponible',
+      );
+      final confirmation = Completer<void>();
+      app.reports.confirmation = confirmation;
+      await tester.tap(find.byKey(const ValueKey('decline-confirm')));
+      await tester.pumpAndSettle();
+      expect(app.reports.incident.assignedTechnicianId, isNull);
+      expect(find.byKey(const ValueKey('incident-detail-page')), findsNothing);
+      expect(find.text('Guardando...'), findsOneWidget);
+      confirmation.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('No hay incidencias disponibles.'), findsOneWidget);
+      expect(
+        find.textContaining('La asignación volvió a Gestión'),
+        findsOneWidget,
+      );
+      expect(app.reports.history.single.reason, 'No estoy disponible');
+      expect(app.reports.incident.priority, IncidentPriority.high);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'Uncertain saves freeze one command, retain errors through snapshots and retry without duplicates',
     (tester) async {
       final app = await _mount(tester);
@@ -337,6 +369,7 @@ class _Reports extends Fake implements IncidentRepository {
   final history = <IncidentHistoryEvent>[];
   final submissions = <String>[];
   Completer<void>? blocker;
+  Completer<void>? confirmation;
   Object? failure;
   bool commitBeforeError = false;
   int active = 0, ids = 0;
@@ -421,6 +454,7 @@ class _Reports extends Fake implements IncidentRepository {
       );
       changes.add(null);
     }
+    await confirmation?.future;
     if (failure != null) throw failure!;
   }
 }

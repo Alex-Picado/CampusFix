@@ -8,6 +8,7 @@ import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../controllers/incident_detail_controller.dart';
 import '../models/incident_history_action.dart';
+import '../models/incident_status.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
 import '../repositories/evidence_repository.dart';
@@ -35,7 +36,10 @@ class IncidentDetailScreen extends StatelessWidget {
         uid: profile.id,
         role: profile.role,
       ),
-      child: const _DetailView(),
+      child: IncidentWorkflowScope(
+        incidentId: incidentId,
+        child: const _DetailView(),
+      ),
     );
   }
 }
@@ -73,6 +77,11 @@ class _DetailView extends StatelessWidget {
     final isReporter = profile.role == UserRole.reporter;
     final assignedTechnicianId = incident.assignedTechnicianId;
     String person(String id) => id == profile.id ? profile.fullName : id;
+    String statusText(IncidentStatus? status, String fallback) {
+      if (status == null) return fallback;
+      return isReporter ? status.reporterLabel : status.label;
+    }
+
     return Column(
       key: const ValueKey('incident-detail-page'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,7 +95,8 @@ class _DetailView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Chip(label: Text(incident.status.label)),
+              if (isReporter) const Text('Estado de tu solicitud'),
+              Chip(label: Text(statusText(incident.status, ''))),
               if (isReporter) Text(incident.status.reporterExplanation),
               const SizedBox(height: 12),
               SelectableText(incident.description),
@@ -123,7 +133,7 @@ class _DetailView extends StatelessWidget {
             ],
           ),
         ),
-        IncidentWorkflowPanel(incidentId: incident.id),
+        if (!isReporter) const IncidentWorkflowPanel(),
         _section(
           context,
           'Fotografías',
@@ -188,13 +198,13 @@ class _DetailView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${_action(event.action)} · ${_date(event.createdAt)}',
+                    '${isReporter && event.action == IncidentHistoryAction.assignmentDeclined ? 'Solicitud devuelta a revisión' : _action(event.action)} · ${_date(event.createdAt)}',
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                   Text('Por: ${person(event.actorUserId)}'),
                   if (event.fromStatus != null || event.toStatus != null)
                     Text(
-                      '${event.fromStatus?.label ?? 'Inicio'} → ${event.toStatus?.label ?? 'Sin cambio'}',
+                      '${statusText(event.fromStatus, 'Inicio')} → ${statusText(event.toStatus, 'Sin cambio')}',
                     ),
                   if (event.toTechnicianId != null)
                     Text('Responsable: ${person(event.toTechnicianId!)}'),
@@ -253,6 +263,8 @@ class _DetailView extends StatelessWidget {
     IncidentHistoryAction.classified => 'Clasificación actualizada',
     IncidentHistoryAction.assigned => 'Técnico asignado',
     IncidentHistoryAction.reassigned => 'Técnico reasignado',
+    IncidentHistoryAction.assignmentDeclined =>
+      'Asignación rechazada por el técnico',
     IncidentHistoryAction.started => 'Atención iniciada',
     IncidentHistoryAction.progressAdded => 'Avance registrado',
     IncidentHistoryAction.resolved => 'Incidencia resuelta',

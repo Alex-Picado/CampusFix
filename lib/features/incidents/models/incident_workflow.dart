@@ -78,6 +78,9 @@ abstract final class IncidentWorkflow {
       return [
         if (status == IncidentStatus.assigned) IncidentHistoryAction.started,
         if (status == IncidentStatus.inProgress) IncidentHistoryAction.resolved,
+        if (status == IncidentStatus.assigned ||
+            status == IncidentStatus.inProgress)
+          IncidentHistoryAction.assignmentDeclined,
       ];
     }
     return const [];
@@ -122,6 +125,7 @@ abstract final class IncidentWorkflow {
     }
     final status = switch (action) {
       IncidentHistoryAction.classified ||
+      IncidentHistoryAction.assignmentDeclined ||
       IncidentHistoryAction.reopened => IncidentStatus.underReview,
       IncidentHistoryAction.assigned => IncidentStatus.assigned,
       IncidentHistoryAction.reassigned => incident.status,
@@ -143,6 +147,8 @@ abstract final class IncidentWorkflow {
       if (classification) 'priority': command.priority!.value,
       if (action.selectsTechnician)
         'assignedTechnicianId': command.technicianId,
+      if (action == IncidentHistoryAction.assignmentDeclined)
+        'assignedTechnicianId': null,
       if (action == IncidentHistoryAction.resolved)
         'resolutionDescription': command.reason,
       if (action == IncidentHistoryAction.reopened) ...{

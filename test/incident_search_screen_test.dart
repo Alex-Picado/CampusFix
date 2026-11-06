@@ -49,6 +49,7 @@ void main() {
       '${role.name} searches only authorized cases by sequence text and inactive category',
       (tester) async {
         final app = await _mount(tester, role: role);
+        final initialQueries = app.reports.queryCalls;
         expect(
           find.byKey(const ValueKey('incident-administrative-filters')),
           role == UserRole.administrator ? findsOneWidget : findsNothing,
@@ -76,7 +77,7 @@ void main() {
         await _enter(tester, 'biblioteca');
         expect(find.byKey(const ValueKey('incident-network')), findsOneWidget);
         expect(find.byKey(const ValueKey('incident-light')), findsNothing);
-        expect(app.reports.queryCalls, 1);
+        expect(app.reports.queryCalls, initialQueries);
         expect(
           app.reports.lastScope,
           role == UserRole.administrator
@@ -239,6 +240,41 @@ void main() {
       expect(app.reports.queryCalls, 1);
       expect(app.users.allUsersWatchCalls, 0);
       expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'The technician dashboard and workspace share one feed with live assignment notices',
+    (tester) async {
+      final app = await _mount(tester, role: UserRole.technician);
+      await _tap(tester, 'nav-overview');
+      expect(find.text('Incidencias pendientes'), findsOneWidget);
+      expect(find.text('Sin empezar'), findsOneWidget);
+      expect(find.text('Ya avanzadas'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      await _tap(tester, 'nav-profile');
+      app.reports.rows['alert'] = _incident(
+        'alert',
+        99,
+        status: IncidentStatus.assigned,
+      );
+      app.reports.changes.add(null);
+      await tester.pumpAndSettle();
+      expect(find.text('Nueva asignación: incidencia #99.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      app.reports.rows['alert'] = app.reports.rows['alert']!.copyWith(
+        status: IncidentStatus.inProgress,
+      );
+      app.reports.changes.add(null);
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+      await _tap(tester, 'nav-workspace');
+      expect(
+        find.byKey(const ValueKey('technician-queue-inProgress')),
+        findsOneWidget,
+      );
+      expect(app.reports.queryCalls, 1);
+      expect(app.reports.activeListWatches, 1);
     },
   );
   testWidgets(

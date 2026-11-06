@@ -18,6 +18,26 @@ FirebaseException _unavailable() =>
     FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
 
 void main() {
+  testWidgets('Reporter dashboard starts the same protected report form', (
+    tester,
+  ) async {
+    final app = await _mount(tester);
+    expect(find.text('Panel del reportante'), findsOneWidget);
+    expect(
+      find.text(
+        'Todavía no tenés reportes. Usá «Reportar incidencia» para empezar.',
+      ),
+      findsOneWidget,
+    );
+    await _tap(tester, 'reporter-dashboard-report');
+    expect(find.byKey(const ValueKey('report-page')), findsOneWidget);
+    await _fill(tester);
+    await _tap(tester, 'report-submit');
+    expect(app.incidents.requests, hasLength(1));
+    await _tap(tester, 'report-back');
+    expect(find.textContaining('Reporte recibido'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'Photo-disabled client explains the limitation before report submission',
     (tester) async {
@@ -283,7 +303,7 @@ void main() {
         foreign.id: foreign,
       });
       await _tap(tester, 'nav-incidents');
-      expect(app.incidents.ownWatchUserIds, ['campus-user']);
+      expect(app.incidents.ownWatchUserIds, ['campus-user', 'campus-user']);
       expect(app.incidents.activeOwnWatches, 1);
       expect(app.categories.activeWatches, 0);
       expect(find.byKey(const ValueKey('incident-foreign')), findsNothing);
@@ -298,7 +318,7 @@ void main() {
         foreign,
       ]);
       await tester.pumpAndSettle();
-      expect(find.text('En atención'), findsOneWidget);
+      expect(find.text('Atendiendo tu solicitud'), findsOneWidget);
       expect(find.text('Ubicación: Building A'), findsOneWidget);
       expect(find.byKey(const ValueKey('incident-older')), findsNothing);
       expect(find.byKey(const ValueKey('incident-foreign')), findsNothing);
@@ -361,7 +381,7 @@ void main() {
       expect(app.categories.activeWatches, 0);
       expect(app.incidents.activeOwnWatches, 1);
       expect(find.text('#1 · Broken light'), findsOneWidget);
-      expect(find.text('Reportada'), findsOneWidget);
+      expect(find.text('Reporte recibido'), findsOneWidget);
       expect(app.incidents.requests, hasLength(1));
       expect(tester.takeException(), isNull);
     },
@@ -385,7 +405,11 @@ void main() {
       await _tap(tester, 'nav-incidents');
       expect(find.byKey(const ValueKey('incident-old')), findsNothing);
       expect(find.byKey(const ValueKey('incident-new')), findsOneWidget);
-      expect(app.incidents.ownWatchUserIds, ['campus-user', 'campus-user']);
+      expect(app.incidents.ownWatchUserIds, [
+        'campus-user',
+        'campus-user',
+        'campus-user',
+      ]);
       expect(app.incidents.activeOwnWatches, 1);
     },
   );
@@ -403,11 +427,21 @@ void main() {
       app.auth.setUser('second-user');
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('incident-private')), findsNothing);
-      expect(app.incidents.activeOwnWatches, 0);
+      expect(find.byKey(const ValueKey('recent-report-private')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('recent-report-second')),
+        findsOneWidget,
+      );
+      expect(app.incidents.activeOwnWatches, 1);
       await _tap(tester, 'nav-incidents');
       expect(find.byKey(const ValueKey('incident-second')), findsOneWidget);
       expect(find.byKey(const ValueKey('incident-private')), findsNothing);
-      expect(app.incidents.ownWatchUserIds, ['campus-user', 'second-user']);
+      expect(app.incidents.ownWatchUserIds, [
+        'campus-user',
+        'campus-user',
+        'second-user',
+        'second-user',
+      ]);
       app.users.put(_profile('second-user', role: UserRole.technician));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('my-incidents-page')), findsNothing);

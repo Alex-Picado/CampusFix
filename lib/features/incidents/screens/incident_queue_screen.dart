@@ -10,6 +10,7 @@ import '../../users/repositories/user_repository.dart';
 import '../controllers/incident_queue_controller.dart';
 import '../models/incident.dart';
 import '../models/incident_status.dart';
+import '../models/technician_work_stage.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
 import '../widgets/incident_search_panel.dart';
@@ -26,6 +27,8 @@ class IncidentQueueScreen extends StatelessWidget {
         ![UserRole.administrator, UserRole.technician].contains(profile.role)) {
       return const SizedBox.shrink();
     }
+    // The technician keeps the same feed in Inicio and Mi trabajo.
+    if (profile.role == UserRole.technician) return const _QueueView();
     return ChangeNotifierProvider(
       key: ValueKey('queue:${profile.id}:${profile.role.name}'),
       create: (_) => IncidentQueueController(
@@ -63,6 +66,31 @@ class _QueueView extends StatelessWidget {
         if (!controller.loading && controller.error == null) ...[
           IncidentSearchPanel(controller: controller.search),
           const SizedBox(height: 20),
+          if (controller.role == UserRole.technician) ...[
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: DropdownButtonFormField<bool>(
+                key: ValueKey('technician-order-${controller.urgentFirst}'),
+                initialValue: controller.urgentFirst,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Ordenar por'),
+                items: const [
+                  DropdownMenuItem(
+                    value: true,
+                    child: Text('Más urgentes primero'),
+                  ),
+                  DropdownMenuItem(
+                    value: false,
+                    child: Text('Más recientes primero'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) controller.setUrgentFirst(value);
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
         ],
         if (controller.loading)
           const Center(child: CircularProgressIndicator())
@@ -100,20 +128,37 @@ class _QueueView extends StatelessWidget {
     IncidentQueueController controller,
   ) sync* {
     final groups = {
-      for (final section in _TechnicianSection.values) section: <Incident>[],
+      for (final section in TechnicianWorkStage.values) section: <Incident>[],
     };
     for (final incident in controller.search.results) {
-      groups[_TechnicianSection.forStatus(incident.status)]!.add(incident);
+      groups[TechnicianWorkStage.forStatus(incident.status)]!.add(incident);
     }
     for (final entry in groups.entries) {
       if (entry.value.isEmpty) continue;
+      entry.value.sort((a, b) {
+        if (controller.urgentFirst) {
+          final priority = (b.priority?.index ?? -1).compareTo(
+            a.priority?.index ?? -1,
+          );
+          if (priority != 0) return priority;
+        }
+        final updated = b.updatedAt.compareTo(a.updatedAt);
+        return updated != 0
+            ? updated
+            : b.sequenceNumber.compareTo(a.sequenceNumber);
+      });
+      final label = switch (entry.key) {
+        TechnicianWorkStage.newAssignments => 'Sin empezar',
+        TechnicianWorkStage.inProgress => 'Ya avanzadas',
+        TechnicianWorkStage.history => 'Historial',
+      };
       yield Column(
         key: ValueKey('technician-queue-${entry.key.name}'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Semantics(
             header: true,
-            child: Text('${entry.key.label} (${entry.value.length})'),
+            child: Text('$label (${entry.value.length})'),
           ),
           const SizedBox(height: 8),
           for (final incident in entry.value)
@@ -123,25 +168,6 @@ class _QueueView extends StatelessWidget {
       yield const SizedBox(height: 8);
     }
   }
-}
-
-enum _TechnicianSection {
-  newAssignments('Nuevas asignaciones'),
-  inProgress('En atención'),
-  history('Historial');
-
-  final String label;
-  const _TechnicianSection(this.label);
-
-  static _TechnicianSection forStatus(IncidentStatus status) =>
-      switch (status) {
-        IncidentStatus.inProgress => inProgress,
-        IncidentStatus.resolved ||
-        IncidentStatus.closed ||
-        IncidentStatus.rejected ||
-        IncidentStatus.cancelled => history,
-        _ => newAssignments,
-      };
 }
 
 class _QueueCard extends StatelessWidget {
@@ -179,10 +205,11 @@ class _QueueCard extends StatelessWidget {
           OutlinedButton(
             key: ValueKey('detail-${incident.id}'),
             onPressed: () async {
-              controller.pause();
+              final pauseForDetail = controller.role == UserRole.administrator;
+              if (pauseForDetail) controller.pause();
               await Navigator.of(context)
                   .pushNamed('/incidents/${Uri.encodeComponent(incident.id)}');
-              if (controller.active) controller.start();
+              if (pauseForDetail && controller.active) controller.start();
             },
             child: const Text('Abrir incidencia'),
           ),

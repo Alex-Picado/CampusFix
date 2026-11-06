@@ -46,12 +46,13 @@ async function attempt(uid, action, options = {}) {
     classified: { status: 'EN_REVISION', categoryId: 'lighting', priority: 'ALTA' },
     assigned: { status: 'ASIGNADA', assignedTechnicianId: 'tech' },
     reassigned: { assignedTechnicianId: 'other-tech' },
+    assignmentDeclined: { status: 'EN_REVISION', assignedTechnicianId: null },
     started: { status: 'EN_ATENCION' }, resolved: { status: 'RESUELTA', resolutionDescription: 'Replaced' },
     closed: { status: 'CERRADA' }, rejected: { status: 'RECHAZADA' }, cancelled: { status: 'CANCELADA' },
     reopened: { status: 'EN_REVISION', assignedTechnicianId: null, priority: null, resolutionDescription: null },
   }[action] ?? {};
   const next = { ...old, ...changes, updatedAt: serverTimestamp(), lastWorkflowEventId: eventId, ...options.changeIncident };
-  const reason = action === 'resolved' ? 'Replaced' : ['reassigned','rejected','cancelled','reopened'].includes(action) ? 'Reason supplied' : null;
+  const reason = action === 'resolved' ? 'Replaced' : ['reassigned','assignmentDeclined','rejected','cancelled','reopened'].includes(action) ? 'Reason supplied' : null;
   const event = { actorUserId: uid, createdAt: serverTimestamp(), action, fromStatus: old.status,
     toStatus: next.status, fromTechnicianId: old.assignedTechnicianId, toTechnicianId: next.assignedTechnicianId,
     reason, details: { categoryId: action === 'classified' ? next.categoryId : null,
@@ -164,6 +165,41 @@ test('Reassignment rejects unauthorized actors, invalid targets and incomplete o
   await assertFails(attempt('admin', 'reassigned'));
   const incident = (await getDoc(doc(dbFor('admin'), 'incidents/case'))).data();
   assert.equal(incident.assignedTechnicianId, 'tech');
+});
+test('Only the assigned technician may return active work while preserving its history and priority', async () => {
+  await assigned();
+  for (const uid of ['admin', 'other-tech', 'owner']) await assertFails(attempt(uid, 'assignmentDeclined'));
+  for (const options of [
+    { incidentOnly: true }, { eventOnly: true },
+    { changeIncident: { status: 'RECHAZADA' } },
+    { changeIncident: { priority: null } },
+    { changeEvent: { reason: '', details: { categoryId: null, priority: null, technicianId: null, reason: '' } } },
+  ]) await assertFails(attempt('tech', 'assignmentDeclined', options));
+  await assertSucceeds(attempt('tech', 'assignmentDeclined', { eventId: 'declined-before-start' }));
+  const admin = dbFor('admin');
+  const returned = (await getDoc(doc(admin, 'incidents/case'))).data();
+  assert.equal(returned.status, 'EN_REVISION');
+  assert.equal(returned.assignedTechnicianId, null);
+  assert.equal(returned.priority, 'ALTA');
+  await assertFails(getDoc(doc(dbFor('tech'), 'incidents/case')));
+  await assertFails(getDocs(collection(dbFor('tech'), 'incidents/case/history')));
+  const receipt = 'incidents/case/history/declined-before-start';
+  await assertFails(getDoc(doc(dbFor('other-tech'), receipt)));
+  assert.equal((await assertSucceeds(getDoc(doc(dbFor('tech'), receipt)))).data().reason, 'Reason supplied');
+
+  await assertSucceeds(attempt('admin', 'assigned', { changeIncident: { assignedTechnicianId: 'other-tech' } }));
+  await assertSucceeds(attempt('other-tech', 'started'));
+  const progressPath = 'incidents/case/progress/first';
+  await inspect((db) => setDoc(doc(db, progressPath), {
+    authorUserId: 'other-tech', createdAt: Timestamp.now(), description: 'Checked the circuit',
+  }));
+  await assertSucceeds(attempt('other-tech', 'assignmentDeclined'));
+  assert.equal((await getDoc(doc(admin, progressPath))).data().description, 'Checked the circuit');
+  await assertFails(attempt('other-tech', 'assignmentDeclined'));
+  await assertSucceeds(attempt('admin', 'assigned'));
+  await assertSucceeds(attempt('tech', 'started'));
+  await assertSucceeds(attempt('tech', 'resolved'));
+  await assertFails(attempt('tech', 'assignmentDeclined'));
 });
 test('Resolution requires attention, the current assigned role and a nonblank solution', async () => {
   await assigned(); await assertFails(attempt('tech','resolved'));

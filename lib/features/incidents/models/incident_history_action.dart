@@ -12,6 +12,9 @@ enum IncidentHistoryAction {
   /// An administrator transferred an active assignment to another technician.
   reassigned('reassigned'),
 
+  /// The assigned technician returned the case to management.
+  assignmentDeclined('assignmentDeclined'),
+
   /// The assigned technician started attention.
   started('started'),
 
@@ -44,7 +47,12 @@ enum IncidentHistoryAction {
 
   /// Whether the workflow form must include an explanation.
   bool get requiresWorkflowReason => switch (this) {
-    reassigned || resolved || rejected || cancelled || reopened => true,
+    reassigned ||
+    assignmentDeclined ||
+    resolved ||
+    rejected ||
+    cancelled ||
+    reopened => true,
     _ => false,
   };
 

@@ -14,7 +14,20 @@ extension IncidentStatusLabels on IncidentStatus {
     IncidentStatus.reopened => 'Reabierta',
   };
 
-  /// Explains the current stage without changing the shared status label.
+  /// Names each stage in terms of the reporter's request.
+  String get reporterLabel => switch (this) {
+    IncidentStatus.reported => 'Reporte recibido',
+    IncidentStatus.underReview => 'Revisando tu solicitud',
+    IncidentStatus.assigned => 'Pendiente de atención',
+    IncidentStatus.inProgress => 'Atendiendo tu solicitud',
+    IncidentStatus.resolved => 'Solución registrada',
+    IncidentStatus.closed => 'Solicitud cerrada',
+    IncidentStatus.rejected => 'Reporte no aceptado',
+    IncidentStatus.cancelled => 'Solicitud cancelada',
+    IncidentStatus.reopened => 'Tu solicitud volvió a revisión',
+  };
+
+  /// Explains the current stage without changing stored workflow states.
   String get reporterExplanation => switch (this) {
     IncidentStatus.reported =>
       'Recibimos tu reporte. Está pendiente de revisión.',

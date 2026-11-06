@@ -7,6 +7,7 @@ extension IncidentActionLabels on IncidentHistoryAction {
     IncidentHistoryAction.classified => 'Clasificar incidencia',
     IncidentHistoryAction.assigned => 'Asignar técnico',
     IncidentHistoryAction.reassigned => 'Reasignar técnico',
+    IncidentHistoryAction.assignmentDeclined => 'Rechazar asignación',
     IncidentHistoryAction.started => 'Iniciar atención',
     IncidentHistoryAction.progressAdded => 'Avance registrado',
     IncidentHistoryAction.resolved => 'Resolver incidencia',

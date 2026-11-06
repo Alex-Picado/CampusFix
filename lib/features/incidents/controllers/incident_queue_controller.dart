@@ -9,6 +9,7 @@ import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../../users/repositories/user_repository.dart';
 import '../models/incident.dart';
+import '../models/technician_work_stage.dart';
 import '../repositories/incident_repository.dart';
 import 'incident_search_controller.dart';
 
@@ -18,6 +19,7 @@ class IncidentQueueController extends ChangeNotifier {
   final SessionController session;
   final String uid;
   final UserRole role;
+  final ValueChanged<List<Incident>>? onNewAssignments;
   StreamSubscription<List<Incident>>? _subscription;
   bool _disposed = false;
   bool _invalidated = false;
@@ -25,6 +27,8 @@ class IncidentQueueController extends ChangeNotifier {
   List<Incident> incidents = const [];
   bool loading = true;
   String? error;
+  Set<String>? _knownAssignmentIds;
+  bool urgentFirst = true;
 
   /// Local criteria and category names for the current authorized queue.
   late final IncidentSearchController search;
@@ -36,6 +40,7 @@ class IncidentQueueController extends ChangeNotifier {
     required this.role,
     required CategoryRepository categoryRepository,
     required UserRepository userRepository,
+    this.onNewAssignments,
   }) {
     search = IncidentSearchController(
       categories: categoryRepository,
@@ -81,6 +86,7 @@ class IncidentQueueController extends ChangeNotifier {
           loading = false;
           error = null;
           search.replaceIncidents(incidents);
+          if (role == UserRole.technician) _updateAssignmentNotices(rows);
           notifyListeners();
         },
         onError: (Object failure) {
@@ -106,6 +112,26 @@ class IncidentQueueController extends ChangeNotifier {
     }
   }
 
+  /// Sorts the visible technician groups without changing query scope.
+  void setUrgentFirst(bool value) {
+    if (!active || role != UserRole.technician || value == urgentFirst) return;
+    urgentFirst = value;
+    notifyListeners();
+  }
+
+  void _updateAssignmentNotices(List<Incident> rows) {
+    final pending = rows.where(
+      (row) =>
+          TechnicianWorkStage.forStatus(row.status) !=
+          TechnicianWorkStage.history,
+    );
+    final previous = _knownAssignmentIds;
+    _knownAssignmentIds = pending.map((row) => row.id).toSet();
+    if (previous == null) return;
+    final added = pending.where((row) => !previous.contains(row.id)).toList();
+    if (added.isNotEmpty) onNewAssignments?.call(added);
+  }
+
   void _fail(String message) {
     pause();
     error = message;
@@ -127,6 +153,7 @@ class IncidentQueueController extends ChangeNotifier {
   void _sessionChanged() {
     if (active || _disposed) return;
     _invalidated = true;
+    _knownAssignmentIds = null;
     pause();
     search.clearIncidents(resetCriteria: true);
   }

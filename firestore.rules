@@ -88,7 +88,7 @@ service cloud.firestore {
           || (event.action != 'classified' && details.categoryId == null && details.priority == null))
         && ((event.action in ['assigned', 'reassigned'] && details.technicianId == next.assignedTechnicianId)
           || (!(event.action in ['assigned', 'reassigned']) && details.technicianId == null))
-        && ((event.action in ['reassigned', 'resolved', 'rejected', 'cancelled', 'reopened'] && isNonblankText(event.reason)
+        && ((event.action in ['reassigned', 'assignmentDeclined', 'resolved', 'rejected', 'cancelled', 'reopened'] && isNonblankText(event.reason)
               && event.reason == event.reason.trim())
           || (event.action in ['classified', 'assigned', 'started', 'closed'] && event.reason == null))
         && ((event.action == 'reopened' && event.previousResolutionDescription == before.resolutionDescription)
@@ -134,6 +134,9 @@ service cloud.firestore {
           || (event.action == 'resolved' && before.status == 'EN_ATENCION' && next.status == 'RESUELTA'
             && changed.hasOnly(common.concat(['resolutionDescription']))
             && next.resolutionDescription == event.reason && isNonblankText(next.resolutionDescription))
+          || (event.action == 'assignmentDeclined' && before.status in ['ASIGNADA', 'EN_ATENCION']
+            && next.status == 'EN_REVISION' && next.assignedTechnicianId == null
+            && changed.hasOnly(common.concat(['assignedTechnicianId'])))
         )
       );
     }
@@ -386,6 +389,11 @@ service cloud.firestore {
               getAfter(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId)).data.description))
           || (isSignedIn() && isDocumentId(eventId) && workflowReferencesUpdate(incidentId, eventId));
         allow read: if canReadIncident(incidentId);
+        // A technician can confirm their own decline after losing case access.
+        allow get: if isSignedIn() && resource != null
+          && resource.data.action == 'assignmentDeclined'
+          && resource.data.actorUserId == request.auth.uid
+          && exists(/databases/$(database)/documents/incidents/$(incidentId));
         allow update, delete: if false;
       }
 

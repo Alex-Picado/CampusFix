@@ -214,6 +214,31 @@ void main() {
     );
     expect(current().status, IncidentStatus.inProgress);
   });
+  test('A technician can retry a confirmed decline and management can assign it again', () async {
+    await classify();
+    await assign();
+    auth.userId = 'tech';
+    final decline = command(
+      IncidentHistoryAction.assignmentDeclined,
+      reason: 'Unavailable this week',
+    );
+    await save(decline);
+    final returned = current();
+    await save(decline);
+    expect(current().updatedAt, returned.updatedAt);
+    expect(current().status, IncidentStatus.underReview);
+    expect(current().assignedTechnicianId, isNull);
+    expect(current().priority, IncidentPriority.high);
+    final event =
+        database.documents['incidents/case/history/${decline.eventId}']!;
+    expect(event['fromTechnicianId'], 'tech');
+    expect(event['toTechnicianId'], isNull);
+    auth.userId = 'admin';
+    await save(
+      command(IncidentHistoryAction.assigned, technicianId: 'other-tech'),
+    );
+    expect(current().assignedTechnicianId, 'other-tech');
+  });
   test(
     'Rejection and cancellation are terminal and always record the reason',
     () async {
