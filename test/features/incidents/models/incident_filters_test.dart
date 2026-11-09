@@ -29,7 +29,10 @@ void main() {
       expect(matches.length, 1);
       expect(matches.single.status, state);
     }
-    expect(rows.where(const IncidentFilters().matches).length, 9);
+    expect(
+      rows.where(const IncidentFilters().matches).length,
+      IncidentStatus.values.length,
+    );
   });
 
   test('Priority choices distinguish null low medium high and all', () {

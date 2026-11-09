@@ -66,14 +66,31 @@ abstract final class IncidentWorkflow {
         ].contains(status))
           IncidentHistoryAction.cancelled,
         if (status == IncidentStatus.resolved) IncidentHistoryAction.closed,
-        if ([IncidentStatus.resolved, IncidentStatus.closed].contains(status))
+        if ([
+          IncidentStatus.resolved,
+          IncidentStatus.closed,
+          IncidentStatus.reviewRequested,
+        ].contains(status))
           IncidentHistoryAction.reopened,
+        if (status == IncidentStatus.reviewRequested)
+          IncidentHistoryAction.reviewDismissed,
       ];
     }
     if (role == UserRole.technician && incident.assignedTechnicianId == uid) {
       return [
         if (status == IncidentStatus.assigned) IncidentHistoryAction.started,
         if (status == IncidentStatus.inProgress) IncidentHistoryAction.resolved,
+        if ([
+          IncidentStatus.assigned,
+          IncidentStatus.inProgress,
+        ].contains(status))
+          IncidentHistoryAction.assignmentDeclined,
+      ];
+    }
+    if (role == UserRole.reporter && incident.createdByUserId == uid) {
+      return [
+        if ([IncidentStatus.resolved, IncidentStatus.closed].contains(status))
+          IncidentHistoryAction.reviewRequested,
       ];
     }
     return const [];
@@ -109,6 +126,9 @@ abstract final class IncidentWorkflow {
       IncidentHistoryAction.rejected,
       IncidentHistoryAction.cancelled,
       IncidentHistoryAction.reopened,
+      IncidentHistoryAction.reviewRequested,
+      IncidentHistoryAction.reviewDismissed,
+      IncidentHistoryAction.assignmentDeclined,
     ].contains(action);
     if ((classification &&
             (command.categoryId == null || command.priority == null)) ||
@@ -121,11 +141,14 @@ abstract final class IncidentWorkflow {
     }
     final status = switch (action) {
       IncidentHistoryAction.classified ||
-      IncidentHistoryAction.reopened => IncidentStatus.underReview,
+      IncidentHistoryAction.reopened ||
+      IncidentHistoryAction.assignmentDeclined => IncidentStatus.underReview,
+      IncidentHistoryAction.reviewRequested => IncidentStatus.reviewRequested,
       IncidentHistoryAction.assigned => IncidentStatus.assigned,
       IncidentHistoryAction.started => IncidentStatus.inProgress,
       IncidentHistoryAction.resolved => IncidentStatus.resolved,
-      IncidentHistoryAction.closed => IncidentStatus.closed,
+      IncidentHistoryAction.closed ||
+      IncidentHistoryAction.reviewDismissed => IncidentStatus.closed,
       IncidentHistoryAction.rejected => IncidentStatus.rejected,
       IncidentHistoryAction.cancelled => IncidentStatus.cancelled,
       _ => throw const FormatException('Unsupported workflow action.'),
@@ -140,6 +163,8 @@ abstract final class IncidentWorkflow {
       if (classification) 'categoryId': command.categoryId,
       if (classification) 'priority': command.priority!.value,
       if (assignment) 'assignedTechnicianId': command.technicianId,
+      if (action == IncidentHistoryAction.assignmentDeclined)
+        'assignedTechnicianId': null,
       if (action == IncidentHistoryAction.resolved)
         'resolutionDescription': command.reason,
       if (action == IncidentHistoryAction.reopened) ...{

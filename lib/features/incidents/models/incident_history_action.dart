@@ -9,6 +9,9 @@ enum IncidentHistoryAction {
   /// A technician was assigned to an incident.
   assigned('assigned'),
 
+  /// The assigned technician declined the work with a reason.
+  assignmentDeclined('assignmentDeclined'),
+
   /// The assigned technician started attention.
   started('started'),
 
@@ -17,6 +20,12 @@ enum IncidentHistoryAction {
 
   /// A resolution was recorded.
   resolved('resolved'),
+
+  /// The reporter explained why the solution needs another review.
+  reviewRequested('reviewRequested'),
+
+  /// An administrator declined the request and closed the case with a reason.
+  reviewDismissed('reviewDismissed'),
 
   /// An incident was formally closed.
   closed('closed'),

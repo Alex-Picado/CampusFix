@@ -45,12 +45,15 @@ async function attempt(uid, action, options = {}) {
   const changes = {
     classified: { status: 'EN_REVISION', categoryId: 'lighting', priority: 'ALTA' },
     assigned: { status: 'ASIGNADA', assignedTechnicianId: 'tech' },
+    assignmentDeclined: { status: 'EN_REVISION', assignedTechnicianId: null },
     started: { status: 'EN_ATENCION' }, resolved: { status: 'RESUELTA', resolutionDescription: 'Replaced' },
+    reviewRequested: { status: 'REVISION_SOLICITADA' },
+    reviewDismissed: { status: 'CERRADA' },
     closed: { status: 'CERRADA' }, rejected: { status: 'RECHAZADA' }, cancelled: { status: 'CANCELADA' },
     reopened: { status: 'EN_REVISION', assignedTechnicianId: null, priority: null, resolutionDescription: null },
   }[action] ?? {};
   const next = { ...old, ...changes, updatedAt: serverTimestamp(), lastWorkflowEventId: eventId, ...options.changeIncident };
-  const reason = action === 'resolved' ? 'Replaced' : ['rejected','cancelled','reopened'].includes(action) ? 'Reason supplied' : null;
+  const reason = action === 'resolved' ? 'Replaced' : ['rejected','cancelled','reopened','reviewRequested','reviewDismissed','assignmentDeclined'].includes(action) ? 'Reason supplied' : null;
   const event = { actorUserId: uid, createdAt: serverTimestamp(), action, fromStatus: old.status,
     toStatus: next.status, fromTechnicianId: old.assignedTechnicianId, toTechnicianId: next.assignedTechnicianId,
     reason, details: { categoryId: action === 'classified' ? next.categoryId : null,
@@ -94,6 +97,25 @@ test('Reopening resolved and closed cases retains the prior solution and resets 
 test('Reopening directly from resolved is permitted', async () => {
   await resolved(); await assertSucceeds(attempt('admin', 'reopened'));
 });
+test('Only the owner can request another review and administration must decide before closure', async () => {
+  await resolved();
+  for (const uid of ['other','admin','tech','other-tech']) await assertFails(attempt(uid,'reviewRequested'));
+  await assertSucceeds(attempt('owner','reviewRequested'));
+  await assertFails(attempt('admin','closed'));
+  await assertFails(attempt('owner','reopened'));
+  await assertSucceeds(attempt('admin','reopened'));
+  const data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
+  assert.equal(data.status,'EN_REVISION');
+  assert.equal(data.resolutionDescription,null);
+});
+test('A closed case may be challenged and administrator can decline with a recorded reason', async () => {
+  await resolved(); await assertSucceeds(attempt('admin','closed'));
+  await assertSucceeds(attempt('owner','reviewRequested'));
+  for (const reason of [null,'','  ',' untrimmed ']) await assertFails(attempt('admin','reviewDismissed',{changeEvent:{reason,details:{categoryId:null,priority:null,technicianId:null,reason}}}));
+  await assertSucceeds(attempt('admin','reviewDismissed'));
+  const data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
+  assert.equal(data.status,'CERRADA'); assert.equal(data.resolutionDescription,'Replaced');
+});
 test('Only administrators classify and assign and only assigned technicians start attention', async () => {
   for (const uid of ['owner','other','tech','other-tech','missing']) await assertFails(attempt(uid, 'classified'));
   await classified();
@@ -101,6 +123,41 @@ test('Only administrators classify and assign and only assigned technicians star
   await assertSucceeds(attempt('admin', 'assigned'));
   for (const uid of ['admin','owner','other-tech']) await assertFails(attempt(uid, 'started'));
   await assertSucceeds(attempt('tech', 'started'));
+});
+test('An assigned technician declines with a reason and administration can reassign the case', async () => {
+  await assigned();
+  for (const uid of ['owner','admin','other-tech']) await assertFails(attempt(uid,'assignmentDeclined'));
+  for (const reason of [null,'','  ',' untrimmed ']) {
+    await assertFails(attempt('tech','assignmentDeclined',{
+      changeEvent:{reason,details:{categoryId:null,priority:null,technicianId:null,reason}},
+    }));
+  }
+  await assertFails(attempt('tech','assignmentDeclined',{changeIncident:{priority:null}}));
+  await assertFails(attempt('tech','assignmentDeclined',{changeIncident:{resolutionDescription:'Forged'}}));
+  await assertFails(attempt('tech','assignmentDeclined',{changeIncident:{assignedTechnicianId:'other-tech'}}));
+  await assertSucceeds(attempt('tech','assignmentDeclined',{
+    eventId:'declined',
+    changeEvent:{reason:'Medical leave',details:{categoryId:null,priority:null,technicianId:null,reason:'Medical leave'}},
+  }));
+  const admin = dbFor('admin'); const tech = dbFor('tech');
+  const data = (await getDoc(doc(admin,'incidents/case'))).data();
+  assert.equal(data.status,'EN_REVISION'); assert.equal(data.assignedTechnicianId,null);
+  assert.equal(data.priority,'ALTA'); assert.equal(data.resolutionDescription,null);
+  await assertFails(getDoc(doc(tech,'incidents/case')));
+  const event = (await assertSucceeds(getDoc(doc(tech,'incidents/case/history/declined')))).data();
+  assert.equal(event.actorUserId,'tech'); assert.equal(event.fromTechnicianId,'tech');
+  assert.equal(event.toTechnicianId,null); assert.equal(event.reason,'Medical leave');
+  await assertFails(getDocs(collection(tech,'incidents/case/history')));
+  await assertSucceeds(attempt('admin','assigned',{changeIncident:{assignedTechnicianId:'other-tech'}}));
+  assert.equal((await getDoc(doc(admin,'incidents/case'))).data().assignedTechnicianId,'other-tech');
+});
+test('An attending technician can decline without deleting progress or granting access to other actors', async () => {
+  await attending();
+  await assertSucceeds(attempt('tech','assignmentDeclined'));
+  const data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
+  assert.equal(data.status,'EN_REVISION'); assert.equal(data.assignedTechnicianId,null);
+  for (const uid of ['owner','admin','other-tech']) await assertFails(attempt(uid,'assignmentDeclined'));
+  await assertFails(attempt('tech','assignmentDeclined'));
 });
 test('Assignment requires classification, an active category, a valid priority and a stored technician', async () => {
   await assertFails(attempt('admin', 'assigned'));

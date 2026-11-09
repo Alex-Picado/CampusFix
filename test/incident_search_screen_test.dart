@@ -58,6 +58,10 @@ void main() {
           role == UserRole.administrator ? 1 : 0,
         );
         expect(app.reports.activeListWatches, 1);
+        final initialQueryCalls = app.reports.queryCalls;
+        if (role == UserRole.technician) {
+          await _tap(tester, 'workspace-tab-3');
+        }
         expect(
           find.byKey(const ValueKey('incident-foreign')),
           role == UserRole.administrator ? findsOneWidget : findsNothing,
@@ -76,7 +80,7 @@ void main() {
         await _enter(tester, 'biblioteca');
         expect(find.byKey(const ValueKey('incident-network')), findsOneWidget);
         expect(find.byKey(const ValueKey('incident-light')), findsNothing);
-        expect(app.reports.queryCalls, 1);
+        expect(app.reports.queryCalls, initialQueryCalls);
         expect(
           app.reports.lastScope,
           role == UserRole.administrator
@@ -100,6 +104,49 @@ void main() {
   }
 
   testWidgets(
+    'Administrative cards show priority beside status with level colors',
+    (tester) async {
+      final app = await _mount(tester);
+      await _filterFixtures(tester, app.reports);
+      const colors = {
+        'light': Color(0xFFC62828),
+        'network': Color(0xFF9A6700),
+        'low': Color(0xFF2E7D32),
+        'unassigned': Color(0xFF667085),
+      };
+      for (final entry in colors.entries) {
+        final card = find.byKey(ValueKey('incident-${entry.key}'));
+        expect(
+          find.descendant(of: card, matching: find.byType(Chip)),
+          findsNWidgets(2),
+        );
+        final badge = tester.widget<Chip>(
+          find.byKey(ValueKey('priority-${entry.key}')),
+        );
+        expect(badge.backgroundColor, entry.value.withValues(alpha: 0.10));
+        expect(
+          tester
+              .widget<CircleAvatar>(
+                find.descendant(
+                  of: find.byKey(ValueKey('priority-${entry.key}')),
+                  matching: find.byType(CircleAvatar),
+                ),
+              )
+              .backgroundColor,
+          entry.value,
+        );
+      }
+      expect(find.text('Prioridad ALTA'), findsNWidgets(2));
+      expect(find.text('Prioridad MEDIA'), findsOneWidget);
+      expect(find.text('Prioridad BAJA'), findsOneWidget);
+      expect(find.text('Sin prioridad'), findsOneWidget);
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Live snapshots reapply the current search without restarting its query',
     (tester) async {
       final app = await _mount(tester);
@@ -117,7 +164,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('incident-network')), findsNothing);
       expect(find.byKey(const ValueKey('incident-new')), findsOneWidget);
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
     },
   );
 
@@ -182,7 +229,7 @@ void main() {
         find.text('No se pudieron cargar algunas categorías.'),
         findsNothing,
       );
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
       expect(app.categories.activeByIdWatches, 2);
     },
   );
@@ -244,7 +291,7 @@ void main() {
       await _tap(tester, 'incident-search-clear');
       expect(find.text('Resultados: 5 de 5'), findsOneWidget);
       expect(find.text('Todas las prioridades'), findsOneWidget);
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
       expect(app.users.allUsersWatchCalls, 1);
     },
   );
@@ -291,9 +338,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Daniel técnico · tech@campusfix.test'), findsOneWidget);
-      await _selectFilter(tester, 'status', 'Resuelta');
+      await _selectFilter(tester, 'status', 'Solución registrada');
       expect(find.text('Resultados: 2 de 5'), findsOneWidget);
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
     },
   );
 
@@ -319,7 +366,7 @@ void main() {
       );
       expect(find.text('Resultados: 1 de 5'), findsOneWidget);
       expect(app.users.activeAllUsersWatches, 1);
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
     },
   );
 

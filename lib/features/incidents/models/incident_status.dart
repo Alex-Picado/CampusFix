@@ -15,6 +15,9 @@ enum IncidentStatus {
   /// An incident with a recorded solution.
   resolved('RESUELTA'),
 
+  /// The reporter disputed a solution and awaits administrative review.
+  reviewRequested('REVISION_SOLICITADA'),
+
   /// An incident formally closed by an administrator.
   closed('CERRADA'),
 

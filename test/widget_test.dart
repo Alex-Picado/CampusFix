@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:campusfix/app/navigation/campus_destination.dart';
 import 'package:campusfix/app/providers/app_providers.dart';
+import 'package:campusfix/features/incidents/models/incident.dart';
+import 'package:campusfix/features/incidents/models/incident_priority.dart';
+import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:campusfix/features/users/models/user_profile.dart';
 import 'package:campusfix/features/users/models/user_role.dart';
 import 'package:campusfix/main.dart';
@@ -14,6 +17,368 @@ import 'support/test_repositories.dart';
 import 'support/report_repositories.dart';
 
 void main() {
+  testWidgets(
+    'Administrator home summarizes campus cases and opens management',
+    (tester) async {
+      final app = await _mountApp(tester, role: UserRole.administrator);
+      expect(
+        find.text('Todavía no hay incidencias registradas.'),
+        findsOneWidget,
+      );
+      final now = DateTime.utc(2026, 11, 8);
+      Incident caseFor(int number, IncidentStatus status) => Incident(
+        id: 'admin-$number',
+        sequenceNumber: number,
+        title: 'Caso $number',
+        description: 'Descripción del caso $number',
+        categoryId: 'lighting',
+        location: 'Biblioteca',
+        createdAt: now,
+        updatedAt: now.add(Duration(minutes: number)),
+        createdByUserId: 'reporter-user',
+        status: status,
+      );
+      final rows = [
+        caseFor(1, IncidentStatus.reported),
+        caseFor(2, IncidentStatus.assigned),
+        caseFor(3, IncidentStatus.inProgress),
+        caseFor(4, IncidentStatus.resolved),
+        caseFor(5, IncidentStatus.reviewRequested),
+        caseFor(6, IncidentStatus.closed),
+      ];
+      app.incidents.saved.addAll({for (final row in rows) row.id: row});
+      app.incidents.ownChanges.add(rows);
+      await tester.pumpAndSettle();
+      expect(find.text('#6 · Caso 6'), findsOneWidget);
+      expect(find.text('#2 · Caso 2'), findsNothing);
+      for (var index = 0; index < 6; index++) {
+        expect(
+          find.descendant(
+            of: find.byKey(ValueKey('admin-home-count-$index')),
+            matching: find.text('1'),
+          ),
+          findsOneWidget,
+        );
+      }
+      expect(find.byKey(const ValueKey('home-create-incident')), findsNothing);
+      await _tap(tester, 'admin-home-management');
+      expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
+      expect(find.text('Todas (6)'), findsOneWidget);
+      expect(find.text('Revisión solicitada (1)'), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-admin-1')), findsOneWidget);
+      await _tap(tester, 'management-tab-5');
+      expect(find.byKey(const ValueKey('incident-admin-5')), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-admin-1')), findsNothing);
+      expect(find.textContaining('Revisá el motivo'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Administrator home error retries and fits a phone', (
+    tester,
+  ) async {
+    final app = await _mountApp(
+      tester,
+      role: UserRole.administrator,
+      size: const Size(390, 844),
+    );
+    app.incidents.ownChanges.addError(
+      FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No pudimos cargar las incidencias del campus.'),
+      findsOneWidget,
+    );
+    await _tap(tester, 'admin-home-retry');
+    expect(find.byKey(const ValueKey('admin-home-count-5')), findsOneWidget);
+    await _tap(tester, 'admin-home-management');
+    await _tap(tester, 'management-tab-6');
+    expect(find.text('No hay incidencias disponibles.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Reporter home summarizes live reports and opens report actions',
+    (tester) async {
+      final app = await _mountApp(tester, role: UserRole.reporter);
+      expect(
+        find.text(
+          'Todavía no tenés incidencias. Creá tu primer reporte para comenzar.',
+        ),
+        findsOneWidget,
+      );
+      final now = DateTime.utc(2026, 11, 8);
+      app.incidents.ownChanges.add([
+        Incident(
+          id: 'one',
+          sequenceNumber: 1,
+          title: 'Lámpara dañada',
+          description: 'No enciende',
+          categoryId: 'lighting',
+          location: 'Biblioteca',
+          createdAt: now,
+          updatedAt: now,
+          createdByUserId: 'campus-user',
+        ),
+        Incident(
+          id: 'two',
+          sequenceNumber: 2,
+          title: 'Pupitre roto',
+          description: 'Pata rota',
+          categoryId: 'lighting',
+          location: 'Aula',
+          createdAt: now,
+          updatedAt: now.add(const Duration(minutes: 1)),
+          createdByUserId: 'campus-user',
+          status: IncidentStatus.resolved,
+        ),
+        Incident(
+          id: 'three',
+          sequenceNumber: 3,
+          title: 'Caso cerrado',
+          description: 'Resuelto',
+          categoryId: 'lighting',
+          location: 'Aula',
+          createdAt: now,
+          updatedAt: now.add(const Duration(minutes: 2)),
+          createdByUserId: 'campus-user',
+          status: IncidentStatus.closed,
+        ),
+        Incident(
+          id: 'other',
+          sequenceNumber: 4,
+          title: 'Reporte ajeno',
+          description: 'Ajeno',
+          categoryId: 'lighting',
+          location: 'Aula',
+          createdAt: now,
+          updatedAt: now,
+          createdByUserId: 'other-user',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Reporte ajeno'), findsNothing);
+      expect(find.text('#2 · Pupitre roto'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('home-count-0')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('home-count-3')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('home-count-4')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget(find.byKey(const ValueKey('home-create-incident'))),
+        isA<FloatingActionButton>(),
+      );
+      await _tap(tester, 'home-create-incident');
+      expect(find.byKey(const ValueKey('report-page')), findsOneWidget);
+      expect(find.byKey(const ValueKey('home-create-incident')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Reporter home keeps loading and errors distinct from an empty summary',
+    (tester) async {
+      final app = await _mountApp(tester, role: UserRole.reporter);
+      app.incidents.ownChanges.addError(
+        FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('No pudimos cargar tus incidencias.'), findsOneWidget);
+      expect(
+        find.text(
+          'Todavía no tenés incidencias. Creá tu primer reporte para comenzar.',
+        ),
+        findsNothing,
+      );
+      await _tap(tester, 'home-retry');
+      expect(
+        find.text(
+          'Todavía no tenés incidencias. Creá tu primer reporte para comenzar.',
+        ),
+        findsOneWidget,
+      );
+      await _tap(tester, 'home-view-incidents');
+      expect(find.byKey(const ValueKey('my-incidents-page')), findsOneWidget);
+      expect(app.incidents.activeOwnWatches, 1);
+    },
+  );
+
+  testWidgets(
+    'Reporter home fits a phone and its list shortcut opens the tabs',
+    (tester) async {
+      await _mountApp(
+        tester,
+        role: UserRole.reporter,
+        size: const Size(390, 844),
+      );
+      expect(find.byKey(const ValueKey('home-count-4')), findsOneWidget);
+      final createButton = find.byKey(const ValueKey('home-create-incident'));
+      expect(tester.getBottomRight(createButton).dx, greaterThan(350));
+      expect(tester.getBottomRight(createButton).dy, greaterThan(780));
+      await _tap(tester, 'home-view-incidents');
+      expect(find.byKey(const ValueKey('my-incidents-page')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Technician home summarizes assigned work and opens its queue', (
+    tester,
+  ) async {
+    final app = await _mountApp(tester, role: UserRole.technician);
+    expect(
+      find.text('Todavía no tenés incidencias asignadas.'),
+      findsOneWidget,
+    );
+    final now = DateTime.utc(2026, 11, 8);
+    Incident assignment(
+      String id,
+      int number,
+      IncidentStatus status, {
+      String technician = 'campus-user',
+      IncidentPriority? priority,
+    }) => Incident(
+      id: id,
+      sequenceNumber: number,
+      title: 'Caso $number',
+      description: 'Descripción',
+      categoryId: 'lighting',
+      location: 'Biblioteca',
+      createdAt: now,
+      updatedAt: now.add(Duration(minutes: number)),
+      createdByUserId: 'reporter-user',
+      assignedTechnicianId: technician,
+      status: status,
+      priority: priority,
+    );
+    final rows = [
+      assignment(
+        'assigned',
+        1,
+        IncidentStatus.assigned,
+        priority: IncidentPriority.high,
+      ),
+      assignment(
+        'working',
+        2,
+        IncidentStatus.inProgress,
+        priority: IncidentPriority.medium,
+      ),
+      assignment(
+        'resolved',
+        3,
+        IncidentStatus.resolved,
+        priority: IncidentPriority.low,
+      ),
+      assignment('review', 4, IncidentStatus.reviewRequested),
+      assignment('closed', 5, IncidentStatus.closed),
+      assignment(
+        'foreign',
+        6,
+        IncidentStatus.assigned,
+        technician: 'other-tech',
+      ),
+    ];
+    app.incidents.saved.addAll({for (final row in rows) row.id: row});
+    app.incidents.ownChanges.add(rows);
+    await tester.pumpAndSettle();
+    expect(find.text('Caso 6'), findsNothing);
+    expect(find.text('#5 · Caso 5'), findsOneWidget);
+    for (var index = 0; index < 5; index++) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('technician-home-count-$index')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(find.byKey(const ValueKey('home-create-incident')), findsNothing);
+    await _tap(tester, 'technician-home-view-workspace');
+    expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
+    expect(find.text('Asignadas (1)'), findsOneWidget);
+    expect(find.text('En atención (1)'), findsOneWidget);
+    expect(find.text('Solucionadas (1)'), findsOneWidget);
+    expect(find.text('En revisión (1)'), findsOneWidget);
+    expect(find.text('Finalizadas (1)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-assigned')), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-working')), findsNothing);
+    expect(find.text('Ubicación: Biblioteca'), findsOneWidget);
+    expect(find.text('Prioridad ALTA'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('incident-assigned')),
+        matching: find.byType(Chip),
+      ),
+      findsNWidgets(2),
+    );
+    expect(
+      tester
+          .widget<Chip>(find.byKey(const ValueKey('priority-assigned')))
+          .backgroundColor,
+      const Color(0xFFC62828).withValues(alpha: 0.10),
+    );
+    await _tap(tester, 'workspace-tab-1');
+    expect(find.byKey(const ValueKey('incident-working')), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-assigned')), findsNothing);
+    expect(find.text('Prioridad MEDIA'), findsOneWidget);
+    app.incidents.ownChanges.add([
+      for (final row in rows)
+        row.id == 'working'
+            ? row.copyWith(status: IncidentStatus.resolved)
+            : row,
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('En atención (0)'), findsOneWidget);
+    expect(find.text('Solucionadas (2)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-working')), findsNothing);
+    await _tap(tester, 'workspace-tab-2');
+    expect(find.byKey(const ValueKey('incident-working')), findsOneWidget);
+    expect(find.text('Prioridad BAJA'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Technician home handles read errors and fits a phone', (
+    tester,
+  ) async {
+    final app = await _mountApp(
+      tester,
+      role: UserRole.technician,
+      size: const Size(390, 844),
+    );
+    app.incidents.ownChanges.addError(
+      FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No pudimos cargar tus asignaciones.'), findsOneWidget);
+    expect(find.text('Todavía no tenés incidencias asignadas.'), findsNothing);
+    await _tap(tester, 'technician-home-retry');
+    expect(
+      find.byKey(const ValueKey('technician-home-count-4')),
+      findsOneWidget,
+    );
+    await _tap(tester, 'technician-home-view-workspace');
+    await _tap(tester, 'workspace-tab-4');
+    expect(find.text('No hay incidencias disponibles.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Invalid forms avoid requests and mode changes clear old errors',
     (tester) async {
@@ -483,7 +848,7 @@ Future<_TestApp> _mountApp(
     ),
   );
   await tester.pumpAndSettle();
-  return _TestApp(auth, users);
+  return _TestApp(auth, users, incidents);
 }
 
 UserProfile _profile(UserRole role) {
@@ -532,6 +897,7 @@ TextFormField _passwordInput(WidgetTester tester) {
 class _TestApp {
   final TestAuthRepository auth;
   final TestUserRepository users;
+  final TestReportIncidents incidents;
 
-  _TestApp(this.auth, this.users);
+  _TestApp(this.auth, this.users, this.incidents);
 }

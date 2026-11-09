@@ -133,7 +133,7 @@ void main() {
       expect(_value(tester, 'dashboard-category-count-lighting'), '1');
       expect(_value(tester, 'dashboard-category-count-network'), '1');
       expect(find.text('ID: lighting · Inactiva'), findsOneWidget);
-      expect(app.reports.calls, 1);
+      expect(app.reports.calls, 2);
     },
   );
 
@@ -221,22 +221,22 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(_value(tester, 'dashboard-category-count-network'), '3');
-      expect(app.reports.calls, 1);
+      expect(app.reports.calls, 2);
     },
   );
 
   testWidgets(
-    'Leaving the dashboard releases both streams and reopening reads fresh data',
+    'Leaving the dashboard switches to the overview stream and reopening reads fresh data',
     (tester) async {
       final app = await _mount(tester);
       await _navigate(tester, 'dashboard');
       await _navigate(tester, 'overview');
-      expect(app.reports.activeWatches, 0);
+      expect(app.reports.activeWatches, 1);
       expect(app.categories.activeAllWatches, 0);
       app.reports.rows = [];
       await _navigate(tester, 'dashboard');
       expect(_value(tester, 'dashboard-total'), '0');
-      expect(app.reports.calls, 2);
+      expect(app.reports.calls, 4);
       expect(app.reports.activeWatches, 1);
     },
   );
