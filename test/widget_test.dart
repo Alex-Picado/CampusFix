@@ -17,6 +17,87 @@ import 'support/report_repositories.dart';
 
 void main() {
   testWidgets(
+    'Administrator home summarizes campus cases and opens management',
+    (tester) async {
+      final app = await _mountApp(tester, role: UserRole.administrator);
+      expect(
+        find.text('Todavía no hay incidencias registradas.'),
+        findsOneWidget,
+      );
+      final now = DateTime.utc(2026, 11, 8);
+      Incident caseFor(int number, IncidentStatus status) => Incident(
+        id: 'admin-$number',
+        sequenceNumber: number,
+        title: 'Caso $number',
+        description: 'Descripción del caso $number',
+        categoryId: 'lighting',
+        location: 'Biblioteca',
+        createdAt: now,
+        updatedAt: now.add(Duration(minutes: number)),
+        createdByUserId: 'reporter-user',
+        status: status,
+      );
+      final rows = [
+        caseFor(1, IncidentStatus.reported),
+        caseFor(2, IncidentStatus.assigned),
+        caseFor(3, IncidentStatus.inProgress),
+        caseFor(4, IncidentStatus.resolved),
+        caseFor(5, IncidentStatus.reviewRequested),
+        caseFor(6, IncidentStatus.closed),
+      ];
+      app.incidents.saved.addAll({for (final row in rows) row.id: row});
+      app.incidents.ownChanges.add(rows);
+      await tester.pumpAndSettle();
+      expect(find.text('#6 · Caso 6'), findsOneWidget);
+      expect(find.text('#2 · Caso 2'), findsNothing);
+      for (var index = 0; index < 6; index++) {
+        expect(
+          find.descendant(
+            of: find.byKey(ValueKey('admin-home-count-$index')),
+            matching: find.text('1'),
+          ),
+          findsOneWidget,
+        );
+      }
+      expect(find.byKey(const ValueKey('home-create-incident')), findsNothing);
+      await _tap(tester, 'admin-home-management');
+      expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
+      expect(find.text('Todas (6)'), findsOneWidget);
+      expect(find.text('Revisión solicitada (1)'), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-admin-1')), findsOneWidget);
+      await _tap(tester, 'management-tab-5');
+      expect(find.byKey(const ValueKey('incident-admin-5')), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-admin-1')), findsNothing);
+      expect(find.textContaining('Revisá el motivo'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Administrator home error retries and fits a phone', (
+    tester,
+  ) async {
+    final app = await _mountApp(
+      tester,
+      role: UserRole.administrator,
+      size: const Size(390, 844),
+    );
+    app.incidents.ownChanges.addError(
+      FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No pudimos cargar las incidencias del campus.'),
+      findsOneWidget,
+    );
+    await _tap(tester, 'admin-home-retry');
+    expect(find.byKey(const ValueKey('admin-home-count-5')), findsOneWidget);
+    await _tap(tester, 'admin-home-management');
+    await _tap(tester, 'management-tab-6');
+    expect(find.text('No hay incidencias disponibles.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
     'Reporter home summarizes live reports and opens report actions',
     (tester) async {
       final app = await _mountApp(tester, role: UserRole.reporter);

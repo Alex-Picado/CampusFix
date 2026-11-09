@@ -66,7 +66,15 @@ application preserves the pending operation ID.
 
 ## Administrator
 
-**Gestión** provides the global queue. Classify a reported case with an active
+**Inicio** shows the campus-wide count in each stage and the three most recently
+changed reports. Use the shortcuts to open **Gestión**, **Indicadores**,
+**Categorías** or **Usuarios**. If the summary cannot load, select **Reintentar**.
+
+**Gestión** provides the global queue in **Todas**, **Pendientes**,
+**Asignadas**, **En atención**, **Solucionadas**, **Revisión solicitada** and
+**Finalizadas**. The stage counts follow the current filters. On a phone, swipe
+the tab row horizontally to reach later stages. Each card explains its current
+state and shows category, location, priority and latest change. Classify a reported case with an active
 category and priority before selecting **Asignar técnico**. Assign a current
 technician. Close a case after it has **Solución registrada**. If the reporter requests another
 review, reopen it for a new classification and assignment or close the request
@@ -76,7 +84,7 @@ priority and the assigned technician.
 
 Combine text/consecutive/category search with state, priority and technician
 filters. **Sin prioridad** and **Sin asignar** are explicit choices. The result
-count refers to all combined criteria; clear them to restore the global queue.
+count refers to all combined criteria across tabs; clear them to restore the global queue.
 
 **Indicadores** uses the global population independently of Management filters.
 **En atención** and **Revisión solicitada** are included in **Abiertas**.

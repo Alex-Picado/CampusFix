@@ -55,4 +55,23 @@ extension IncidentStatusLabels on IncidentStatus {
     IncidentStatus.reopened =>
       'Administración está revisando la incidencia antes de continuar.',
   };
+
+  /// Next action or context for the administrator managing a case.
+  String get administratorGuidance => switch (this) {
+    IncidentStatus.reported => 'El reporte espera revisión y clasificación.',
+    IncidentStatus.underReview => 'Revisá el reporte y decidí cómo continuar.',
+    IncidentStatus.assigned =>
+      'El técnico asignado todavía no inicia la atención.',
+    IncidentStatus.inProgress => 'El técnico está atendiendo la incidencia.',
+    IncidentStatus.resolved =>
+      'El técnico registró una solución. Revisá el cierre del caso.',
+    IncidentStatus.reviewRequested => 'El reportante pidió otra revisión. Revisá el motivo y decidí si reabrir.',
+    IncidentStatus.reopened =>
+      'El caso volvió a revisión. Definí los siguientes pasos.',
+    IncidentStatus.closed => 'La incidencia está cerrada.',
+    IncidentStatus.rejected =>
+      'La incidencia fue rechazada. El motivo está en el detalle.',
+    IncidentStatus.cancelled =>
+      'La incidencia fue cancelada. El motivo está en el detalle.',
+  };
 }

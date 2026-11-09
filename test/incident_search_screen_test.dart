@@ -121,7 +121,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('incident-network')), findsNothing);
       expect(find.byKey(const ValueKey('incident-new')), findsOneWidget);
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
     },
   );
 
@@ -186,7 +186,7 @@ void main() {
         find.text('No se pudieron cargar algunas categorías.'),
         findsNothing,
       );
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
       expect(app.categories.activeByIdWatches, 2);
     },
   );
@@ -248,7 +248,7 @@ void main() {
       await _tap(tester, 'incident-search-clear');
       expect(find.text('Resultados: 5 de 5'), findsOneWidget);
       expect(find.text('Todas las prioridades'), findsOneWidget);
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
       expect(app.users.allUsersWatchCalls, 1);
     },
   );
@@ -297,7 +297,7 @@ void main() {
       expect(find.text('Daniel técnico · tech@campusfix.test'), findsOneWidget);
       await _selectFilter(tester, 'status', 'Solución registrada');
       expect(find.text('Resultados: 2 de 5'), findsOneWidget);
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
     },
   );
 
@@ -323,7 +323,7 @@ void main() {
       );
       expect(find.text('Resultados: 1 de 5'), findsOneWidget);
       expect(app.users.activeAllUsersWatches, 1);
-      expect(app.reports.queryCalls, 1);
+      expect(app.reports.queryCalls, 2);
     },
   );
 
