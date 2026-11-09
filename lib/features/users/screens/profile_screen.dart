@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/theme/appearance_controller.dart';
 import '../../../core/widgets/page_heading.dart';
 import '../../../core/widgets/section_card.dart';
 import '../controllers/profile_controller.dart';
@@ -154,6 +155,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 24),
+        const _AppearanceCard(),
       ],
     );
   }
@@ -162,6 +165,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _name.dispose();
     super.dispose();
+  }
+}
+
+class _AppearanceCard extends StatelessWidget {
+  const _AppearanceCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final appearance = context.watch<AppearanceController>();
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Apariencia', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          DropdownMenu<ThemeMode>(
+            key: const ValueKey('appearance-mode'),
+            label: const Text('Tema'),
+            initialSelection: appearance.mode,
+            selectOnly: true,
+            onSelected: (mode) {
+              if (mode != null) appearance.select(mode);
+            },
+            dropdownMenuEntries: const [
+              DropdownMenuEntry(value: ThemeMode.system, label: 'Sistema'),
+              DropdownMenuEntry(value: ThemeMode.light, label: 'Claro'),
+              DropdownMenuEntry(value: ThemeMode.dark, label: 'Oscuro'),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

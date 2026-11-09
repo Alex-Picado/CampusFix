@@ -2,29 +2,40 @@ import 'package:flutter/material.dart';
 
 /// Defines the common colors and standard Material controls for CampusFix.
 abstract final class CampusTheme {
-  static const primary = Color(0xFF28634F);
-  static const background = Color(0xFFF6F7F8);
-  static const border = Color(0xFFDEE2E5);
-  static const secondaryText = Color(0xFF59636B);
+  static const _primary = Color(0xFF28634F);
 
-  /// Creates the light theme without external assets or extra dependencies.
-  static ThemeData get light {
+  static final light = _build(
+    ColorScheme.fromSeed(
+      seedColor: _primary,
+      primary: _primary,
+      surface: Colors.white,
+      onSurfaceVariant: const Color(0xFF59636B),
+    ),
+    background: const Color(0xFFF6F7F8),
+    divider: const Color(0xFFDEE2E5),
+  );
+
+  static final dark = _build(
+    ColorScheme.fromSeed(seedColor: _primary, brightness: Brightness.dark),
+  );
+
+  static ThemeData _build(
+    ColorScheme colors, {
+    Color? background,
+    Color? divider,
+  }) {
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primary,
-        primary: primary,
-        surface: Colors.white,
-      ),
-      scaffoldBackgroundColor: background,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.white,
-        foregroundColor: Color(0xFF25302A),
+      colorScheme: colors,
+      scaffoldBackgroundColor: background ?? colors.surface,
+      appBarTheme: AppBarTheme(
+        backgroundColor: colors.surface,
+        foregroundColor: colors.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      dividerColor: border,
+      dividerColor: divider ?? colors.outlineVariant,
       inputDecorationTheme: const InputDecorationTheme(
         border: OutlineInputBorder(),
         contentPadding: EdgeInsets.all(16),

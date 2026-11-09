@@ -323,7 +323,7 @@ class _QueueViewState extends State<_QueueView> {
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
       runSpacing: 4,
-      children: [status, _priorityBadge(incident)],
+      children: [status, _priorityBadge(context, incident)],
     );
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -354,13 +354,18 @@ class _QueueViewState extends State<_QueueView> {
     );
   }
 
-  Widget _priorityBadge(Incident incident) {
+  Widget _priorityBadge(BuildContext context, Incident incident) {
     final priority = incident.priority;
-    final color = switch (priority) {
-      IncidentPriority.low => const Color(0xFF2E7D32),
-      IncidentPriority.medium => const Color(0xFF9A6700),
-      IncidentPriority.high => const Color(0xFFC62828),
-      null => const Color(0xFF667085),
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final color = switch ((priority, dark)) {
+      (IncidentPriority.low, true) => const Color(0xFF81C784),
+      (IncidentPriority.medium, true) => const Color(0xFFFFCC80),
+      (IncidentPriority.high, true) => const Color(0xFFEF9A9A),
+      (null, true) => const Color(0xFFB3BAC5),
+      (IncidentPriority.low, false) => const Color(0xFF2E7D32),
+      (IncidentPriority.medium, false) => const Color(0xFF9A6700),
+      (IncidentPriority.high, false) => const Color(0xFFC62828),
+      (null, false) => const Color(0xFF667085),
     };
     return Chip(
       key: ValueKey('priority-${incident.id}'),

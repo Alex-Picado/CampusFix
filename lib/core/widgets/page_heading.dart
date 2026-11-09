@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../app/theme/campus_theme.dart';
-
 /// Displays a consistent page title and short description.
 class PageHeading extends StatelessWidget {
   final String title;
@@ -22,7 +20,9 @@ class PageHeading extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           description,
-          style: const TextStyle(color: CampusTheme.secondaryText),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );

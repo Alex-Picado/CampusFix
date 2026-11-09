@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:campusfix/app/navigation/campus_destination.dart';
 import 'package:campusfix/app/providers/app_providers.dart';
@@ -17,6 +18,46 @@ import 'support/test_repositories.dart';
 import 'support/report_repositories.dart';
 
 void main() {
+  testWidgets(
+    'Appearance follows the system and remembers an explicit choice',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      addTearDown(() => SharedPreferences.setMockInitialValues({}));
+      final dispatcher = tester.platformDispatcher;
+      dispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(dispatcher.clearPlatformBrightnessTestValue);
+
+      await _mountApp(
+        tester,
+        role: UserRole.reporter,
+        size: const Size(390, 844),
+      );
+      Brightness pageBrightness(String key) =>
+          Theme.of(tester.element(find.byKey(ValueKey(key)))).brightness;
+      expect(pageBrightness('overview-page'), Brightness.dark);
+
+      dispatcher.platformBrightnessTestValue = Brightness.light;
+      await tester.pumpAndSettle();
+      expect(pageBrightness('overview-page'), Brightness.light);
+      await tester.tap(find.byTooltip('Abrir menú'));
+      await tester.pumpAndSettle();
+      await _tap(tester, 'nav-profile');
+      await _tap(tester, 'appearance-mode');
+      await tester.tap(
+        find.widgetWithText(MenuItemButton, 'Oscuro').hitTestable(),
+      );
+      await tester.pumpAndSettle();
+      expect(pageBrightness('profile-page'), Brightness.dark);
+
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.reload();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _mountApp(tester, role: UserRole.reporter);
+      expect(pageBrightness('overview-page'), Brightness.dark);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Administrator home summarizes campus cases and opens management',
     (tester) async {

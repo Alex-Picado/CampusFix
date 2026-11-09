@@ -14,7 +14,6 @@ import '../../features/incidents/repositories/incident_repository.dart';
 import '../../features/users/models/user_profile.dart';
 import '../../features/users/models/user_role.dart';
 import '../navigation/campus_destination.dart';
-import '../theme/campus_theme.dart';
 
 /// Shows a live summary and shortcuts for the authenticated role.
 class OverviewScreen extends StatelessWidget {
@@ -500,7 +499,7 @@ class _CountCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 22, color: CampusTheme.primary),
+        Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 12),
         Text('$count', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 4),
@@ -527,7 +526,7 @@ class _RecentReport extends StatelessWidget {
       const SizedBox(height: 4),
       Text(
         report.status.label,
-        style: const TextStyle(color: CampusTheme.primary),
+        style: TextStyle(color: Theme.of(context).colorScheme.primary),
       ),
       const SizedBox(height: 4),
       Text(
@@ -536,7 +535,7 @@ class _RecentReport extends StatelessWidget {
             : role == UserRole.administrator
             ? report.status.administratorGuidance
             : 'Ubicación: ${report.location}',
-        style: const TextStyle(color: CampusTheme.secondaryText),
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     ],
   );

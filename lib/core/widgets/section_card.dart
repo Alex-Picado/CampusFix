@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../app/theme/campus_theme.dart';
-
 /// Provides a simple bordered surface for related page content.
 class SectionCard extends StatelessWidget {
   final Widget child;
@@ -10,12 +8,15 @@ class SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: CampusTheme.border),
+        color: theme.brightness == Brightness.dark
+            ? theme.colorScheme.surfaceContainerLow
+            : theme.colorScheme.surface,
+        border: Border.all(color: theme.dividerColor),
         borderRadius: BorderRadius.circular(8),
       ),
       child: child,

@@ -15,7 +15,6 @@ import '../../features/users/screens/profile_screen.dart';
 import '../../features/users/screens/user_management_screen.dart';
 import '../navigation/campus_destination.dart';
 import '../screens/overview_screen.dart';
-import '../theme/campus_theme.dart';
 import 'campus_navigation.dart';
 
 /// Hosts the common interface for an authenticated profile.
@@ -130,9 +129,9 @@ class _CampusShellState extends State<CampusShell> {
                 child: Center(
                   child: Text(
                     widget.profile.role.label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: CampusTheme.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
