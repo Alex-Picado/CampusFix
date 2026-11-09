@@ -78,9 +78,11 @@ changed reports. Use the shortcuts to open **Gestión**, **Indicadores**,
 the tab row horizontally to reach later stages. Each card explains its current
 state and shows category, location and latest change. The priority badge sits
 beside the state: green for **BAJA**, amber for **MEDIA**, red for **ALTA** and
-gray for **Sin prioridad**. Classify a reported case with an active
-category and priority before selecting **Asignar técnico**. Assign a current
-technician. Close a case after it has **Solución registrada**. If the reporter requests another
+gray for **Sin prioridad**. Open the case to see three steps. In **Clasificar**,
+confirm an active category and priority. The form advances to **Asignar**,
+where you select and confirm a technician. **Seguimiento** shows the current
+state and available actions. Close a case after it has **Solución registrada**.
+If the reporter requests another
 review, reopen it for a new classification and assignment or close the request
 with a reason. Rejection, cancellation and reopening require a reason and a
 permitted state. Reopening preserves the prior solution in history and clears

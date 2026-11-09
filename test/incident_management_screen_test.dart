@@ -25,18 +25,48 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _tapText(tester, 'Abrir incidencia');
+      expect(find.text('Clasificá la prioridad'), findsOneWidget);
+      expect(find.text('Confirmar asignación'), findsNothing);
       await _tapKey(tester, 'workflow-save');
       expect(
         find.text('Seleccioná una categoría activa y una prioridad.'),
         findsOneWidget,
       );
       await _choose<IncidentPriority>(tester, 'ALTA');
+      app.reports.emitWorkflowUpdates = false;
       await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.status, IncidentStatus.underReview);
-      await _choose<IncidentHistoryAction>(tester, 'Asignar técnico');
+      expect(find.text('Asigná un técnico'), findsNothing);
+      expect(
+        find.text('Actualizando el estado de la incidencia…'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('workflow-save')))
+            .onPressed,
+        isNull,
+      );
+      app.reports.emitWorkflowUpdates = true;
+      app.reports.changes.add(null);
+      await tester.pumpAndSettle();
+      expect(find.text('Asigná un técnico'), findsOneWidget);
+      expect(find.text('Confirmar clasificación'), findsNothing);
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      final confirm = find.byKey(const ValueKey('workflow-save'));
+      final cancel = find.byKey(const ValueKey('workflow-option-cancelled'));
+      expect(tester.getCenter(cancel).dy, tester.getCenter(confirm).dy);
       await _choose<String>(tester, 'tech · tech@test.invalid');
       await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.assignedTechnicianId, 'tech');
+      expect(find.text('Seguimiento y cierre'), findsOneWidget);
+      expect(
+        find.text('El técnico asignado aún no inicia la atención.'),
+        findsOneWidget,
+      );
+      expect(find.text('Cerrar incidencia'), findsNothing);
+      expect(tester.takeException(), isNull);
       app.auth.setUser('tech');
       await tester.pumpAndSettle();
       await _tapKey(tester, 'workflow-save');
@@ -54,6 +84,7 @@ void main() {
       await tester.pumpAndSettle();
       await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.status, IncidentStatus.closed);
+      await _tapKey(tester, 'workflow-option-reopened');
       await tester.enterText(
         find.byKey(const ValueKey('workflow-reason')),
         'La falla volvió',
@@ -94,6 +125,8 @@ void main() {
       app.reports.commitBeforeError = true;
       await _tapKey(tester, 'workflow-save');
       expect(find.byKey(const ValueKey('workflow-retry')), findsOneWidget);
+      expect(find.text('Clasificá la prioridad'), findsOneWidget);
+      expect(find.text('Asigná un técnico'), findsNothing);
       final original = app.reports.submissions.single;
       app.reports.changes.add(null);
       await tester.pumpAndSettle();
@@ -106,6 +139,7 @@ void main() {
       expect(app.reports.submissions, [original, original]);
       expect(app.reports.history, hasLength(1));
       expect(find.text('Cambio guardado correctamente.'), findsOneWidget);
+      expect(find.text('Asigná un técnico'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -158,7 +192,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _tapText(tester, 'Abrir incidencia');
-      await _choose<IncidentHistoryAction>(tester, 'Cancelar incidencia');
+      await _tapKey(tester, 'workflow-option-cancelled');
       await _tapKey(tester, 'workflow-save');
       expect(find.text('Escribí el motivo de la operación.'), findsOneWidget);
       await tester.enterText(
@@ -201,7 +235,7 @@ void main() {
 
     app.auth.setUser('admin');
     await tester.pumpAndSettle();
-    await _choose<IncidentHistoryAction>(tester, 'Reabrir incidencia');
+    await _tapKey(tester, 'workflow-option-reopened');
     await tester.enterText(
       find.byKey(const ValueKey('workflow-reason')),
       'Necesita otra reparación',
@@ -260,7 +294,8 @@ void main() {
       await tester.pumpAndSettle();
       await _tapKey(tester, 'nav-management');
       await _tapKey(tester, 'detail-case');
-    expect(find.textContaining('Asignación rechazada'), findsOneWidget);
+      expect(find.textContaining('Asignación rechazada'), findsOneWidget);
+      expect(find.text('Asigná un técnico'), findsOneWidget);
       expect(find.text('Estoy incapacitado'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -392,6 +427,7 @@ class _Reports extends Fake implements IncidentRepository {
   Completer<void>? blocker;
   Object? failure;
   bool commitBeforeError = false;
+  bool emitWorkflowUpdates = true;
   int active = 0, ids = 0;
   Incident incident = Incident(
     id: 'case',
@@ -472,7 +508,7 @@ class _Reports extends Fake implements IncidentRepository {
               : null,
         ),
       );
-      changes.add(null);
+      if (emitWorkflowUpdates) changes.add(null);
     }
     if (failure != null) throw failure!;
   }

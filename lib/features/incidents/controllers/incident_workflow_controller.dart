@@ -39,6 +39,13 @@ class IncidentWorkflowController extends ChangeNotifier {
   String? success;
   bool saving = false;
   IncidentWorkflowCommand? pending;
+  IncidentWorkflowCommand? _confirmed;
+
+  /// A confirmed write can arrive before the live incident snapshot.
+  bool get awaitingUpdate =>
+      _confirmed != null &&
+      incident?.status == _confirmed!.expectedStatus &&
+      incident?.updatedAt == _confirmed!.expectedUpdatedAt;
 
   IncidentWorkflowController({
     required this.repository,
@@ -164,7 +171,11 @@ class IncidentWorkflowController extends ChangeNotifier {
     String? technicianId,
     String? reason,
   }) async {
-    if (!ready || saving || pending != null || !actions.contains(action)) {
+    if (!ready ||
+        saving ||
+        pending != null ||
+        (role == UserRole.administrator && awaitingUpdate) ||
+        !actions.contains(action)) {
       return false;
     }
     if (action == IncidentHistoryAction.classified &&
@@ -238,6 +249,7 @@ class IncidentWorkflowController extends ChangeNotifier {
       if (!active) return false;
       await repository.applyWorkflow(incidentId: incidentId, command: command);
       if (!active) return false;
+      _confirmed = command;
       pending = null;
       success = 'Cambio guardado correctamente.';
       return true;
@@ -282,6 +294,7 @@ class IncidentWorkflowController extends ChangeNotifier {
     categories = const [];
     technicians = const [];
     pending = null;
+    _confirmed = null;
     saving = false;
     readError = null;
     saveError = null;
