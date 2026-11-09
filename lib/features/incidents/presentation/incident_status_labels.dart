@@ -35,4 +35,24 @@ extension IncidentStatusLabels on IncidentStatus {
     IncidentStatus.reopened =>
       'El reporte volvió a revisión para definir los siguientes pasos.',
   };
+
+  /// Plain-language progress for the technician assigned to a case.
+  String get technicianGuidance => switch (this) {
+    IncidentStatus.assigned =>
+      'La incidencia está lista para que iniciés la atención.',
+    IncidentStatus.inProgress =>
+      'La atención está en curso. Registrá los avances en el detalle.',
+    IncidentStatus.resolved =>
+      'Registraste una solución. Administración revisará el cierre.',
+    IncidentStatus.reviewRequested => 'El reportante solicitó otra revisión. Administración decidirá los próximos pasos.',
+    IncidentStatus.closed => 'Administración cerró la incidencia.',
+    IncidentStatus.rejected =>
+      'La incidencia fue rechazada. Consultá el motivo en el detalle.',
+    IncidentStatus.cancelled =>
+      'La incidencia fue cancelada. Consultá el motivo en el detalle.',
+    IncidentStatus.reported ||
+    IncidentStatus.underReview ||
+    IncidentStatus.reopened =>
+      'Administración está revisando la incidencia antes de continuar.',
+  };
 }

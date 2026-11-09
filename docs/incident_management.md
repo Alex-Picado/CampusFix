@@ -36,7 +36,7 @@ The repository exposes:
   expected update date, action and applicable category/priority/technician/reason.
 
 A command uses the English action codes: `classified`, `assigned`, `started`,
-`resolved`, `reviewRequested`, `reviewDismissed`, `closed`, `rejected`,
+`resolved`, `assignmentDeclined`, `reviewRequested`, `reviewDismissed`, `closed`, `rejected`,
 `cancelled` and `reopened`.
 `IncidentWorkflow.changes()` implements the matrix in
 [Shared contracts](contratos_modulos.md#estados-actores-y-auditoría).
@@ -44,8 +44,9 @@ A command uses the English action codes: `classified`, `assigned`, `started`,
 ## Atomicity, concurrency and retries
 
 The service fixes the incident and event references before its retryable
-transaction. Inside the callback it rereads the incident, actor's stored role,
-existing event and applicable category/assignee documents before writing. A stale
+transaction. Inside the callback it checks the existing event first, then reads
+the actor's stored role, incident and applicable category/assignee documents
+before writing. A stale
 expected state or update date fails instead of overwriting a newer classification.
 The incident's protected identity, author, title, description, location, sequence
 and creation date are preserved.
@@ -74,8 +75,12 @@ reopens it with a reason or declines the request with a reason and closes it.
 Reopening returns `RESUELTA`, `CERRADA` or `REVISION_SOLICITADA` to `EN_REVISION`. It clears the current
 solution, technician and priority. A new classification is required before
 assignment. The `REABIERTA` enum remains available for compatibility but is not
-emitted by this flow. Rejection and cancellation are terminal in this matrix;
-reassignment during attention is not exposed.
+emitted by this flow. Rejection and cancellation are terminal in this matrix.
+The assigned technician may decline before or during attention with a reason.
+This returns the case to `EN_REVISION`, clears the assignment and retains its
+classification, progress and history. Administration can assign another
+technician. The declining technician can read only their own decline event after
+losing access to the case, allowing the same command to be confirmed or retried.
 
 Lifecycle history retains the original eight fields and adds:
 

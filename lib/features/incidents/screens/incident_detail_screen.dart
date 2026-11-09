@@ -5,6 +5,7 @@ import '../../../core/widgets/page_heading.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../catalogs/repositories/category_repository.dart';
+import '../../users/models/user_role.dart';
 import '../controllers/incident_detail_controller.dart';
 import '../models/incident_history_action.dart';
 import '../presentation/incident_status_labels.dart';
@@ -49,7 +50,7 @@ class _DetailView extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
     if (controller.error != null) {
-      return SectionCard(
+      final error = SectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -63,6 +64,17 @@ class _DetailView extends StatelessWidget {
           ],
         ),
       );
+      if (controller.role != UserRole.technician) return error;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          error,
+          IncidentWorkflowPanel(
+            key: const ValueKey('detail-workflow-panel'),
+            incidentId: controller.incidentId,
+          ),
+        ],
+      );
     }
     if (controller.notFound) {
       return const SectionCard(child: Text('No se encontró esta incidencia.'));
@@ -71,52 +83,60 @@ class _DetailView extends StatelessWidget {
     final profile = controller.session.profile!;
     String person(String id) => id == profile.id ? profile.fullName : id;
     return Column(
-      key: const ValueKey('incident-detail-page'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        PageHeading(
-          title: 'Incidencia #${incident.sequenceNumber}',
-          description: incident.title,
-        ),
-        const SizedBox(height: 20),
-        SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Chip(label: Text(incident.status.label)),
-              const SizedBox(height: 12),
-              SelectableText(incident.description),
-              const SizedBox(height: 12),
-              Text('Ubicación: ${incident.location}'),
-              if (controller.categoryLoading)
-                const Text('Categoría: Cargando...')
-              else if (controller.categoryError != null) ...[
-                Text('Categoría: ${controller.categoryError}'),
-                TextButton(
-                  key: const ValueKey('category-retry'),
-                  onPressed: controller.retryCategory,
-                  child: const Text('Reintentar categoría'),
-                ),
-              ] else
-                Text(
-                  'Categoría: ${controller.category!.name}'
-                  '${controller.category!.isActive ? '' : ' (inactiva)'}',
-                ),
-              Text(
-                'Prioridad: ${incident.priority?.value ?? 'Sin clasificar'}',
+        Column(
+          key: const ValueKey('incident-detail-page'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PageHeading(
+              title: 'Incidencia #${incident.sequenceNumber}',
+              description: incident.title,
+            ),
+            const SizedBox(height: 20),
+            SectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Chip(label: Text(incident.status.label)),
+                  const SizedBox(height: 12),
+                  SelectableText(incident.description),
+                  const SizedBox(height: 12),
+                  Text('Ubicación: ${incident.location}'),
+                  if (controller.categoryLoading)
+                    const Text('Categoría: Cargando...')
+                  else if (controller.categoryError != null) ...[
+                    Text('Categoría: ${controller.categoryError}'),
+                    TextButton(
+                      key: const ValueKey('category-retry'),
+                      onPressed: controller.retryCategory,
+                      child: const Text('Reintentar categoría'),
+                    ),
+                  ] else
+                    Text(
+                      'Categoría: ${controller.category!.name}'
+                      '${controller.category!.isActive ? '' : ' (inactiva)'}',
+                    ),
+                  Text(
+                    'Prioridad: ${incident.priority?.value ?? 'Sin clasificar'}',
+                  ),
+                  Text('Reportante: ${person(incident.createdByUserId)}'),
+                  Text(
+                    'Técnico asignado: ${incident.assignedTechnicianId == null ? 'Sin asignar' : person(incident.assignedTechnicianId!)}',
+                  ),
+                  Text('Creada: ${_date(incident.createdAt)}'),
+                  Text('Última actualización: ${_date(incident.updatedAt)}'),
+                  if (incident.resolutionDescription != null)
+                    Text('Solución: ${incident.resolutionDescription}'),
+                ],
               ),
-              Text('Reportante: ${person(incident.createdByUserId)}'),
-              Text(
-                'Técnico asignado: ${incident.assignedTechnicianId == null ? 'Sin asignar' : person(incident.assignedTechnicianId!)}',
-              ),
-              Text('Creada: ${_date(incident.createdAt)}'),
-              Text('Última actualización: ${_date(incident.updatedAt)}'),
-              if (incident.resolutionDescription != null)
-                Text('Solución: ${incident.resolutionDescription}'),
-            ],
-          ),
+            ),
+          ],
         ),
-        IncidentWorkflowPanel(incidentId: incident.id),
+        IncidentWorkflowPanel(
+          key: const ValueKey('detail-workflow-panel'),
+          incidentId: incident.id,
+        ),
         _section(
           context,
           'Fotografías',
@@ -245,6 +265,7 @@ class _DetailView extends StatelessWidget {
     IncidentHistoryAction.created => 'Incidencia reportada',
     IncidentHistoryAction.classified => 'Clasificación actualizada',
     IncidentHistoryAction.assigned => 'Técnico asignado',
+    IncidentHistoryAction.assignmentDeclined => 'Asignación rechazada',
     IncidentHistoryAction.started => 'Atención iniciada',
     IncidentHistoryAction.progressAdded => 'Avance registrado',
     IncidentHistoryAction.resolved => 'Incidencia resuelta',

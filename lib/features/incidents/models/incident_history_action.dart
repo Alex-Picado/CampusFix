@@ -9,6 +9,9 @@ enum IncidentHistoryAction {
   /// A technician was assigned to an incident.
   assigned('assigned'),
 
+  /// The assigned technician declined the work with a reason.
+  assignmentDeclined('assignmentDeclined'),
+
   /// The assigned technician started attention.
   started('started'),
 

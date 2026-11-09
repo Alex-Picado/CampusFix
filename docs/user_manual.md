@@ -47,8 +47,18 @@ retained; their absence from the public client does not mean they were deleted.
 
 ## Technician
 
-**Mi trabajo** contains your assignments. Open an assigned case and select
-**Iniciar atención**. During attention, enter a nonblank **Descripción del avance**
+**Inicio** summarizes your assigned cases by status and shows the three most
+recently changed assignments. Use **Ver mi trabajo** to open the full queue. If
+the summary cannot load, select **Reintentar**.
+
+**Mi trabajo** groups assignments into **Asignadas**, **En atención**,
+**Solucionadas**, **En revisión** and **Finalizadas**. The search applies to
+every tab. Cards show the current state, a short explanation, category,
+location, priority and latest change. Open an assigned case and select
+**Iniciar atención**. If you cannot take or continue the case, select
+**Rechazar asignación** and explain why. The case returns to administration for
+reassignment; the incident remains open and the reason stays in its history.
+During attention, enter a nonblank **Descripción del avance**
 and use **Guardar avance**. A local photograph is optional. To finish, enter
 **Solución realizada** and select **Resolver incidencia**. An administrator performs
 formal closure. Follow retry instructions if a write cannot be confirmed; the

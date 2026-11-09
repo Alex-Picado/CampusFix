@@ -303,6 +303,7 @@ El flujo principal conserva los valores existentes:
 | Revisar/clasificar | `REPORTADA → EN_REVISION` | Administrador; registra categoría y prioridad |
 | Actualizar clasificación | `EN_REVISION → EN_REVISION` | Administrador; permite reclasificar un caso reabierto |
 | Asignar | `EN_REVISION → ASIGNADA` | Administrador; categoría, prioridad y técnico válidos |
+| Rechazar asignación | `ASIGNADA` o `EN_ATENCION` → `EN_REVISION` | Técnico asignado; motivo obligatorio; se elimina su asignación y se conserva la clasificación |
 | Iniciar atención | `ASIGNADA → EN_ATENCION` | Únicamente el técnico asignado |
 | Resolver | `EN_ATENCION → RESUELTA` | Técnico asignado; solución obligatoria |
 | Cerrar | `RESUELTA → CERRADA` | Únicamente administrador |
@@ -317,7 +318,7 @@ The state enumeration alone does not define their authorization or transitions.
 
 Reopening clears `resolutionDescription`, `assignedTechnicianId` and `priority`. The event stores `previousResolutionDescription` before clearing the current solution. A fresh classification and assignment are required. This is the explicit Part 3 policy; existing resolution events also remain immutable.
 
-Reassignment during attention is not supported by this matrix.
+Si el técnico rechaza una asignación, administración puede asignar a otra persona desde `EN_REVISION`. El avance registrado permanece en el historial.
 
 Para los indicadores, abiertas son `REPORTADA`, `EN_REVISION`, `ASIGNADA` y `EN_ATENCION`. `RESUELTA` sigue pendiente de cierre administrativo, pero se cuenta separadamente; `CERRADA`, `RECHAZADA` y `CANCELADA` no se mezclan con abiertas.
 

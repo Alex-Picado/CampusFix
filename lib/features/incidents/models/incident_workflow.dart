@@ -80,6 +80,11 @@ abstract final class IncidentWorkflow {
       return [
         if (status == IncidentStatus.assigned) IncidentHistoryAction.started,
         if (status == IncidentStatus.inProgress) IncidentHistoryAction.resolved,
+        if ([
+          IncidentStatus.assigned,
+          IncidentStatus.inProgress,
+        ].contains(status))
+          IncidentHistoryAction.assignmentDeclined,
       ];
     }
     if (role == UserRole.reporter && incident.createdByUserId == uid) {
@@ -123,6 +128,7 @@ abstract final class IncidentWorkflow {
       IncidentHistoryAction.reopened,
       IncidentHistoryAction.reviewRequested,
       IncidentHistoryAction.reviewDismissed,
+      IncidentHistoryAction.assignmentDeclined,
     ].contains(action);
     if ((classification &&
             (command.categoryId == null || command.priority == null)) ||
@@ -135,7 +141,8 @@ abstract final class IncidentWorkflow {
     }
     final status = switch (action) {
       IncidentHistoryAction.classified ||
-      IncidentHistoryAction.reopened => IncidentStatus.underReview,
+      IncidentHistoryAction.reopened ||
+      IncidentHistoryAction.assignmentDeclined => IncidentStatus.underReview,
       IncidentHistoryAction.reviewRequested => IncidentStatus.reviewRequested,
       IncidentHistoryAction.assigned => IncidentStatus.assigned,
       IncidentHistoryAction.started => IncidentStatus.inProgress,
@@ -156,6 +163,8 @@ abstract final class IncidentWorkflow {
       if (classification) 'categoryId': command.categoryId,
       if (classification) 'priority': command.priority!.value,
       if (assignment) 'assignedTechnicianId': command.technicianId,
+      if (action == IncidentHistoryAction.assignmentDeclined)
+        'assignedTechnicianId': null,
       if (action == IncidentHistoryAction.resolved)
         'resolutionDescription': command.reason,
       if (action == IncidentHistoryAction.reopened) ...{

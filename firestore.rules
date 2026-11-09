@@ -88,7 +88,7 @@ service cloud.firestore {
           || (event.action != 'classified' && details.categoryId == null && details.priority == null))
         && ((event.action == 'assigned' && details.technicianId == next.assignedTechnicianId)
           || (event.action != 'assigned' && details.technicianId == null))
-        && ((event.action in ['resolved', 'rejected', 'cancelled', 'reopened', 'reviewRequested', 'reviewDismissed'] && isNonblankText(event.reason)
+        && ((event.action in ['resolved', 'rejected', 'cancelled', 'reopened', 'reviewRequested', 'reviewDismissed', 'assignmentDeclined'] && isNonblankText(event.reason)
               && event.reason == event.reason.trim())
           || (event.action in ['classified', 'assigned', 'started', 'closed'] && event.reason == null))
         && ((event.action == 'reopened' && event.previousResolutionDescription == before.resolutionDescription)
@@ -129,6 +129,10 @@ service cloud.firestore {
           || (event.action == 'resolved' && before.status == 'EN_ATENCION' && next.status == 'RESUELTA'
             && changed.hasOnly(common.concat(['resolutionDescription']))
             && next.resolutionDescription == event.reason && isNonblankText(next.resolutionDescription))
+          || (event.action == 'assignmentDeclined'
+            && before.status in ['ASIGNADA', 'EN_ATENCION']
+            && next.status == 'EN_REVISION' && next.assignedTechnicianId == null
+            && changed.hasOnly(common.concat(['assignedTechnicianId'])))
         )
       ) || (
         isReporter() && before.createdByUserId == request.auth.uid
@@ -386,7 +390,11 @@ service cloud.firestore {
             && validProgressHistory(request.resource.data,
               getAfter(/databases/$(database)/documents/incidents/$(incidentId)/progress/$(eventId)).data.description))
           || (isSignedIn() && isDocumentId(eventId) && workflowReferencesUpdate(incidentId, eventId));
-        allow read: if canReadIncident(incidentId);
+        allow get: if canReadIncident(incidentId)
+          || (isSignedIn() && resource != null
+            && resource.data.action == 'assignmentDeclined'
+            && resource.data.actorUserId == request.auth.uid);
+        allow list: if canReadIncident(incidentId);
         allow update, delete: if false;
       }
 

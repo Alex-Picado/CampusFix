@@ -85,6 +85,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
       IncidentHistoryAction.reopened,
       IncidentHistoryAction.reviewRequested,
       IncidentHistoryAction.reviewDismissed,
+      IncidentHistoryAction.assignmentDeclined,
     ].contains(action);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -208,6 +209,8 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                         ? '¿Qué problema continúa?'
                         : action == IncidentHistoryAction.reviewDismissed
                         ? 'Motivo para cerrar la solicitud'
+                        : action == IncidentHistoryAction.assignmentDeclined
+                        ? 'Motivo para rechazar la asignación'
                         : 'Motivo obligatorio',
                   ),
                 ),
@@ -222,6 +225,10 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                 if (action == IncidentHistoryAction.reopened)
                   const Text(
                     'La solución anterior quedará en el historial. Se quitarán el técnico y la prioridad para revisar y asignar nuevamente.',
+                  ),
+                if (action == IncidentHistoryAction.assignmentDeclined)
+                  const Text(
+                    'La incidencia volverá a administración para asignarla nuevamente. Tu motivo quedará en el historial.',
                   ),
               ],
             ],
@@ -250,7 +257,22 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             if (controller.pending != null)
               FilledButton(
                 key: const ValueKey('workflow-retry'),
-                onPressed: controller.saving ? null : controller.retry,
+                onPressed: controller.saving
+                    ? null
+                    : () async {
+                        final wasDeclining =
+                            controller.pending?.action ==
+                            IncidentHistoryAction.assignmentDeclined;
+                        final navigator = Navigator.of(context);
+                        final route = ModalRoute.of(context);
+                        final saved = await controller.retry();
+                        if (saved &&
+                            wasDeclining &&
+                            navigator.mounted &&
+                            route?.isCurrent == true) {
+                          navigator.pop();
+                        }
+                      },
                 child: Text(
                   controller.saving
                       ? 'Guardando...'
@@ -262,6 +284,8 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                 key: const ValueKey('workflow-save'),
                 onPressed: enabled
                     ? () async {
+                        final navigator = Navigator.of(context);
+                        final route = ModalRoute.of(context);
                         final saved = await controller.submit(
                           action,
                           categoryId: action == IncidentHistoryAction.classified
@@ -283,6 +307,13 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                             _priority = null;
                             _technicianId = null;
                           });
+                        }
+                        if (saved &&
+                            action ==
+                                IncidentHistoryAction.assignmentDeclined &&
+                            navigator.mounted &&
+                            route?.isCurrent == true) {
+                          navigator.pop();
                         }
                       }
                     : null,

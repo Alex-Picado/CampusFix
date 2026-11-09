@@ -213,6 +213,54 @@ void main() {
     );
     expect(current().status, IncidentStatus.assigned);
   });
+  test('A technician can decline assigned or ongoing work with a reason for reassignment', () async {
+    await classify();
+    await assign();
+    auth.userId = 'other-tech';
+    await expectLater(
+      save(
+        command(
+          IncidentHistoryAction.assignmentDeclined,
+          reason: 'Unavailable',
+        ),
+      ),
+      throwsStateError,
+    );
+    auth.userId = 'tech';
+    await expectLater(
+      save(command(IncidentHistoryAction.assignmentDeclined, reason: '  ')),
+      throwsFormatException,
+    );
+    final declined = command(
+      IncidentHistoryAction.assignmentDeclined,
+      reason: 'Medical leave',
+    );
+    await save(declined);
+    expect(current().status, IncidentStatus.underReview);
+    expect(current().assignedTechnicianId, isNull);
+    expect(current().priority, IncidentPriority.high);
+    final event =
+        database.documents['incidents/case/history/${declined.eventId}']!;
+    expect(event['actorUserId'], 'tech');
+    expect(event['fromTechnicianId'], 'tech');
+    expect(event['toTechnicianId'], isNull);
+    expect(event['reason'], 'Medical leave');
+    final commits = database.writeCommits;
+    await save(declined);
+    expect(database.writeCommits, commits);
+    auth.userId = 'admin';
+    await save(
+      command(IncidentHistoryAction.assigned, technicianId: 'other-tech'),
+    );
+    expect(current().assignedTechnicianId, 'other-tech');
+    auth.userId = 'other-tech';
+    await save(command(IncidentHistoryAction.started));
+    await save(
+      command(IncidentHistoryAction.assignmentDeclined, reason: 'Incapacity'),
+    );
+    expect(current().status, IncidentStatus.underReview);
+    expect(current().assignedTechnicianId, isNull);
+  });
   test('Assignment requires an active category, classification and a stored technician', () async {
     await expectLater(assign(), throwsStateError);
     await classify();

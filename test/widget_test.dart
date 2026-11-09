@@ -156,6 +156,114 @@ void main() {
     },
   );
 
+  testWidgets('Technician home summarizes assigned work and opens its queue', (
+    tester,
+  ) async {
+    final app = await _mountApp(tester, role: UserRole.technician);
+    expect(
+      find.text('Todavía no tenés incidencias asignadas.'),
+      findsOneWidget,
+    );
+    final now = DateTime.utc(2026, 11, 8);
+    Incident assignment(
+      String id,
+      int number,
+      IncidentStatus status, {
+      String technician = 'campus-user',
+    }) => Incident(
+      id: id,
+      sequenceNumber: number,
+      title: 'Caso $number',
+      description: 'Descripción',
+      categoryId: 'lighting',
+      location: 'Biblioteca',
+      createdAt: now,
+      updatedAt: now.add(Duration(minutes: number)),
+      createdByUserId: 'reporter-user',
+      assignedTechnicianId: technician,
+      status: status,
+    );
+    final rows = [
+      assignment('assigned', 1, IncidentStatus.assigned),
+      assignment('working', 2, IncidentStatus.inProgress),
+      assignment('resolved', 3, IncidentStatus.resolved),
+      assignment('review', 4, IncidentStatus.reviewRequested),
+      assignment('closed', 5, IncidentStatus.closed),
+      assignment(
+        'foreign',
+        6,
+        IncidentStatus.assigned,
+        technician: 'other-tech',
+      ),
+    ];
+    app.incidents.saved.addAll({for (final row in rows) row.id: row});
+    app.incidents.ownChanges.add(rows);
+    await tester.pumpAndSettle();
+    expect(find.text('Caso 6'), findsNothing);
+    expect(find.text('#5 · Caso 5'), findsOneWidget);
+    for (var index = 0; index < 5; index++) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('technician-home-count-$index')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(find.byKey(const ValueKey('home-create-incident')), findsNothing);
+    await _tap(tester, 'technician-home-view-workspace');
+    expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
+    expect(find.text('Asignadas (1)'), findsOneWidget);
+    expect(find.text('En atención (1)'), findsOneWidget);
+    expect(find.text('Solucionadas (1)'), findsOneWidget);
+    expect(find.text('En revisión (1)'), findsOneWidget);
+    expect(find.text('Finalizadas (1)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-assigned')), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-working')), findsNothing);
+    expect(find.text('Ubicación: Biblioteca'), findsOneWidget);
+    await _tap(tester, 'workspace-tab-1');
+    expect(find.byKey(const ValueKey('incident-working')), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-assigned')), findsNothing);
+    app.incidents.ownChanges.add([
+      for (final row in rows)
+        row.id == 'working'
+            ? row.copyWith(status: IncidentStatus.resolved)
+            : row,
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('En atención (0)'), findsOneWidget);
+    expect(find.text('Solucionadas (2)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-working')), findsNothing);
+    await _tap(tester, 'workspace-tab-2');
+    expect(find.byKey(const ValueKey('incident-working')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Technician home handles read errors and fits a phone', (
+    tester,
+  ) async {
+    final app = await _mountApp(
+      tester,
+      role: UserRole.technician,
+      size: const Size(390, 844),
+    );
+    app.incidents.ownChanges.addError(
+      FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No pudimos cargar tus asignaciones.'), findsOneWidget);
+    expect(find.text('Todavía no tenés incidencias asignadas.'), findsNothing);
+    await _tap(tester, 'technician-home-retry');
+    expect(
+      find.byKey(const ValueKey('technician-home-count-4')),
+      findsOneWidget,
+    );
+    await _tap(tester, 'technician-home-view-workspace');
+    await _tap(tester, 'workspace-tab-4');
+    expect(find.text('No hay incidencias disponibles.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Invalid forms avoid requests and mode changes clear old errors',
     (tester) async {

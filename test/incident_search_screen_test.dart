@@ -59,6 +59,9 @@ void main() {
         );
         expect(app.reports.activeListWatches, 1);
         final initialQueryCalls = app.reports.queryCalls;
+        if (role == UserRole.technician) {
+          await _tap(tester, 'workspace-tab-3');
+        }
         expect(
           find.byKey(const ValueKey('incident-foreign')),
           role == UserRole.administrator ? findsOneWidget : findsNothing,

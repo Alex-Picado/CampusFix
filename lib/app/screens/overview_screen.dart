@@ -15,7 +15,7 @@ import '../../features/users/models/user_role.dart';
 import '../navigation/campus_destination.dart';
 import '../theme/campus_theme.dart';
 
-/// Shows a personal reporter summary or the shared landing page for other roles.
+/// Shows a personal summary or the shared administrative landing page.
 class OverviewScreen extends StatelessWidget {
   final UserProfile profile;
   final ValueChanged<CampusDestination> onNavigate;
@@ -30,9 +30,9 @@ class OverviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (profile.role == UserRole.reporter) {
-      return _ReporterOverview(
-        key: ValueKey(profile.id),
+    if (profile.role != UserRole.administrator) {
+      return _PersonalOverview(
+        key: ValueKey('${profile.role.name}:${profile.id}'),
         profile: profile,
         onNavigate: onNavigate,
       );
@@ -98,44 +98,46 @@ class OverviewScreen extends StatelessWidget {
   }
 }
 
-class _ReporterOverview extends StatefulWidget {
+class _PersonalOverview extends StatefulWidget {
   final UserProfile profile;
   final ValueChanged<CampusDestination> onNavigate;
 
-  const _ReporterOverview({
+  const _PersonalOverview({
     super.key,
     required this.profile,
     required this.onNavigate,
   });
 
   @override
-  State<_ReporterOverview> createState() => _ReporterOverviewState();
+  State<_PersonalOverview> createState() => _PersonalOverviewState();
 }
 
-class _ReporterOverviewState extends State<_ReporterOverview> {
+class _PersonalOverviewState extends State<_PersonalOverview> {
   late Stream<List<Incident>> _reports;
   int _watchVersion = 0;
 
   @override
   void initState() {
     super.initState();
-    _reports = _watchOwn();
+    _reports = _watchReports();
   }
 
   @override
-  void didUpdateWidget(covariant _ReporterOverview oldWidget) {
+  void didUpdateWidget(covariant _PersonalOverview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.profile.id != widget.profile.id) {
+    if (oldWidget.profile.id != widget.profile.id ||
+        oldWidget.profile.role != widget.profile.role) {
       _watchVersion++;
-      _reports = _watchOwn();
+      _reports = _watchReports();
     }
   }
 
-  Stream<List<Incident>> _watchOwn() {
+  Stream<List<Incident>> _watchReports() {
     try {
-      return context.read<IncidentRepository>().watchOwn(
-        userId: widget.profile.id,
-      );
+      final repository = context.read<IncidentRepository>();
+      return widget.profile.role == UserRole.reporter
+          ? repository.watchOwn(userId: widget.profile.id)
+          : repository.watchAssigned(userId: widget.profile.id);
     } catch (error) {
       return Stream.error(error);
     }
@@ -144,7 +146,7 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
   void _retry() {
     setState(() {
       _watchVersion++;
-      _reports = _watchOwn();
+      _reports = _watchReports();
     });
   }
 
@@ -153,10 +155,11 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
     final session = context.watch<SessionController>();
     if (session.status != SessionStatus.authenticated ||
         session.profile?.id != widget.profile.id ||
-        session.profile?.role != UserRole.reporter) {
+        session.profile?.role != widget.profile.role) {
       return const SizedBox.shrink();
     }
 
+    final isReporter = widget.profile.role == UserRole.reporter;
     final name = widget.profile.fullName.trim().split(' ').first;
     return Column(
       key: const ValueKey('overview-page'),
@@ -164,7 +167,9 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
       children: [
         PageHeading(
           title: name.isEmpty ? 'Tu inicio' : 'Hola, $name',
-          description: 'Revisá tus reportes y continuá donde lo dejaste.',
+          description: isReporter
+              ? 'Revisá tus reportes y continuá donde lo dejaste.'
+              : 'Revisá tus asignaciones y continuá con la atención.',
         ),
         const SizedBox(height: 24),
         SectionCard(
@@ -172,41 +177,63 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Mis incidencias',
+                isReporter ? 'Mis incidencias' : 'Mi trabajo',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Consultá el avance y los detalles de todos tus reportes.',
+              Text(
+                isReporter
+                    ? 'Consultá el avance y los detalles de todos tus reportes.'
+                    : 'Consultá y atendé las incidencias que tenés asignadas.',
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                key: const ValueKey('home-view-incidents'),
-                onPressed: () => widget.onNavigate(CampusDestination.incidents),
-                icon: const Icon(Icons.list_alt_outlined),
-                label: const Text('Ver mis incidencias'),
+                key: ValueKey(
+                  isReporter
+                      ? 'home-view-incidents'
+                      : 'technician-home-view-workspace',
+                ),
+                onPressed: () => widget.onNavigate(
+                  isReporter
+                      ? CampusDestination.incidents
+                      : CampusDestination.workspace,
+                ),
+                icon: Icon(
+                  isReporter
+                      ? Icons.list_alt_outlined
+                      : Icons.handyman_outlined,
+                ),
+                label: Text(
+                  isReporter ? 'Ver mis incidencias' : 'Ver mi trabajo',
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
         StreamBuilder<List<Incident>>(
-          key: ValueKey('${widget.profile.id}:$_watchVersion'),
+          key: ValueKey(
+            '${widget.profile.role.name}:${widget.profile.id}:$_watchVersion',
+          ),
           stream: _reports,
           builder: (context, snapshot) {
             if (snapshot.hasError) return _loadError(snapshot.error!);
             if (!snapshot.hasData) {
-              return const SectionCard(
+              return SectionCard(
                 child: Row(
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Text('Cargando resumen de tus incidencias...'),
+                      child: Text(
+                        isReporter
+                            ? 'Cargando resumen de tus incidencias...'
+                            : 'Cargando resumen de tus asignaciones...',
+                      ),
                     ),
                   ],
                 ),
@@ -214,10 +241,12 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
             }
             final reports = snapshot.data!;
             if (reports.any(
-              (item) => item.createdByUserId != widget.profile.id,
+              (item) => isReporter
+                  ? item.createdByUserId != widget.profile.id
+                  : item.assignedTechnicianId != widget.profile.id,
             )) {
               return _loadError(
-                const FormatException('Foreign report in own query.'),
+                const FormatException('Foreign case in personal query.'),
               );
             }
             return _summary(reports);
@@ -232,14 +261,20 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'No pudimos cargar tus incidencias.',
+          widget.profile.role == UserRole.reporter
+              ? 'No pudimos cargar tus incidencias.'
+              : 'No pudimos cargar tus asignaciones.',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
         Text(AppErrorMessages.fromError(error)),
         const SizedBox(height: 12),
         OutlinedButton.icon(
-          key: const ValueKey('home-retry'),
+          key: ValueKey(
+            widget.profile.role == UserRole.reporter
+                ? 'home-retry'
+                : 'technician-home-retry',
+          ),
           onPressed: _retry,
           icon: const Icon(Icons.refresh),
           label: const Text('Reintentar'),
@@ -249,7 +284,8 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
   );
 
   Widget _summary(List<Incident> reports) {
-    final groups = [
+    final isReporter = widget.profile.role == UserRole.reporter;
+    final reporterGroups = [
       (
         'Pendientes',
         Icons.schedule_outlined,
@@ -293,6 +329,51 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
             .length,
       ),
     ];
+    final technicianGroups = [
+      (
+        'Asignadas',
+        Icons.assignment_ind_outlined,
+        reports.where((row) => row.status == IncidentStatus.assigned).length,
+      ),
+      (
+        'En atención',
+        Icons.handyman_outlined,
+        reports.where((row) => row.status == IncidentStatus.inProgress).length,
+      ),
+      (
+        'Solucionadas',
+        Icons.task_alt_outlined,
+        reports.where((row) => row.status == IncidentStatus.resolved).length,
+      ),
+      (
+        'En revisión',
+        Icons.rate_review_outlined,
+        reports
+            .where(
+              (row) => {
+                IncidentStatus.reported,
+                IncidentStatus.underReview,
+                IncidentStatus.reviewRequested,
+                IncidentStatus.reopened,
+              }.contains(row.status),
+            )
+            .length,
+      ),
+      (
+        'Finalizadas',
+        Icons.inventory_2_outlined,
+        reports
+            .where(
+              (row) => {
+                IncidentStatus.closed,
+                IncidentStatus.rejected,
+                IncidentStatus.cancelled,
+              }.contains(row.status),
+            )
+            .length,
+      ),
+    ];
+    final groups = isReporter ? reporterGroups : technicianGroups;
     final recent = [...reports]
       ..sort((a, b) {
         final date = b.updatedAt.compareTo(a.updatedAt);
@@ -303,11 +384,15 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Resumen de mis reportes',
+          isReporter ? 'Resumen de mis reportes' : 'Resumen de mi trabajo',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 6),
-        const Text('Cantidad de incidencias en cada etapa.'),
+        Text(
+          isReporter
+              ? 'Cantidad de incidencias en cada etapa.'
+              : 'Tus asignaciones según su estado actual.',
+        ),
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -327,7 +412,11 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
                   SizedBox(
                     width: width,
                     child: _CountCard(
-                      key: ValueKey('home-count-$index'),
+                      key: ValueKey(
+                        isReporter
+                            ? 'home-count-$index'
+                            : 'technician-home-count-$index',
+                      ),
                       label: groups[index].$1,
                       icon: groups[index].$2,
                       count: groups[index].$3,
@@ -347,16 +436,22 @@ class _ReporterOverviewState extends State<_ReporterOverview> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 6),
-              const Text('Tus reportes con los cambios más recientes.'),
+              Text(
+                isReporter
+                    ? 'Tus reportes con los cambios más recientes.'
+                    : 'Tus asignaciones con los cambios más recientes.',
+              ),
               const SizedBox(height: 16),
               if (recent.isEmpty)
-                const Text(
-                  'Todavía no tenés incidencias. Creá tu primer reporte para comenzar.',
+                Text(
+                  isReporter
+                      ? 'Todavía no tenés incidencias. Creá tu primer reporte para comenzar.'
+                      : 'Todavía no tenés incidencias asignadas.',
                 )
               else
                 for (var index = 0; index < recent.take(3).length; index++) ...[
                   if (index > 0) const Divider(height: 24),
-                  _RecentReport(report: recent[index]),
+                  _RecentReport(report: recent[index], isReporter: isReporter),
                 ],
             ],
           ),
@@ -395,8 +490,9 @@ class _CountCard extends StatelessWidget {
 
 class _RecentReport extends StatelessWidget {
   final Incident report;
+  final bool isReporter;
 
-  const _RecentReport({required this.report});
+  const _RecentReport({required this.report, required this.isReporter});
 
   @override
   Widget build(BuildContext context) => Column(
@@ -413,7 +509,9 @@ class _RecentReport extends StatelessWidget {
       ),
       const SizedBox(height: 4),
       Text(
-        report.status.reporterGuidance,
+        isReporter
+            ? report.status.reporterGuidance
+            : 'Ubicación: ${report.location}',
         style: const TextStyle(color: CampusTheme.secondaryText),
       ),
     ],

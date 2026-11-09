@@ -100,9 +100,8 @@ class IncidentService {
     final event = parent.collection('history').doc(command.eventId);
     await _firestore.runTransaction<void>((tx) async {
       _requireSession(uid);
-      final current = await tx.get(parent);
-      final profile = await tx.get(_firestore.collection('users').doc(uid));
       final existing = await tx.get(event);
+      final profile = await tx.get(_firestore.collection('users').doc(uid));
       final role = profile.data()?['role'];
       if (role != 'administrator' &&
           role != 'technician' &&
@@ -126,6 +125,7 @@ class IncidentService {
         }
         return;
       }
+      final current = await tx.get(parent);
       if (!current.exists) {
         throw FirebaseException(plugin: 'cloud_firestore', code: 'not-found');
       }

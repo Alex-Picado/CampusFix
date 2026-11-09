@@ -233,6 +233,65 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'Technician declines an assignment and administration sees the reason',
+    (tester) async {
+      final app = await _mount(tester, technician: true);
+      await _tapKey(tester, 'detail-case');
+      await _choose<IncidentHistoryAction>(tester, 'Rechazar asignación');
+      await _tapKey(tester, 'workflow-save');
+      expect(find.text('Escribí el motivo de la operación.'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('workflow-reason')),
+        'Estoy incapacitado',
+      );
+      await _tapKey(tester, 'workflow-save');
+      expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-case')), findsNothing);
+      expect(app.reports.incident.status, IncidentStatus.underReview);
+      expect(app.reports.incident.assignedTechnicianId, isNull);
+      expect(app.reports.incident.priority, IncidentPriority.high);
+      expect(
+        app.reports.history.last.action,
+        IncidentHistoryAction.assignmentDeclined,
+      );
+      expect(app.reports.history.last.reason, 'Estoy incapacitado');
+      app.auth.setUser('admin');
+      await tester.pumpAndSettle();
+      await _tapKey(tester, 'nav-management');
+      await _tapKey(tester, 'detail-case');
+    expect(find.textContaining('Asignación rechazada'), findsOneWidget);
+      expect(find.text('Estoy incapacitado'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'An uncertain decline retries the same event and returns to the queue',
+    (tester) async {
+      final app = await _mount(tester, technician: true);
+      await _tapKey(tester, 'detail-case');
+      await _choose<IncidentHistoryAction>(tester, 'Rechazar asignación');
+      await tester.enterText(
+        find.byKey(const ValueKey('workflow-reason')),
+        'No puedo atender esta semana',
+      );
+      app.reports.failure = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'unavailable',
+      );
+      app.reports.commitBeforeError = true;
+      await _tapKey(tester, 'workflow-save');
+      expect(find.byKey(const ValueKey('workflow-retry')), findsOneWidget);
+      final eventId = app.reports.submissions.single;
+      app.reports.failure = null;
+      await _tapKey(tester, 'workflow-retry');
+      expect(app.reports.submissions, [eventId, eventId]);
+      expect(app.reports.history, hasLength(1));
+      expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Future<void> _tapKey(WidgetTester tester, String key) async {

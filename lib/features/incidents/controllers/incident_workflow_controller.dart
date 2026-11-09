@@ -188,6 +188,7 @@ class IncidentWorkflowController extends ChangeNotifier {
           IncidentHistoryAction.reopened,
           IncidentHistoryAction.reviewRequested,
           IncidentHistoryAction.reviewDismissed,
+          IncidentHistoryAction.assignmentDeclined,
         ].contains(action) &&
         (reason == null || reason.trim().isEmpty)) {
       return _invalid(
