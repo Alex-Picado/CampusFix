@@ -9,6 +9,7 @@ import '../../users/models/user_role.dart';
 import '../../users/repositories/user_repository.dart';
 import '../controllers/incident_queue_controller.dart';
 import '../models/incident.dart';
+import '../models/incident_priority.dart';
 import '../models/incident_status.dart';
 import '../presentation/administrative_incident_stages.dart';
 import '../presentation/incident_status_labels.dart';
@@ -297,8 +298,6 @@ class _QueueViewState extends State<_QueueView> {
         const SizedBox(height: 4),
         Text('Ubicación: ${incident.location}'),
         const SizedBox(height: 4),
-        Text('Prioridad: ${incident.priority?.value ?? 'Sin prioridad'}'),
-        const SizedBox(height: 4),
         Text(
           'Último cambio: ${_date(incident.updatedAt)}',
           style: Theme.of(context).textTheme.bodySmall,
@@ -319,13 +318,20 @@ class _QueueViewState extends State<_QueueView> {
       style: Theme.of(context).textTheme.titleMedium,
     );
     final status = Chip(label: Text(incident.status.label));
+    final badges = Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
+      children: [status, _priorityBadge(incident)],
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 500) {
+        if (constraints.maxWidth < 650) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Align(alignment: Alignment.topRight, child: status),
+              Align(alignment: Alignment.topRight, child: badges),
               const SizedBox(height: 4),
               title,
             ],
@@ -341,10 +347,28 @@ class _QueueViewState extends State<_QueueView> {
               ),
             ),
             const SizedBox(width: 12),
-            status,
+            badges,
           ],
         );
       },
+    );
+  }
+
+  Widget _priorityBadge(Incident incident) {
+    final priority = incident.priority;
+    final color = switch (priority) {
+      IncidentPriority.low => const Color(0xFF2E7D32),
+      IncidentPriority.medium => const Color(0xFF9A6700),
+      IncidentPriority.high => const Color(0xFFC62828),
+      null => const Color(0xFF667085),
+    };
+    return Chip(
+      key: ValueKey('priority-${incident.id}'),
+      avatar: CircleAvatar(radius: 5, backgroundColor: color),
+      label: Text(
+        priority == null ? 'Sin prioridad' : 'Prioridad ${priority.value}',
+      ),
+      backgroundColor: color.withValues(alpha: 0.10),
     );
   }
 
@@ -373,8 +397,6 @@ class _QueueViewState extends State<_QueueView> {
         ),
         const SizedBox(height: 4),
         Text('Ubicación: ${incident.location}'),
-        const SizedBox(height: 4),
-        Text('Prioridad: ${incident.priority?.value ?? 'Sin prioridad'}'),
         const SizedBox(height: 4),
         Text(
           'Último cambio: ${_date(incident.updatedAt)}',

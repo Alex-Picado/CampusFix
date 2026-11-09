@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:campusfix/app/navigation/campus_destination.dart';
 import 'package:campusfix/app/providers/app_providers.dart';
 import 'package:campusfix/features/incidents/models/incident.dart';
+import 'package:campusfix/features/incidents/models/incident_priority.dart';
 import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:campusfix/features/users/models/user_profile.dart';
 import 'package:campusfix/features/users/models/user_role.dart';
@@ -251,6 +252,7 @@ void main() {
       int number,
       IncidentStatus status, {
       String technician = 'campus-user',
+      IncidentPriority? priority,
     }) => Incident(
       id: id,
       sequenceNumber: number,
@@ -263,11 +265,27 @@ void main() {
       createdByUserId: 'reporter-user',
       assignedTechnicianId: technician,
       status: status,
+      priority: priority,
     );
     final rows = [
-      assignment('assigned', 1, IncidentStatus.assigned),
-      assignment('working', 2, IncidentStatus.inProgress),
-      assignment('resolved', 3, IncidentStatus.resolved),
+      assignment(
+        'assigned',
+        1,
+        IncidentStatus.assigned,
+        priority: IncidentPriority.high,
+      ),
+      assignment(
+        'working',
+        2,
+        IncidentStatus.inProgress,
+        priority: IncidentPriority.medium,
+      ),
+      assignment(
+        'resolved',
+        3,
+        IncidentStatus.resolved,
+        priority: IncidentPriority.low,
+      ),
       assignment('review', 4, IncidentStatus.reviewRequested),
       assignment('closed', 5, IncidentStatus.closed),
       assignment(
@@ -302,9 +320,24 @@ void main() {
     expect(find.byKey(const ValueKey('incident-assigned')), findsOneWidget);
     expect(find.byKey(const ValueKey('incident-working')), findsNothing);
     expect(find.text('Ubicación: Biblioteca'), findsOneWidget);
+    expect(find.text('Prioridad ALTA'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('incident-assigned')),
+        matching: find.byType(Chip),
+      ),
+      findsNWidgets(2),
+    );
+    expect(
+      tester
+          .widget<Chip>(find.byKey(const ValueKey('priority-assigned')))
+          .backgroundColor,
+      const Color(0xFFC62828).withValues(alpha: 0.10),
+    );
     await _tap(tester, 'workspace-tab-1');
     expect(find.byKey(const ValueKey('incident-working')), findsOneWidget);
     expect(find.byKey(const ValueKey('incident-assigned')), findsNothing);
+    expect(find.text('Prioridad MEDIA'), findsOneWidget);
     app.incidents.ownChanges.add([
       for (final row in rows)
         row.id == 'working'
@@ -317,6 +350,7 @@ void main() {
     expect(find.byKey(const ValueKey('incident-working')), findsNothing);
     await _tap(tester, 'workspace-tab-2');
     expect(find.byKey(const ValueKey('incident-working')), findsOneWidget);
+    expect(find.text('Prioridad BAJA'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

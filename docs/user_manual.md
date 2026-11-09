@@ -54,7 +54,9 @@ the summary cannot load, select **Reintentar**.
 **Mi trabajo** groups assignments into **Asignadas**, **En atención**,
 **Solucionadas**, **En revisión** and **Finalizadas**. The search applies to
 every tab. Cards show the current state, a short explanation, category,
-location, priority and latest change. Open an assigned case and select
+location and latest change. The priority badge beside the state uses green for
+**BAJA**, amber for **MEDIA**, red for **ALTA** and gray for **Sin prioridad**.
+Open an assigned case and select
 **Iniciar atención**. If you cannot take or continue the case, select
 **Rechazar asignación** and explain why. The case returns to administration for
 reassignment; the incident remains open and the reason stays in its history.
@@ -74,7 +76,9 @@ changed reports. Use the shortcuts to open **Gestión**, **Indicadores**,
 **Asignadas**, **En atención**, **Solucionadas**, **Revisión solicitada** and
 **Finalizadas**. The stage counts follow the current filters. On a phone, swipe
 the tab row horizontally to reach later stages. Each card explains its current
-state and shows category, location, priority and latest change. Classify a reported case with an active
+state and shows category, location and latest change. The priority badge sits
+beside the state: green for **BAJA**, amber for **MEDIA**, red for **ALTA** and
+gray for **Sin prioridad**. Classify a reported case with an active
 category and priority before selecting **Asignar técnico**. Assign a current
 technician. Close a case after it has **Solución registrada**. If the reporter requests another
 review, reopen it for a new classification and assignment or close the request

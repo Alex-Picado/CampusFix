@@ -104,6 +104,49 @@ void main() {
   }
 
   testWidgets(
+    'Administrative cards show priority beside status with level colors',
+    (tester) async {
+      final app = await _mount(tester);
+      await _filterFixtures(tester, app.reports);
+      const colors = {
+        'light': Color(0xFFC62828),
+        'network': Color(0xFF9A6700),
+        'low': Color(0xFF2E7D32),
+        'unassigned': Color(0xFF667085),
+      };
+      for (final entry in colors.entries) {
+        final card = find.byKey(ValueKey('incident-${entry.key}'));
+        expect(
+          find.descendant(of: card, matching: find.byType(Chip)),
+          findsNWidgets(2),
+        );
+        final badge = tester.widget<Chip>(
+          find.byKey(ValueKey('priority-${entry.key}')),
+        );
+        expect(badge.backgroundColor, entry.value.withValues(alpha: 0.10));
+        expect(
+          tester
+              .widget<CircleAvatar>(
+                find.descendant(
+                  of: find.byKey(ValueKey('priority-${entry.key}')),
+                  matching: find.byType(CircleAvatar),
+                ),
+              )
+              .backgroundColor,
+          entry.value,
+        );
+      }
+      expect(find.text('Prioridad ALTA'), findsNWidgets(2));
+      expect(find.text('Prioridad MEDIA'), findsOneWidget);
+      expect(find.text('Prioridad BAJA'), findsOneWidget);
+      expect(find.text('Sin prioridad'), findsOneWidget);
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Live snapshots reapply the current search without restarting its query',
     (tester) async {
       final app = await _mount(tester);
