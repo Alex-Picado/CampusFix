@@ -18,8 +18,13 @@ import 'incident_report_screen.dart';
 /// Switches between the reporter's live reports and an independently owned form.
 class MyIncidentsScreen extends StatefulWidget {
   final String userId;
+  final bool initiallyCreating;
 
-  const MyIncidentsScreen({super.key, required this.userId});
+  const MyIncidentsScreen({
+    super.key,
+    required this.userId,
+    this.initiallyCreating = false,
+  });
 
   @override
   State<MyIncidentsScreen> createState() => _MyIncidentsScreenState();
@@ -29,9 +34,19 @@ class _MyIncidentsScreenState extends State<MyIncidentsScreen> {
   bool _creating = false;
 
   @override
+  void initState() {
+    super.initState();
+    _creating = widget.initiallyCreating;
+  }
+
+  @override
   void didUpdateWidget(covariant MyIncidentsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.userId != widget.userId) _creating = false;
+    if (oldWidget.userId != widget.userId) {
+      _creating = false;
+    } else if (!oldWidget.initiallyCreating && widget.initiallyCreating) {
+      _creating = true;
+    }
   }
 
   @override

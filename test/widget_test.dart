@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:campusfix/app/navigation/campus_destination.dart';
 import 'package:campusfix/app/providers/app_providers.dart';
+import 'package:campusfix/features/incidents/models/incident.dart';
+import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:campusfix/features/users/models/user_profile.dart';
 import 'package:campusfix/features/users/models/user_role.dart';
 import 'package:campusfix/main.dart';
@@ -14,6 +16,146 @@ import 'support/test_repositories.dart';
 import 'support/report_repositories.dart';
 
 void main() {
+  testWidgets(
+    'Reporter home summarizes live reports and opens report actions',
+    (tester) async {
+      final app = await _mountApp(tester, role: UserRole.reporter);
+      expect(
+        find.text(
+          'Todavía no tenés incidencias. Creá tu primer reporte para comenzar.',
+        ),
+        findsOneWidget,
+      );
+      final now = DateTime.utc(2026, 11, 8);
+      app.incidents.ownChanges.add([
+        Incident(
+          id: 'one',
+          sequenceNumber: 1,
+          title: 'Lámpara dañada',
+          description: 'No enciende',
+          categoryId: 'lighting',
+          location: 'Biblioteca',
+          createdAt: now,
+          updatedAt: now,
+          createdByUserId: 'campus-user',
+        ),
+        Incident(
+          id: 'two',
+          sequenceNumber: 2,
+          title: 'Pupitre roto',
+          description: 'Pata rota',
+          categoryId: 'lighting',
+          location: 'Aula',
+          createdAt: now,
+          updatedAt: now.add(const Duration(minutes: 1)),
+          createdByUserId: 'campus-user',
+          status: IncidentStatus.resolved,
+        ),
+        Incident(
+          id: 'three',
+          sequenceNumber: 3,
+          title: 'Caso cerrado',
+          description: 'Resuelto',
+          categoryId: 'lighting',
+          location: 'Aula',
+          createdAt: now,
+          updatedAt: now.add(const Duration(minutes: 2)),
+          createdByUserId: 'campus-user',
+          status: IncidentStatus.closed,
+        ),
+        Incident(
+          id: 'other',
+          sequenceNumber: 4,
+          title: 'Reporte ajeno',
+          description: 'Ajeno',
+          categoryId: 'lighting',
+          location: 'Aula',
+          createdAt: now,
+          updatedAt: now,
+          createdByUserId: 'other-user',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Reporte ajeno'), findsNothing);
+      expect(find.text('#2 · Pupitre roto'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('home-count-0')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('home-count-3')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('home-count-4')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget(find.byKey(const ValueKey('home-create-incident'))),
+        isA<FloatingActionButton>(),
+      );
+      await _tap(tester, 'home-create-incident');
+      expect(find.byKey(const ValueKey('report-page')), findsOneWidget);
+      expect(find.byKey(const ValueKey('home-create-incident')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Reporter home keeps loading and errors distinct from an empty summary',
+    (tester) async {
+      final app = await _mountApp(tester, role: UserRole.reporter);
+      app.incidents.ownChanges.addError(
+        FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('No pudimos cargar tus incidencias.'), findsOneWidget);
+      expect(
+        find.text(
+          'Todavía no tenés incidencias. Creá tu primer reporte para comenzar.',
+        ),
+        findsNothing,
+      );
+      await _tap(tester, 'home-retry');
+      expect(
+        find.text(
+          'Todavía no tenés incidencias. Creá tu primer reporte para comenzar.',
+        ),
+        findsOneWidget,
+      );
+      await _tap(tester, 'home-view-incidents');
+      expect(find.byKey(const ValueKey('my-incidents-page')), findsOneWidget);
+      expect(app.incidents.activeOwnWatches, 1);
+    },
+  );
+
+  testWidgets(
+    'Reporter home fits a phone and its list shortcut opens the tabs',
+    (tester) async {
+      await _mountApp(
+        tester,
+        role: UserRole.reporter,
+        size: const Size(390, 844),
+      );
+      expect(find.byKey(const ValueKey('home-count-4')), findsOneWidget);
+      final createButton = find.byKey(const ValueKey('home-create-incident'));
+      expect(tester.getBottomRight(createButton).dx, greaterThan(350));
+      expect(tester.getBottomRight(createButton).dy, greaterThan(780));
+      await _tap(tester, 'home-view-incidents');
+      expect(find.byKey(const ValueKey('my-incidents-page')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Invalid forms avoid requests and mode changes clear old errors',
     (tester) async {
@@ -483,7 +625,7 @@ Future<_TestApp> _mountApp(
     ),
   );
   await tester.pumpAndSettle();
-  return _TestApp(auth, users);
+  return _TestApp(auth, users, incidents);
 }
 
 UserProfile _profile(UserRole role) {
@@ -532,6 +674,7 @@ TextFormField _passwordInput(WidgetTester tester) {
 class _TestApp {
   final TestAuthRepository auth;
   final TestUserRepository users;
+  final TestReportIncidents incidents;
 
-  _TestApp(this.auth, this.users);
+  _TestApp(this.auth, this.users, this.incidents);
 }

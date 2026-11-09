@@ -283,7 +283,7 @@ void main() {
         foreign.id: foreign,
       });
       await _tap(tester, 'nav-incidents');
-      expect(app.incidents.ownWatchUserIds, ['campus-user']);
+      expect(app.incidents.ownWatchUserIds, ['campus-user', 'campus-user']);
       expect(app.incidents.activeOwnWatches, 1);
       expect(app.categories.activeWatches, 0);
       expect(find.byKey(const ValueKey('incident-foreign')), findsNothing);
@@ -387,7 +387,11 @@ void main() {
       await _tap(tester, 'nav-incidents');
       expect(find.byKey(const ValueKey('incident-old')), findsNothing);
       expect(find.byKey(const ValueKey('incident-new')), findsOneWidget);
-      expect(app.incidents.ownWatchUserIds, ['campus-user', 'campus-user']);
+      expect(app.incidents.ownWatchUserIds, [
+        'campus-user', // Home summary.
+        'campus-user', // First list visit.
+        'campus-user', // Reopened list.
+      ]);
       expect(app.incidents.activeOwnWatches, 1);
     },
   );
@@ -405,11 +409,16 @@ void main() {
       app.auth.setUser('second-user');
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('incident-private')), findsNothing);
-      expect(app.incidents.activeOwnWatches, 0);
+      expect(app.incidents.activeOwnWatches, 1);
       await _tap(tester, 'nav-incidents');
       expect(find.byKey(const ValueKey('incident-second')), findsOneWidget);
       expect(find.byKey(const ValueKey('incident-private')), findsNothing);
-      expect(app.incidents.ownWatchUserIds, ['campus-user', 'second-user']);
+      expect(app.incidents.ownWatchUserIds, [
+        'campus-user', // First account's home.
+        'campus-user', // First account's list.
+        'second-user', // Second account's home.
+        'second-user', // Second account's list.
+      ]);
       app.users.put(_profile('second-user', role: UserRole.technician));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('my-incidents-page')), findsNothing);

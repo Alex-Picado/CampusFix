@@ -58,6 +58,7 @@ void main() {
           role == UserRole.administrator ? 1 : 0,
         );
         expect(app.reports.activeListWatches, 1);
+        final initialQueryCalls = app.reports.queryCalls;
         expect(
           find.byKey(const ValueKey('incident-foreign')),
           role == UserRole.administrator ? findsOneWidget : findsNothing,
@@ -76,7 +77,7 @@ void main() {
         await _enter(tester, 'biblioteca');
         expect(find.byKey(const ValueKey('incident-network')), findsOneWidget);
         expect(find.byKey(const ValueKey('incident-light')), findsNothing);
-        expect(app.reports.queryCalls, 1);
+        expect(app.reports.queryCalls, initialQueryCalls);
         expect(
           app.reports.lastScope,
           role == UserRole.administrator

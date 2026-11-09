@@ -14,6 +14,11 @@ unassigned technician cannot open your report.
 
 ## Reporter
 
+**Inicio** shows the count of your reports in each stage and the three most
+recently changed reports. Use **Crear incidencia** in the lower-right corner to
+open the form directly, or **Ver mis incidencias** to browse the full list. If
+the summary cannot load, select **Reintentar**.
+
 1. Open **Mis incidencias**, then **Crear incidencia**.
 2. Enter title, description and location, and select an active category.
 3. Select **Guardar incidencia** and wait for the confirmed consecutive number.

@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../features/auth/controllers/auth_controller.dart';
+import '../../features/auth/controllers/session_controller.dart';
+import '../../features/auth/models/session_status.dart';
 import '../../features/catalogs/screens/category_management_screen.dart';
 import '../../features/incidents/screens/incident_dashboard_screen.dart';
 import '../../features/incidents/screens/my_incidents_screen.dart';
 import '../../features/incidents/screens/incident_queue_screen.dart';
 import '../../features/users/models/user_profile.dart';
+import '../../features/users/models/user_role.dart';
 import '../../features/users/presentation/user_role_labels.dart';
 import '../../features/users/screens/profile_screen.dart';
 import '../../features/users/screens/user_management_screen.dart';
@@ -31,6 +34,7 @@ class CampusShell extends StatefulWidget {
 class _CampusShellState extends State<CampusShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   CampusDestination _selected = CampusDestination.overview;
+  bool _createReportOnOpen = false;
 
   @override
   void didUpdateWidget(covariant CampusShell oldWidget) {
@@ -46,6 +50,16 @@ class _CampusShellState extends State<CampusShell> {
     }
     setState(() {
       _selected = destination;
+      _createReportOnOpen = false;
+    });
+    _scaffoldKey.currentState?.closeDrawer();
+  }
+
+  void _createReport() {
+    if (!CampusDestination.incidents.isVisibleTo(widget.profile.role)) return;
+    setState(() {
+      _selected = CampusDestination.incidents;
+      _createReportOnOpen = true;
     });
     _scaffoldKey.currentState?.closeDrawer();
   }
@@ -68,6 +82,7 @@ class _CampusShellState extends State<CampusShell> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
+    final session = context.watch<SessionController>();
     final destinations = CampusDestination.forRole(widget.profile.role);
     VoidCallback? signOut;
     if (!auth.isLoading) {
@@ -77,6 +92,12 @@ class _CampusShellState extends State<CampusShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final useDrawer = constraints.maxWidth < 900;
+        final showCreateReportButton =
+            session.status == SessionStatus.authenticated &&
+            session.profile?.id == widget.profile.id &&
+            session.profile?.role == UserRole.reporter &&
+            widget.profile.role == UserRole.reporter &&
+            _selected == CampusDestination.overview;
         Widget? drawer;
         Widget? leading;
 
@@ -132,6 +153,14 @@ class _CampusShellState extends State<CampusShell> {
             ),
           ),
           drawer: drawer,
+          floatingActionButton: showCreateReportButton
+              ? FloatingActionButton.extended(
+                  key: const ValueKey('home-create-incident'),
+                  onPressed: _createReport,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Crear incidencia'),
+                )
+              : null,
           body: SafeArea(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -150,7 +179,12 @@ class _CampusShellState extends State<CampusShell> {
                 Expanded(
                   child: SingleChildScrollView(
                     key: ValueKey(_selected),
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      24,
+                      24,
+                      showCreateReportButton ? 100 : 24,
+                    ),
                     child: Align(
                       alignment: Alignment.topLeft,
                       child: ConstrainedBox(
@@ -172,6 +206,7 @@ class _CampusShellState extends State<CampusShell> {
     CampusDestination.dashboard => const IncidentDashboardScreen(),
     CampusDestination.categories => const CategoryManagementScreen(),
     CampusDestination.overview => OverviewScreen(
+      profile: widget.profile,
       onNavigate: _select,
       destinations: CampusDestination.forRole(widget.profile.role),
     ),
@@ -179,7 +214,10 @@ class _CampusShellState extends State<CampusShell> {
     CampusDestination.users => UserManagementScreen(
       currentUserId: widget.profile.id,
     ),
-    CampusDestination.incidents => MyIncidentsScreen(userId: widget.profile.id),
+    CampusDestination.incidents => MyIncidentsScreen(
+      userId: widget.profile.id,
+      initiallyCreating: _createReportOnOpen,
+    ),
     CampusDestination.management ||
     CampusDestination.workspace => const IncidentQueueScreen(),
   };
