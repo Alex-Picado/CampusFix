@@ -248,6 +248,8 @@ class _DetailView extends StatelessWidget {
     IncidentHistoryAction.started => 'Atención iniciada',
     IncidentHistoryAction.progressAdded => 'Avance registrado',
     IncidentHistoryAction.resolved => 'Incidencia resuelta',
+    IncidentHistoryAction.reviewRequested => 'Nueva revisión solicitada',
+    IncidentHistoryAction.reviewDismissed => 'Solicitud de revisión cerrada',
     IncidentHistoryAction.closed => 'Incidencia cerrada',
     IncidentHistoryAction.rejected => 'Incidencia rechazada',
     IncidentHistoryAction.cancelled => 'Incidencia cancelada',

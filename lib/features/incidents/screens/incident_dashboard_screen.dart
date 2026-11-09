@@ -72,7 +72,7 @@ class _DashboardView extends StatelessWidget {
           _Metrics(indicators: indicators),
           const SizedBox(height: 16),
           const Text(
-            'Abiertas: reportadas, en revisión, asignadas y en atención. '
+            'Abiertas: reportadas, en revisión, asignadas, en atención y con nueva revisión solicitada. '
             'En atención forma parte de abiertas. El total también incluye rechazadas, canceladas y reabiertas.',
           ),
           const SizedBox(height: 24),
@@ -108,7 +108,12 @@ class _Metrics extends StatelessWidget {
         indicators.inProgress,
         Icons.handyman_outlined,
       ),
-      ('resolved', 'Resueltas', indicators.resolved, Icons.task_alt_outlined),
+      (
+        'resolved',
+        'Con solución registrada',
+        indicators.resolved,
+        Icons.task_alt_outlined,
+      ),
       ('closed', 'Cerradas', indicators.closed, Icons.inventory_2_outlined),
     ];
     return LayoutBuilder(

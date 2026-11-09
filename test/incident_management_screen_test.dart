@@ -173,6 +173,45 @@ void main() {
     },
   );
 
+  testWidgets('Reporter requests another review and administrator reopens it', (
+    tester,
+  ) async {
+    final app = await _mount(tester);
+    app.reports.incident = app.reports.incident.copyWith(
+      status: IncidentStatus.resolved,
+      assignedTechnicianId: 'tech',
+      priority: IncidentPriority.high,
+      resolutionDescription: 'Reemplacé la luminaria',
+    );
+    app.auth.setUser('owner');
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byKey(const ValueKey('overview-page'))))
+        .pushNamed('/incidents/case');
+    await tester.pumpAndSettle();
+    expect(find.text('Revisar la solución'), findsOneWidget);
+    await _tapKey(tester, 'workflow-save');
+    expect(find.text('Explicá qué problema continúa.'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('workflow-reason')),
+      'La luz todavía falla',
+    );
+    await _tapKey(tester, 'workflow-save');
+    expect(app.reports.incident.status, IncidentStatus.reviewRequested);
+    expect(app.reports.history.last.reason, 'La luz todavía falla');
+
+    app.auth.setUser('admin');
+    await tester.pumpAndSettle();
+    await _choose<IncidentHistoryAction>(tester, 'Reabrir incidencia');
+    await tester.enterText(
+      find.byKey(const ValueKey('workflow-reason')),
+      'Necesita otra reparación',
+    );
+    await _tapKey(tester, 'workflow-save');
+    expect(app.reports.incident.status, IncidentStatus.underReview);
+    expect(app.reports.incident.resolutionDescription, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Technician queues show only assigned cases and recover from read errors on a tablet',
     (tester) async {

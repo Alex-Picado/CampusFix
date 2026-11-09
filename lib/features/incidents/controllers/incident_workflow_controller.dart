@@ -186,11 +186,15 @@ class IncidentWorkflowController extends ChangeNotifier {
           IncidentHistoryAction.rejected,
           IncidentHistoryAction.cancelled,
           IncidentHistoryAction.reopened,
+          IncidentHistoryAction.reviewRequested,
+          IncidentHistoryAction.reviewDismissed,
         ].contains(action) &&
         (reason == null || reason.trim().isEmpty)) {
       return _invalid(
         action == IncidentHistoryAction.resolved
             ? 'Escribí la solución realizada.'
+            : action == IncidentHistoryAction.reviewRequested
+            ? 'Explicá qué problema continúa.'
             : 'Escribí el motivo de la operación.',
       );
     }

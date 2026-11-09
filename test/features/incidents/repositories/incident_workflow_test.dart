@@ -126,6 +126,77 @@ void main() {
     await classify();
     await assign();
   });
+  test('Reporter requests another review and administrator reopens the solution', () async {
+    await classify();
+    await assign();
+    auth.userId = 'tech';
+    await save(command(IncidentHistoryAction.started));
+    await save(command(IncidentHistoryAction.resolved, reason: 'Repaired'));
+    auth.userId = 'reporter-1';
+    await expectLater(
+      save(command(IncidentHistoryAction.reviewRequested, reason: '  ')),
+      throwsFormatException,
+    );
+    await save(
+      command(
+        IncidentHistoryAction.reviewRequested,
+        reason: 'The light still flickers',
+      ),
+    );
+    expect(current().status, IncidentStatus.reviewRequested);
+    expect(
+      database.documents['incidents/case/history/workflow-6']?['actorUserId'],
+      'reporter-1',
+    );
+    auth.userId = 'admin';
+    await expectLater(
+      save(command(IncidentHistoryAction.closed)),
+      throwsStateError,
+    );
+    await save(
+      command(IncidentHistoryAction.reopened, reason: 'Needs another repair'),
+    );
+    expect(current().status, IncidentStatus.underReview);
+    expect(current().resolutionDescription, isNull);
+    expect(
+      database
+          .documents['incidents/case/history/workflow-8']?['previousResolutionDescription'],
+      'Repaired',
+    );
+  });
+  test('Only the owner can challenge a closed solution and administrator may decline with a reason', () async {
+    await classify();
+    await assign();
+    auth.userId = 'tech';
+    await save(command(IncidentHistoryAction.started));
+    await save(command(IncidentHistoryAction.resolved, reason: 'Repaired'));
+    auth.userId = 'admin';
+    await save(command(IncidentHistoryAction.closed));
+    auth.userId = 'other-tech';
+    await expectLater(
+      save(
+        command(IncidentHistoryAction.reviewRequested, reason: 'Still broken'),
+      ),
+      throwsStateError,
+    );
+    auth.userId = 'reporter-1';
+    await save(
+      command(IncidentHistoryAction.reviewRequested, reason: 'Still broken'),
+    );
+    auth.userId = 'admin';
+    await expectLater(
+      save(command(IncidentHistoryAction.reviewDismissed, reason: ' ')),
+      throwsFormatException,
+    );
+    await save(
+      command(
+        IncidentHistoryAction.reviewDismissed,
+        reason: 'Verified working',
+      ),
+    );
+    expect(current().status, IncidentStatus.closed);
+    expect(current().resolutionDescription, 'Repaired');
+  });
   test('A nonassigned technician and a stored role downgrade cannot start attention', () async {
     await classify();
     await assign();

@@ -298,6 +298,8 @@ void main() {
         foreign,
       ]);
       await tester.pumpAndSettle();
+      expect(find.text('En atención (1)'), findsOneWidget);
+      await _tap(tester, 'incidents-tab-2');
       expect(find.text('En atención'), findsOneWidget);
       expect(find.text('Ubicación: Building A'), findsOneWidget);
       expect(find.byKey(const ValueKey('incident-older')), findsNothing);
@@ -438,6 +440,141 @@ void main() {
     expect(app.incidents.activeOwnWatches, 0);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Shows one stage per tab and moves reports as their state changes',
+    (tester) async {
+      final app = await _mount(tester);
+      final pending = _incident('pending', 1);
+      final assigned = _incident(
+        'assigned',
+        2,
+      ).copyWith(status: IncidentStatus.assigned);
+      final working = _incident(
+        'working',
+        3,
+      ).copyWith(status: IncidentStatus.inProgress);
+      final closed = _incident(
+        'closed',
+        4,
+      ).copyWith(status: IncidentStatus.closed);
+      app.incidents.saved.addAll({
+        pending.id: pending,
+        assigned.id: assigned,
+        working.id: working,
+        closed.id: closed,
+      });
+
+      await _tap(tester, 'nav-incidents');
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('incident-pending')),
+          matching: find.byKey(const ValueKey('incidents-stage-0')),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('incident-assigned')), findsNothing);
+      expect(find.text('Finalizadas (1)'), findsOneWidget);
+      await _tap(tester, 'incidents-tab-1');
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('incident-assigned')),
+          matching: find.byKey(const ValueKey('incidents-stage-1')),
+        ),
+        findsOneWidget,
+      );
+      await _tap(tester, 'incidents-tab-2');
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('incident-working')),
+          matching: find.byKey(const ValueKey('incidents-stage-2')),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('incident-closed')), findsNothing);
+
+      app.incidents.ownChanges.add([
+        pending,
+        assigned,
+        working.copyWith(
+          status: IncidentStatus.resolved,
+          updatedAt: DateTime.utc(2026, 10, 22),
+        ),
+        closed,
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('incident-working')), findsNothing);
+      expect(find.text('Solucionada (1)'), findsOneWidget);
+      await _tap(tester, 'incidents-tab-3');
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('incident-working')),
+          matching: find.byKey(const ValueKey('incidents-stage-3')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'El técnico registró una solución. Si el problema continúa, solicitá otra revisión.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Último cambio:'), findsOneWidget);
+      await _tap(tester, 'incidents-tab-4');
+      expect(find.byKey(const ValueKey('incident-working')), findsNothing);
+      expect(find.byKey(const ValueKey('incident-closed')), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-pending')), findsNothing);
+
+      app.incidents.ownChanges.add([
+        pending,
+        assigned,
+        working.copyWith(status: IncidentStatus.reviewRequested),
+        closed,
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('incident-working')), findsNothing);
+      await _tap(tester, 'incidents-tab-0');
+      expect(find.byKey(const ValueKey('incident-pending')), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('incident-working')),
+          matching: find.byKey(const ValueKey('incidents-stage-0')),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Revisión solicitada'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Mobile tabs reach final reports without horizontal card overflow',
+    (tester) async {
+      final app = await _mount(tester, size: const Size(390, 844));
+      app.incidents.saved['closed'] = _incident(
+        'closed',
+        1,
+      ).copyWith(status: IncidentStatus.closed);
+      await tester.tap(find.byTooltip('Abrir menú'));
+      await tester.pumpAndSettle();
+      await _tap(tester, 'nav-incidents');
+      await _tap(tester, 'incidents-tab-4');
+      expect(find.byKey(const ValueKey('incident-closed')), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Cerrada')).dy,
+        lessThan(tester.getTopLeft(find.text('#1 · Report closed')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('Cerrada')).dx,
+        greaterThan(tester.getTopLeft(find.text('#1 · Report closed')).dx),
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey('incident-closed'))).width,
+        lessThanOrEqualTo(390),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Incident _incident(String id, int sequence, {String author = 'campus-user'}) =>

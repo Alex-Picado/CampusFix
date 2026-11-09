@@ -20,7 +20,7 @@ class IncidentWorkflowPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
     final profile = session.profile;
-    if (profile == null || profile.role == UserRole.reporter) {
+    if (profile == null) {
       return const SizedBox.shrink();
     }
     return ChangeNotifierProvider(
@@ -57,6 +57,15 @@ class _WorkflowFormState extends State<_WorkflowForm> {
     final controller = context.watch<IncidentWorkflowController>();
     if (!controller.active) return const SizedBox.shrink();
     final actions = controller.actions;
+    if (controller.role == UserRole.reporter &&
+        actions.isEmpty &&
+        controller.loadingSources.isEmpty &&
+        controller.readError == null &&
+        controller.saveError == null &&
+        controller.success == null &&
+        controller.pending == null) {
+      return const SizedBox.shrink();
+    }
     final action = actions.contains(_action) ? _action : actions.firstOrNull;
     final enabled =
         controller.ready && !controller.saving && controller.pending == null;
@@ -74,6 +83,8 @@ class _WorkflowFormState extends State<_WorkflowForm> {
       IncidentHistoryAction.rejected,
       IncidentHistoryAction.cancelled,
       IncidentHistoryAction.reopened,
+      IncidentHistoryAction.reviewRequested,
+      IncidentHistoryAction.reviewDismissed,
     ].contains(action);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -82,7 +93,9 @@ class _WorkflowFormState extends State<_WorkflowForm> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Atención y gestión',
+              controller.role == UserRole.reporter
+                  ? 'Revisar la solución'
+                  : 'Atención y gestión',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
@@ -97,7 +110,8 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             ],
             if (actions.isEmpty &&
                 controller.ready &&
-                controller.pending == null)
+                controller.pending == null &&
+                controller.role != UserRole.reporter)
               const Text('No hay acciones disponibles para este estado.'),
             if (action != null) ...[
               DropdownButtonFormField<IncidentHistoryAction>(
@@ -190,9 +204,21 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                   decoration: InputDecoration(
                     labelText: action == IncidentHistoryAction.resolved
                         ? 'Solución realizada'
+                        : action == IncidentHistoryAction.reviewRequested
+                        ? '¿Qué problema continúa?'
+                        : action == IncidentHistoryAction.reviewDismissed
+                        ? 'Motivo para cerrar la solicitud'
                         : 'Motivo obligatorio',
                   ),
                 ),
+                if (action == IncidentHistoryAction.reviewRequested)
+                  const Text(
+                    'Administración revisará tu solicitud y decidirá si el caso necesita otra atención.',
+                  ),
+                if (action == IncidentHistoryAction.reviewDismissed)
+                  const Text(
+                    'La solicitud se cerrará sin una nueva atención. El motivo quedará visible en el historial.',
+                  ),
                 if (action == IncidentHistoryAction.reopened)
                   const Text(
                     'La solución anterior quedará en el historial. Se quitarán el técnico y la prioridad para revisar y asignar nuevamente.',

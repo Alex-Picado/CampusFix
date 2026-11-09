@@ -7,7 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Supplies one case per lifecycle state, with category totals of 4, 3 and 2.
 List<Incident> dashboardFixtures() => [
-  for (final (index, status) in IncidentStatus.values.indexed)
+  for (final (index, status)
+      in IncidentStatus.values
+          .where((status) => status != IncidentStatus.reviewRequested)
+          .indexed)
     Incident(
       id: 'case-$index',
       sequenceNumber: index + 1,

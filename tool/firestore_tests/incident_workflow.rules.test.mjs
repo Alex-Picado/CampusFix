@@ -46,11 +46,13 @@ async function attempt(uid, action, options = {}) {
     classified: { status: 'EN_REVISION', categoryId: 'lighting', priority: 'ALTA' },
     assigned: { status: 'ASIGNADA', assignedTechnicianId: 'tech' },
     started: { status: 'EN_ATENCION' }, resolved: { status: 'RESUELTA', resolutionDescription: 'Replaced' },
+    reviewRequested: { status: 'REVISION_SOLICITADA' },
+    reviewDismissed: { status: 'CERRADA' },
     closed: { status: 'CERRADA' }, rejected: { status: 'RECHAZADA' }, cancelled: { status: 'CANCELADA' },
     reopened: { status: 'EN_REVISION', assignedTechnicianId: null, priority: null, resolutionDescription: null },
   }[action] ?? {};
   const next = { ...old, ...changes, updatedAt: serverTimestamp(), lastWorkflowEventId: eventId, ...options.changeIncident };
-  const reason = action === 'resolved' ? 'Replaced' : ['rejected','cancelled','reopened'].includes(action) ? 'Reason supplied' : null;
+  const reason = action === 'resolved' ? 'Replaced' : ['rejected','cancelled','reopened','reviewRequested','reviewDismissed'].includes(action) ? 'Reason supplied' : null;
   const event = { actorUserId: uid, createdAt: serverTimestamp(), action, fromStatus: old.status,
     toStatus: next.status, fromTechnicianId: old.assignedTechnicianId, toTechnicianId: next.assignedTechnicianId,
     reason, details: { categoryId: action === 'classified' ? next.categoryId : null,
@@ -93,6 +95,25 @@ test('Reopening resolved and closed cases retains the prior solution and resets 
 });
 test('Reopening directly from resolved is permitted', async () => {
   await resolved(); await assertSucceeds(attempt('admin', 'reopened'));
+});
+test('Only the owner can request another review and administration must decide before closure', async () => {
+  await resolved();
+  for (const uid of ['other','admin','tech','other-tech']) await assertFails(attempt(uid,'reviewRequested'));
+  await assertSucceeds(attempt('owner','reviewRequested'));
+  await assertFails(attempt('admin','closed'));
+  await assertFails(attempt('owner','reopened'));
+  await assertSucceeds(attempt('admin','reopened'));
+  const data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
+  assert.equal(data.status,'EN_REVISION');
+  assert.equal(data.resolutionDescription,null);
+});
+test('A closed case may be challenged and administrator can decline with a recorded reason', async () => {
+  await resolved(); await assertSucceeds(attempt('admin','closed'));
+  await assertSucceeds(attempt('owner','reviewRequested'));
+  for (const reason of [null,'','  ',' untrimmed ']) await assertFails(attempt('admin','reviewDismissed',{changeEvent:{reason,details:{categoryId:null,priority:null,technicianId:null,reason}}}));
+  await assertSucceeds(attempt('admin','reviewDismissed'));
+  const data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
+  assert.equal(data.status,'CERRADA'); assert.equal(data.resolutionDescription,'Replaced');
 });
 test('Only administrators classify and assign and only assigned technicians start attention', async () => {
   for (const uid of ['owner','other','tech','other-tech','missing']) await assertFails(attempt(uid, 'classified'));

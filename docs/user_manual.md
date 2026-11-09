@@ -20,11 +20,21 @@ unassigned technician cannot open your report.
    If confirmation fails, use the offered retry instead of creating another case.
 4. In the local client, select and save a photograph after saving the incident.
    Use a single-frame JPEG, PNG or WebP up to 3 MB and 40 million pixels.
-5. Use **Ver detalle** for current state, responsible references, solution,
-   progress comments and chronological history.
+5. In **Mis incidencias**, switch between **Pendientes**, **Asignadas**,
+   **En atención**, **Solucionada** and **Finalizadas**. On a phone, swipe the
+   tab row horizontally to reach the later stages. Each card shows a short
+   description, its current state, what that state means, category, location and
+   latest change. **Finalizadas** contains closed, rejected or cancelled reports.
+   **Solución registrada** means the technician recorded a solution; administrative closure
+   may still be pending. If the problem continues, open **Ver detalle** and use
+   **Solicitar nueva revisión**, explaining what remains wrong. Administration
+   will review the request and either reopen the case for another assignment or
+   close the request with a reason. Use **Ver detalle** in either view for responsible
+   references, solution, progress comments and chronological history.
 
 Search your own reports by exact consecutive number (with or without `#`), text
-or category. Use **Limpiar búsqueda** to reset the criteria.
+or category. The same search applies to every tab. Use **Limpiar
+búsqueda** to reset the criteria.
 
 The public client explains that photographs are available in the local version.
 Reports and text progress remain available. Existing local photographs are
@@ -43,17 +53,20 @@ application preserves the pending operation ID.
 
 **Gestión** provides the global queue. Classify a reported case with an active
 category and priority before selecting **Asignar técnico**. Assign a current
-technician. Close a case only after it is **Resuelta**. Rejection, cancellation
-and reopening require a reason and a permitted state. Reopening preserves the
-prior solution in history and clears priority and the assigned technician.
+technician. Close a case after it has **Solución registrada**. If the reporter requests another
+review, reopen it for a new classification and assignment or close the request
+with a reason. Rejection, cancellation and reopening require a reason and a
+permitted state. Reopening preserves the prior solution in history and clears
+priority and the assigned technician.
 
 Combine text/consecutive/category search with state, priority and technician
 filters. **Sin prioridad** and **Sin asignar** are explicit choices. The result
 count refers to all combined criteria; clear them to restore the global queue.
 
 **Indicadores** uses the global population independently of Management filters.
-**En atención** is included in **Abiertas**. Reopened, rejected and cancelled
-cases count in total and categories but remain outside open under the agreement.
+**En atención** and **Revisión solicitada** are included in **Abiertas**.
+Rejected and cancelled cases count in total and categories but remain outside
+open under the agreement.
 
 **Categorías** allows creation, renaming and activation/deactivation. Deactivate
 used categories instead of deleting them; earlier reports retain their reference

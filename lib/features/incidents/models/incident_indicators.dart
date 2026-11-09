@@ -22,8 +22,9 @@ class IncidentIndicators {
   /// Counts every record once by stable category ID, including inactive IDs.
   ///
   /// Open follows HU-17's four-state definition. In-progress is a subset of
-  /// open; reopened, rejected and cancelled records contribute only to total
-  /// and their category. Category names never affect grouping.
+  /// open, including requested reviews. Reopened, rejected and cancelled
+  /// records contribute only to total and their category.
+  /// Category names never affect grouping.
   factory IncidentIndicators.fromIncidents(Iterable<Incident> incidents) {
     var total = 0;
     var open = 0;
@@ -46,6 +47,8 @@ class IncidentIndicators {
         case IncidentStatus.inProgress:
           open++;
           inProgress++;
+        case IncidentStatus.reviewRequested:
+          open++;
         case IncidentStatus.resolved:
           resolved++;
         case IncidentStatus.closed:

@@ -18,6 +18,12 @@ enum IncidentHistoryAction {
   /// A resolution was recorded.
   resolved('resolved'),
 
+  /// The reporter explained why the solution needs another review.
+  reviewRequested('reviewRequested'),
+
+  /// An administrator declined the request and closed the case with a reason.
+  reviewDismissed('reviewDismissed'),
+
   /// An incident was formally closed.
   closed('closed'),
 

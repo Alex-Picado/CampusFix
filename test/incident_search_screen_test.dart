@@ -291,7 +291,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Daniel técnico · tech@campusfix.test'), findsOneWidget);
-      await _selectFilter(tester, 'status', 'Resuelta');
+      await _selectFilter(tester, 'status', 'Solución registrada');
       expect(find.text('Resultados: 2 de 5'), findsOneWidget);
       expect(app.reports.queryCalls, 1);
     },

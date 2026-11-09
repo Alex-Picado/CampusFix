@@ -9,6 +9,8 @@ extension IncidentActionLabels on IncidentHistoryAction {
     IncidentHistoryAction.started => 'Iniciar atención',
     IncidentHistoryAction.progressAdded => 'Avance registrado',
     IncidentHistoryAction.resolved => 'Resolver incidencia',
+    IncidentHistoryAction.reviewRequested => 'Solicitar nueva revisión',
+    IncidentHistoryAction.reviewDismissed => 'Cerrar solicitud de revisión',
     IncidentHistoryAction.closed => 'Cerrar incidencia',
     IncidentHistoryAction.rejected => 'Rechazar incidencia',
     IncidentHistoryAction.cancelled => 'Cancelar incidencia',

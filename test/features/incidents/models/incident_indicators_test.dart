@@ -1,4 +1,5 @@
 import 'package:campusfix/features/incidents/models/incident_indicators.dart';
+import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/dashboard_repositories.dart';
@@ -25,6 +26,17 @@ void main() {
       result.closed,
     ], everyElement(0));
     expect(result.byCategory, isEmpty);
+  });
+
+  test('A requested review remains open until administration decides', () {
+    final report = dashboardFixtures().first.copyWith(
+      status: IncidentStatus.reviewRequested,
+    );
+    final result = IncidentIndicators.fromIncidents([report]);
+    expect(result.total, 1);
+    expect(result.open, 1);
+    expect(result.resolved, 0);
+    expect(result.closed, 0);
   });
 
   test(

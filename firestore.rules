@@ -88,7 +88,7 @@ service cloud.firestore {
           || (event.action != 'classified' && details.categoryId == null && details.priority == null))
         && ((event.action == 'assigned' && details.technicianId == next.assignedTechnicianId)
           || (event.action != 'assigned' && details.technicianId == null))
-        && ((event.action in ['resolved', 'rejected', 'cancelled', 'reopened'] && isNonblankText(event.reason)
+        && ((event.action in ['resolved', 'rejected', 'cancelled', 'reopened', 'reviewRequested', 'reviewDismissed'] && isNonblankText(event.reason)
               && event.reason == event.reason.trim())
           || (event.action in ['classified', 'assigned', 'started', 'closed'] && event.reason == null))
         && ((event.action == 'reopened' && event.previousResolutionDescription == before.resolutionDescription)
@@ -116,9 +116,11 @@ service cloud.firestore {
             && changed.hasOnly(common))
           || (event.action == 'cancelled' && before.status in ['REPORTADA', 'EN_REVISION', 'ASIGNADA', 'EN_ATENCION']
             && next.status == 'CANCELADA' && changed.hasOnly(common))
-          || (event.action == 'reopened' && before.status in ['RESUELTA', 'CERRADA'] && next.status == 'EN_REVISION'
+          || (event.action == 'reopened' && before.status in ['RESUELTA', 'CERRADA', 'REVISION_SOLICITADA'] && next.status == 'EN_REVISION'
             && changed.hasOnly(common.concat(['assignedTechnicianId', 'priority', 'resolutionDescription']))
             && next.assignedTechnicianId == null && next.priority == null && next.resolutionDescription == null)
+          || (event.action == 'reviewDismissed' && before.status == 'REVISION_SOLICITADA'
+            && next.status == 'CERRADA' && changed.hasOnly(common))
         )
       ) || (
         isTechnician() && before.assignedTechnicianId == request.auth.uid && (
@@ -128,6 +130,12 @@ service cloud.firestore {
             && changed.hasOnly(common.concat(['resolutionDescription']))
             && next.resolutionDescription == event.reason && isNonblankText(next.resolutionDescription))
         )
+      ) || (
+        isReporter() && before.createdByUserId == request.auth.uid
+        && event.action == 'reviewRequested'
+        && before.status in ['RESUELTA', 'CERRADA']
+        && next.status == 'REVISION_SOLICITADA'
+        && changed.hasOnly(common)
       );
     }
 

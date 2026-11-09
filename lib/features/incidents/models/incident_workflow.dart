@@ -66,14 +66,26 @@ abstract final class IncidentWorkflow {
         ].contains(status))
           IncidentHistoryAction.cancelled,
         if (status == IncidentStatus.resolved) IncidentHistoryAction.closed,
-        if ([IncidentStatus.resolved, IncidentStatus.closed].contains(status))
+        if ([
+          IncidentStatus.resolved,
+          IncidentStatus.closed,
+          IncidentStatus.reviewRequested,
+        ].contains(status))
           IncidentHistoryAction.reopened,
+        if (status == IncidentStatus.reviewRequested)
+          IncidentHistoryAction.reviewDismissed,
       ];
     }
     if (role == UserRole.technician && incident.assignedTechnicianId == uid) {
       return [
         if (status == IncidentStatus.assigned) IncidentHistoryAction.started,
         if (status == IncidentStatus.inProgress) IncidentHistoryAction.resolved,
+      ];
+    }
+    if (role == UserRole.reporter && incident.createdByUserId == uid) {
+      return [
+        if ([IncidentStatus.resolved, IncidentStatus.closed].contains(status))
+          IncidentHistoryAction.reviewRequested,
       ];
     }
     return const [];
@@ -109,6 +121,8 @@ abstract final class IncidentWorkflow {
       IncidentHistoryAction.rejected,
       IncidentHistoryAction.cancelled,
       IncidentHistoryAction.reopened,
+      IncidentHistoryAction.reviewRequested,
+      IncidentHistoryAction.reviewDismissed,
     ].contains(action);
     if ((classification &&
             (command.categoryId == null || command.priority == null)) ||
@@ -122,10 +136,12 @@ abstract final class IncidentWorkflow {
     final status = switch (action) {
       IncidentHistoryAction.classified ||
       IncidentHistoryAction.reopened => IncidentStatus.underReview,
+      IncidentHistoryAction.reviewRequested => IncidentStatus.reviewRequested,
       IncidentHistoryAction.assigned => IncidentStatus.assigned,
       IncidentHistoryAction.started => IncidentStatus.inProgress,
       IncidentHistoryAction.resolved => IncidentStatus.resolved,
-      IncidentHistoryAction.closed => IncidentStatus.closed,
+      IncidentHistoryAction.closed ||
+      IncidentHistoryAction.reviewDismissed => IncidentStatus.closed,
       IncidentHistoryAction.rejected => IncidentStatus.rejected,
       IncidentHistoryAction.cancelled => IncidentStatus.cancelled,
       _ => throw const FormatException('Unsupported workflow action.'),
