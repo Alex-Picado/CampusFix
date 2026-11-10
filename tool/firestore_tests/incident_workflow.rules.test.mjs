@@ -46,11 +46,13 @@ async function attempt(uid, action, options = {}) {
     classified: { status: 'EN_REVISION', categoryId: 'lighting', priority: 'ALTA' },
     assigned: { status: 'ASIGNADA', assignedTechnicianId: 'tech' },
     assignmentDeclined: { status: 'EN_REVISION', assignedTechnicianId: null },
-    started: { status: 'EN_ATENCION' }, resolved: { status: 'RESUELTA', resolutionDescription: 'Replaced' },
-    reviewRequested: { status: 'REVISION_SOLICITADA' },
-    reviewDismissed: { status: 'CERRADA' },
-    closed: { status: 'CERRADA' }, rejected: { status: 'RECHAZADA' }, cancelled: { status: 'CANCELADA' },
-    reopened: { status: 'EN_REVISION', assignedTechnicianId: null, priority: null, resolutionDescription: null },
+    started: { status: 'EN_ATENCION' }, resolved: { status: 'RESUELTA', resolutionDescription: 'Replaced', technicianApproved: true, reporterApproved: false, adminApproved: false },
+    reviewRequested: { status: 'REVISION_SOLICITADA', reporterApproved: false, adminApproved: false },
+    reviewDismissed: { status: 'RESUELTA', reporterApproved: false, adminApproved: false },
+    closed: { status: old.reporterApproved && old.technicianApproved ? 'CERRADA' : 'RESUELTA', adminApproved: true },
+    solutionAccepted: { status: old.adminApproved && old.technicianApproved ? 'CERRADA' : 'RESUELTA', reporterApproved: true },
+    rejected: { status: 'RECHAZADA' }, cancelled: { status: 'CANCELADA' },
+    reopened: { status: 'EN_REVISION', assignedTechnicianId: null, priority: null, resolutionDescription: null, technicianApproved: false, reporterApproved: false, adminApproved: false },
   }[action] ?? {};
   const next = { ...old, ...changes, updatedAt: serverTimestamp(), lastWorkflowEventId: eventId, ...options.changeIncident };
   const reason = action === 'resolved' ? 'Replaced' : ['rejected','cancelled','reopened','reviewRequested','reviewDismissed','assignmentDeclined'].includes(action) ? 'Reason supplied' : null;
@@ -74,13 +76,13 @@ async function attending() { await assigned(); await assertSucceeds(attempt('tec
 async function resolved() { await attending(); await assertSucceeds(attempt('tech', 'resolved')); }
 
 test('The full lifecycle commits changes and immutable audit events with actors and dates', async () => {
-  await resolved(); await assertSucceeds(attempt('admin', 'closed'));
+  await resolved(); await assertSucceeds(attempt('owner', 'solutionAccepted')); await assertSucceeds(attempt('admin', 'closed'));
   const db = dbFor('admin');
   const incident = (await getDoc(doc(db, 'incidents/case'))).data();
   assert.equal(incident.status, 'CERRADA'); assert.equal(incident.resolutionDescription, 'Replaced');
   const events = (await getDocs(collection(db, 'incidents/case/history'))).docs.map((record) => record.data());
-  assert.equal(events.length, 5);
-  assert.deepEqual(events.map((event) => event.actorUserId), ['admin','admin','tech','tech','admin']);
+  assert.equal(events.length, 6);
+  assert.deepEqual(events.map((event) => event.actorUserId), ['admin','admin','tech','tech','owner','admin']);
   assert.ok(events.every((event) => event.createdAt instanceof Timestamp));
 });
 test('Reopening resolved and closed cases retains the prior solution and resets assignment and priority', async () => {
@@ -114,7 +116,8 @@ test('A closed case may be challenged and administrator can decline with a recor
   for (const reason of [null,'','  ',' untrimmed ']) await assertFails(attempt('admin','reviewDismissed',{changeEvent:{reason,details:{categoryId:null,priority:null,technicianId:null,reason}}}));
   await assertSucceeds(attempt('admin','reviewDismissed'));
   const data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
-  assert.equal(data.status,'CERRADA'); assert.equal(data.resolutionDescription,'Replaced');
+  assert.equal(data.status,'RESUELTA'); assert.equal(data.resolutionDescription,'Replaced');
+  assert.equal(data.reporterApproved, false); assert.equal(data.adminApproved, false);
 });
 test('Only administrators classify and assign and only assigned technicians start attention', async () => {
   for (const uid of ['owner','other','tech','other-tech','missing']) await assertFails(attempt(uid, 'classified'));
@@ -250,8 +253,36 @@ test('An owner session and an assigned technician session receive lifecycle chan
     await assertSucceeds(attempt('tech','started'));
     await assertSucceeds(attempt('tech','resolved'));
     await assertSucceeds(attempt('admin','closed'));
+    await assertSucceeds(attempt('owner','solutionAccepted'));
     for(let i=0;i<80 && !Object.values(seen).every((states)=>states.includes('CERRADA'));i++) await new Promise((resolve)=>setTimeout(resolve,25));
     assert.deepEqual(errors,[]);
     for(const states of Object.values(seen)) for(const status of ['EN_ATENCION','RESUELTA','CERRADA']) assert.ok(states.includes(status),`${status} missing from ${states}`);
   } finally { stops.forEach((stop)=>stop()); }
+});
+
+test('Closure requires all three approvals in either order and rejects forged consent', async () => {
+  await resolved();
+  await assertFails(attempt('admin', 'closed', {changeIncident: {status:'CERRADA'}}));
+  await assertFails(attempt('owner', 'solutionAccepted', {changeIncident: {adminApproved:true,status:'CERRADA'}}));
+  for (const uid of ['admin','tech','other','other-tech']) await assertFails(attempt(uid, 'solutionAccepted'));
+  await assertSucceeds(attempt('admin','closed'));
+  let data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
+  assert.equal(data.status,'RESUELTA');
+  await assertFails(attempt('admin','closed'));
+  await assertSucceeds(attempt('owner','solutionAccepted'));
+  data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
+  assert.equal(data.status,'CERRADA');
+  assert.equal(data.reporterApproved,true); assert.equal(data.adminApproved,true); assert.equal(data.technicianApproved,true);
+  await assertSucceeds(attempt('owner','reviewRequested'));
+  await assertSucceeds(attempt('admin','reviewDismissed'));
+  await assertFails(attempt('admin','closed',{changeIncident:{status:'CERRADA'}}));
+  await assertSucceeds(attempt('owner','solutionAccepted'));
+  await assertSucceeds(attempt('admin','closed'));
+});
+
+test('Unapproved legacy resolutions cannot be closed without a new technician resolution', async () => {
+  await seed({status:'RESUELTA', assignedTechnicianId:'tech', resolutionDescription:'Legacy'});
+  await assertFails(attempt('admin','closed'));
+  await assertFails(attempt('owner','solutionAccepted'));
+  await assertSucceeds(attempt('admin','reopened'));
 });

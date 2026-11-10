@@ -42,6 +42,11 @@ class Incident {
   /// Solution recorded by the technician when resolving the incident.
   final String? resolutionDescription;
 
+  /// Approvals belong to the current resolution, and reset on a new review.
+  final bool technicianApproved;
+  final bool reporterApproved;
+  final bool adminApproved;
+
   /// Creates an incident with the reported state by default.
   const Incident({
     required this.id,
@@ -57,6 +62,9 @@ class Incident {
     this.status = IncidentStatus.reported,
     this.assignedTechnicianId,
     this.resolutionDescription,
+    this.technicianApproved = false,
+    this.reporterApproved = false,
+    this.adminApproved = false,
   });
 
   /// Returns the agreed incident fields, excluding the document identifier.
@@ -78,6 +86,9 @@ class Incident {
       'createdByUserId': createdByUserId,
       'assignedTechnicianId': assignedTechnicianId,
       'resolutionDescription': resolutionDescription,
+      if (technicianApproved) 'technicianApproved': true,
+      if (reporterApproved) 'reporterApproved': true,
+      if (adminApproved) 'adminApproved': true,
     };
   }
 
@@ -104,6 +115,15 @@ class Incident {
     final createdByUserId = data['createdByUserId'];
     final assignedTechnicianId = data['assignedTechnicianId'];
     final resolutionDescription = data['resolutionDescription'];
+    for (final key in [
+      'technicianApproved',
+      'reporterApproved',
+      'adminApproved',
+    ]) {
+      if (data[key] != null && data[key] is! bool) {
+        throw const FormatException('Invalid resolution approval.');
+      }
+    }
 
     if (id.trim().isEmpty ||
         sequenceNumber is! int ||
@@ -143,6 +163,9 @@ class Incident {
       createdByUserId: createdByUserId,
       assignedTechnicianId: assignedTechnicianId,
       resolutionDescription: resolutionDescription,
+      technicianApproved: data['technicianApproved'] == true,
+      reporterApproved: data['reporterApproved'] == true,
+      adminApproved: data['adminApproved'] == true,
     );
   }
 
@@ -166,6 +189,9 @@ class Incident {
     bool clearPriority = false,
     bool clearAssignedTechnician = false,
     bool clearResolution = false,
+    bool? technicianApproved,
+    bool? reporterApproved,
+    bool? adminApproved,
   }) {
     return Incident(
       id: id,
@@ -185,6 +211,9 @@ class Incident {
       resolutionDescription: clearResolution
           ? null
           : resolutionDescription ?? this.resolutionDescription,
+      technicianApproved: technicianApproved ?? this.technicianApproved,
+      reporterApproved: reporterApproved ?? this.reporterApproved,
+      adminApproved: adminApproved ?? this.adminApproved,
     );
   }
 }

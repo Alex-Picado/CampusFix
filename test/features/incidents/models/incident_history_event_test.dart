@@ -99,6 +99,7 @@ void main() {
       'started': IncidentHistoryAction.started,
       'progressAdded': IncidentHistoryAction.progressAdded,
       'resolved': IncidentHistoryAction.resolved,
+      'solutionAccepted': IncidentHistoryAction.solutionAccepted,
       'reviewRequested': IncidentHistoryAction.reviewRequested,
       'reviewDismissed': IncidentHistoryAction.reviewDismissed,
       'closed': IncidentHistoryAction.closed,

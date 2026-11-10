@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 
 /// Defines the common colors and standard Material controls for CampusFix.
 abstract final class CampusTheme {
-  static const _primary = Color(0xFF28634F);
+  static const _primary = Color(0xFF02477B);
 
   static final light = _build(
     ColorScheme.fromSeed(
       seedColor: _primary,
       primary: _primary,
+      secondary: const Color(0xFF00C0F3),
+      primaryContainer: const Color(0xFFD9F3FC),
+      onPrimaryContainer: const Color(0xFF0C344E),
       surface: Colors.white,
       onSurfaceVariant: const Color(0xFF59636B),
     ),
-    background: const Color(0xFFF6F7F8),
+    background: const Color(0xFFF3F7FA),
     divider: const Color(0xFFDEE2E5),
   );
 

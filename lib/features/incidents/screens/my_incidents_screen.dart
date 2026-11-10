@@ -19,11 +19,13 @@ import 'incident_report_screen.dart';
 class MyIncidentsScreen extends StatefulWidget {
   final String userId;
   final bool initiallyCreating;
+  final int initialStage;
 
   const MyIncidentsScreen({
     super.key,
     required this.userId,
     this.initiallyCreating = false,
+    this.initialStage = 0,
   });
 
   @override
@@ -71,7 +73,10 @@ class _MyIncidentsScreenState extends State<MyIncidentsScreen> {
         sessionController: session,
         userId: widget.userId,
       ),
-      child: _IncidentList(onCreate: () => setState(() => _creating = true)),
+      child: _IncidentList(
+        initialStage: widget.initialStage,
+        onCreate: () => setState(() => _creating = true),
+      ),
     );
   }
 }
@@ -79,8 +84,9 @@ class _MyIncidentsScreenState extends State<MyIncidentsScreen> {
 /// Groups a reporter's live reports into one navigable stage at a time.
 class _IncidentList extends StatefulWidget {
   final VoidCallback onCreate;
+  final int initialStage;
 
-  const _IncidentList({required this.onCreate});
+  const _IncidentList({required this.onCreate, required this.initialStage});
 
   @override
   State<_IncidentList> createState() => _IncidentListState();
@@ -88,6 +94,12 @@ class _IncidentList extends StatefulWidget {
 
 class _IncidentListState extends State<_IncidentList> {
   int _selectedStage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStage = widget.initialStage.clamp(0, 4);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +111,7 @@ class _IncidentListState extends State<_IncidentList> {
     final selected = stages[_selectedStage];
     return DefaultTabController(
       length: stages.length,
+      initialIndex: _selectedStage,
       child: Column(
         key: const ValueKey('my-incidents-page'),
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +262,7 @@ class _IncidentListState extends State<_IncidentList> {
   ) => Align(
     alignment: Alignment.topLeft,
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 760),
+      constraints: const BoxConstraints(),
       child: Column(
         key: ValueKey('incidents-stage-$index'),
         crossAxisAlignment: CrossAxisAlignment.stretch,

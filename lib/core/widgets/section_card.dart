@@ -17,7 +17,7 @@ class SectionCard extends StatelessWidget {
             ? theme.colorScheme.surfaceContainerLow
             : theme.colorScheme.surface,
         border: Border.all(color: theme.dividerColor),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: child,
     );

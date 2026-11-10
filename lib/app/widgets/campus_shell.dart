@@ -16,6 +16,7 @@ import '../../features/users/screens/user_management_screen.dart';
 import '../navigation/campus_destination.dart';
 import '../screens/overview_screen.dart';
 import 'campus_navigation.dart';
+import '../../features/notifications/widgets/notification_bell.dart';
 
 /// Hosts the common interface for an authenticated profile.
 ///
@@ -34,6 +35,13 @@ class _CampusShellState extends State<CampusShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   CampusDestination _selected = CampusDestination.overview;
   bool _createReportOnOpen = false;
+  bool _sidebarExpanded = true;
+  int _initialStage = 0;
+
+  void _openStage(CampusDestination destination, int stage) {
+    _select(destination);
+    setState(() => _initialStage = stage);
+  }
 
   @override
   void didUpdateWidget(covariant CampusShell oldWidget) {
@@ -50,6 +58,7 @@ class _CampusShellState extends State<CampusShell> {
     setState(() {
       _selected = destination;
       _createReportOnOpen = false;
+      _initialStage = 0;
     });
     _scaffoldKey.currentState?.closeDrawer();
   }
@@ -116,6 +125,18 @@ class _CampusShellState extends State<CampusShell> {
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
             icon: const Icon(Icons.menu),
           );
+        } else {
+          leading = IconButton(
+            key: const ValueKey('sidebar-toggle'),
+            tooltip: _sidebarExpanded ? 'Contraer menú' : 'Expandir menú',
+            onPressed: () =>
+                setState(() => _sidebarExpanded = !_sidebarExpanded),
+            icon: AnimatedRotation(
+              turns: _sidebarExpanded ? 0 : 0.5,
+              duration: const Duration(milliseconds: 260),
+              child: const Icon(Icons.menu_open),
+            ),
+          );
         }
 
         return Scaffold(
@@ -124,6 +145,12 @@ class _CampusShellState extends State<CampusShell> {
             leading: leading,
             title: const Text('CampusFix'),
             actions: [
+              NotificationBell(
+                key: ValueKey(
+                  'notifications:${widget.profile.id}:${widget.profile.role.name}',
+                ),
+                profile: widget.profile,
+              ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Center(
@@ -165,12 +192,17 @@ class _CampusShellState extends State<CampusShell> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (!useDrawer) ...[
-                  SizedBox(
-                    width: 230,
-                    child: CampusNavigation(
-                      selected: _selected,
-                      destinations: destinations,
-                      onSelected: _select,
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeInOutCubic,
+                    width: _sidebarExpanded ? 240 : 76,
+                    child: ClipRect(
+                      child: CampusNavigation(
+                        selected: _selected,
+                        destinations: destinations,
+                        onSelected: _select,
+                        collapsed: !_sidebarExpanded,
+                      ),
                     ),
                   ),
                   const VerticalDivider(width: 1),
@@ -184,13 +216,7 @@ class _CampusShellState extends State<CampusShell> {
                       24,
                       showCreateReportButton ? 100 : 24,
                     ),
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1100),
-                        child: _page(),
-                      ),
-                    ),
+                    child: SizedBox(width: double.infinity, child: _page()),
                   ),
                 ),
               ],
@@ -207,6 +233,7 @@ class _CampusShellState extends State<CampusShell> {
     CampusDestination.overview => OverviewScreen(
       profile: widget.profile,
       onNavigate: _select,
+      onOpenStage: _openStage,
       destinations: CampusDestination.forRole(widget.profile.role),
     ),
     CampusDestination.profile => ProfileScreen(profile: widget.profile),
@@ -216,8 +243,9 @@ class _CampusShellState extends State<CampusShell> {
     CampusDestination.incidents => MyIncidentsScreen(
       userId: widget.profile.id,
       initiallyCreating: _createReportOnOpen,
+      initialStage: _initialStage,
     ),
-    CampusDestination.management ||
-    CampusDestination.workspace => const IncidentQueueScreen(),
+    CampusDestination.management || CampusDestination.workspace =>
+      IncidentQueueScreen(initialStage: _initialStage),
   };
 }

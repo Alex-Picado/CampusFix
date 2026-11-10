@@ -25,6 +25,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final _password = TextEditingController();
   final _confirmation = TextEditingController();
   bool _registering = false;
+  bool _recovering = false;
+  String? _recoveryMessage;
 
   /// Validates visible inputs and leaves session navigation to SessionGate.
   Future<void> _submit() async {
@@ -34,6 +36,15 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     FocusScope.of(context).unfocus();
+    if (_recovering) {
+      setState(() => _recoveryMessage = null);
+      if (await auth.sendPasswordReset(email: _email.text) && mounted) {
+        setState(
+          () => _recoveryMessage = 'Si existe una cuenta con ese correo, recibirás un enlace para restablecer tu contraseña. Revisá también el correo no deseado.',
+        );
+      }
+      return;
+    }
     if (_registering) {
       await auth.register(
         fullName: _name.text,
@@ -53,6 +64,8 @@ class _AuthScreenState extends State<AuthScreen> {
     _confirmation.clear();
     setState(() {
       _registering = !_registering;
+      _recovering = false;
+      _recoveryMessage = null;
       _formKey = GlobalKey<FormState>();
     });
   }
@@ -71,6 +84,11 @@ class _AuthScreenState extends State<AuthScreen> {
       switchLabel = '¿Ya tenés cuenta? Iniciá sesión';
       passwordHints = const [AutofillHints.newPassword];
       passwordAction = TextInputAction.next;
+    }
+    if (_recovering) {
+      title = 'Recuperar contraseña';
+      description = 'Ingresá el correo de tu cuenta para recibir un enlace de recuperación.';
+      switchLabel = 'Volver a iniciar sesión';
     }
 
     VoidCallback? switchMode;
@@ -128,28 +146,29 @@ class _AuthScreenState extends State<AuthScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              PasswordField(
-                key: const ValueKey('auth-password'),
-                controller: _password,
-                label: 'Contraseña',
-                enabled: !auth.isLoading,
-                autofillHints: passwordHints,
-                textInputAction: passwordAction,
-                onSubmitted: (_) {
-                  if (!_registering) {
-                    _submit();
-                  }
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Ingresá tu contraseña.';
-                  }
-                  if (_registering && value.length < 6) {
-                    return 'Usá al menos 6 caracteres.';
-                  }
-                  return null;
-                },
-              ),
+              if (!_recovering)
+                PasswordField(
+                  key: const ValueKey('auth-password'),
+                  controller: _password,
+                  label: 'Contraseña',
+                  enabled: !auth.isLoading,
+                  autofillHints: passwordHints,
+                  textInputAction: passwordAction,
+                  onSubmitted: (_) {
+                    if (!_registering) {
+                      _submit();
+                    }
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Ingresá tu contraseña.';
+                    }
+                    if (_registering && value.length < 6) {
+                      return 'Usá al menos 6 caracteres.';
+                    }
+                    return null;
+                  },
+                ),
               if (_registering) ...[
                 const SizedBox(height: 16),
                 PasswordField(
@@ -172,16 +191,50 @@ class _AuthScreenState extends State<AuthScreen> {
               ],
               const SizedBox(height: 20),
               AuthErrorNotice(message: auth.errorMessage),
+              if (_recoveryMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Text(_recoveryMessage!),
+                  ),
+                ),
               AuthSubmitButton(
                 key: const ValueKey('auth-submit'),
-                label: title,
+                label: _recovering ? 'Enviar enlace de recuperación' : title,
                 isLoading: auth.isLoading,
                 onPressed: _submit,
               ),
               const SizedBox(height: 8),
+              if (!_registering && !_recovering)
+                TextButton(
+                  key: const ValueKey('auth-forgot-password'),
+                  onPressed: auth.isLoading
+                      ? null
+                      : () {
+                          auth.clearError();
+                          _password.clear();
+                          setState(() {
+                            _recovering = true;
+                            _formKey = GlobalKey<FormState>();
+                          });
+                        },
+                  child: const Text('¿Olvidaste tu contraseña?'),
+                ),
               TextButton(
                 key: const ValueKey('auth-switch'),
-                onPressed: switchMode,
+                onPressed: _recovering
+                    ? (auth.isLoading
+                          ? null
+                          : () {
+                              auth.clearError();
+                              setState(() {
+                                _recovering = false;
+                                _recoveryMessage = null;
+                                _formKey = GlobalKey<FormState>();
+                              });
+                            })
+                    : switchMode,
                 child: Text(switchLabel),
               ),
             ],

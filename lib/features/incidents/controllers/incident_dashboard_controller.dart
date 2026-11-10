@@ -26,6 +26,7 @@ class IncidentDashboardController extends ChangeNotifier {
   bool _invalidated = false;
 
   IncidentIndicators? indicators;
+  List<Incident> incidents = const [];
   Map<String, Category> categories = const {};
   bool loading = true;
   bool categoriesLoading = true;
@@ -64,6 +65,7 @@ class IncidentDashboardController extends ChangeNotifier {
         (rows) {
           if (!active || version != _incidentVersion) return;
           indicators = IncidentIndicators.fromIncidents(rows);
+          incidents = List.unmodifiable(rows);
           loading = false;
           error = null;
           notifyListeners();
@@ -138,6 +140,7 @@ class IncidentDashboardController extends ChangeNotifier {
     _cancelIncidents();
     indicators = null;
     loading = false;
+    incidents = const [];
     error = message;
     notifyListeners();
   }
@@ -163,6 +166,7 @@ class IncidentDashboardController extends ChangeNotifier {
   }
 
   void _clear() {
+    incidents = const [];
     _cancelIncidents();
     _cancelCategories();
     indicators = null;

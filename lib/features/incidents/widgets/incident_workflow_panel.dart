@@ -17,7 +17,12 @@ import '../repositories/incident_repository.dart';
 /// Owns an account-bound lifecycle form independently of progress and evidence.
 class IncidentWorkflowPanel extends StatelessWidget {
   final String incidentId;
-  const IncidentWorkflowPanel({super.key, required this.incidentId});
+  final bool blocked;
+  const IncidentWorkflowPanel({
+    super.key,
+    required this.incidentId,
+    this.blocked = false,
+  });
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
@@ -36,13 +41,14 @@ class IncidentWorkflowPanel extends StatelessWidget {
         role: profile.role,
         incidentId: incidentId,
       ),
-      child: const _WorkflowForm(),
+      child: _WorkflowForm(blocked: blocked),
     );
   }
 }
 
 class _WorkflowForm extends StatefulWidget {
-  const _WorkflowForm();
+  final bool blocked;
+  const _WorkflowForm({required this.blocked});
   @override
   State<_WorkflowForm> createState() => _WorkflowFormState();
 }
@@ -96,16 +102,20 @@ class _WorkflowFormState extends State<_WorkflowForm> {
       null => actions.firstOrNull,
     };
     final primary = actions.contains(preferredAction) ? preferredAction : null;
-    final action = administrator && controller.pending != null
+    final action = controller.pending != null
         ? controller.pending!.action
         : actions.contains(_action)
         ? _action
+        : controller.role == UserRole.technician &&
+              status == IncidentStatus.assigned
+        ? null
         : primary;
     final enabled =
+        !widget.blocked &&
         controller.ready &&
         !controller.saving &&
         controller.pending == null &&
-        !(administrator && controller.awaitingUpdate);
+        !controller.awaitingUpdate;
     final categoryId = _categoryId ?? controller.incident?.categoryId;
     final selectedCategory =
         controller.categories.any((row) => row.id == categoryId)
@@ -228,21 +238,36 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             controller.pending == null &&
             controller.role != UserRole.reporter)
           const Text('No hay acciones disponibles para este estado.'),
+        if (!administrator) ...[
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              for (final value in actions)
+                OutlinedButton.icon(
+                  key: ValueKey('workflow-option-${value.name}'),
+                  onPressed: enabled
+                      ? () async {
+                          if (value == IncidentHistoryAction.started) {
+                            await controller.submit(value);
+                          } else {
+                            _selectAction(value);
+                          }
+                        }
+                      : null,
+                  icon: Icon(
+                    value == IncidentHistoryAction.assignmentDeclined ||
+                            value == IncidentHistoryAction.reviewRequested
+                        ? Icons.close
+                        : Icons.check_circle_outline,
+                  ),
+                  label: Text(value.label),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
         if (action != null) ...[
-          if (!administrator) ...[
-            DropdownButtonFormField<IncidentHistoryAction>(
-              key: ValueKey('workflow-action-${action.name}'),
-              initialValue: action,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Acción'),
-              items: [
-                for (final value in actions)
-                  DropdownMenuItem(value: value, child: Text(value.label)),
-              ],
-              onChanged: enabled ? _selectAction : null,
-            ),
-            const SizedBox(height: 12),
-          ],
           if (action == IncidentHistoryAction.classified) ...[
             DropdownButtonFormField<String>(
               key: ValueKey('workflow-category-$selectedCategory'),
@@ -329,7 +354,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
               ),
             if (action == IncidentHistoryAction.reviewDismissed)
               const Text(
-                'La solicitud se cerrará sin una nueva atención. El motivo quedará visible en el historial.',
+                'La respuesta quedará en el historial. El reportante deberá aceptar la solución antes del cierre.',
               ),
             if (action == IncidentHistoryAction.reopened)
               const Text(
@@ -379,9 +404,21 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             Text(switch (controller.role) {
               UserRole.administrator => 'Flujo de atención',
               UserRole.reporter => 'Revisar la solución',
-              UserRole.technician => 'Atención y gestión',
+              UserRole.technician =>
+                status == IncidentStatus.inProgress
+                    ? 'Resolver incidencia'
+                    : 'Atención y gestión',
             }, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
+            if (widget.blocked)
+              const Text(
+                'Terminá de guardar el avance pendiente antes de resolver la incidencia.',
+              ),
+            if (status == IncidentStatus.resolved &&
+                incident?.technicianApproved == false)
+              const Text(
+                'Esta solución anterior todavía no tiene confirmación del técnico. Administración debe reabrirla para registrar una solución con el nuevo flujo de conformidad.',
+              ),
             if (controller.loadingSources.isNotEmpty)
               const LinearProgressIndicator(),
             if (controller.readError != null) ...[
@@ -468,7 +505,7 @@ enum _AdministratorStep {
       IncidentStatus.assigned =>
         'El técnico asignado aún no inicia la atención.',
       IncidentStatus.inProgress => 'El técnico está atendiendo la incidencia. Podrás cerrarla cuando registre una solución.',
-      IncidentStatus.resolved => 'El técnico registró una solución. Revisala antes de cerrar o reabrir la incidencia.',
+      IncidentStatus.resolved => 'Revisá la solución y aprobá el cierre. Solo se cerrará cuando también la acepte el reportante.',
       _ => status.administratorGuidance,
     },
   };

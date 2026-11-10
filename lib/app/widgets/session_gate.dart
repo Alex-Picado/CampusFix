@@ -10,6 +10,7 @@ import '../../features/users/controllers/profile_controller.dart';
 import '../../features/users/repositories/user_repository.dart';
 import 'campus_shell.dart';
 import '../../features/incidents/screens/incident_detail_screen.dart';
+import '../../features/notifications/widgets/notification_bell.dart';
 
 /// Selects the visible screen from authentication and profile observation.
 ///
@@ -44,6 +45,14 @@ class SessionGate extends StatelessWidget {
                 : Scaffold(
                     appBar: AppBar(
                       title: const Text('Seguimiento de incidencia'),
+                      actions: [
+                        NotificationBell(
+                          key: ValueKey(
+                            'notifications:${profile.id}:${profile.role.name}',
+                          ),
+                          profile: profile,
+                        ),
+                      ],
                       leading: IconButton(
                         tooltip: 'Volver',
                         icon: const Icon(Icons.arrow_back),

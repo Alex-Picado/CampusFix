@@ -18,7 +18,8 @@ import '../widgets/incident_search_panel.dart';
 
 /// Displays the administrator's reports or the technician's own assignments.
 class IncidentQueueScreen extends StatelessWidget {
-  const IncidentQueueScreen({super.key});
+  final int initialStage;
+  const IncidentQueueScreen({super.key, this.initialStage = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -38,13 +39,14 @@ class IncidentQueueScreen extends StatelessWidget {
         uid: profile.id,
         role: profile.role,
       ),
-      child: const _QueueView(),
+      child: _QueueView(initialStage: initialStage),
     );
   }
 }
 
 class _QueueView extends StatefulWidget {
-  const _QueueView();
+  final int initialStage;
+  const _QueueView({required this.initialStage});
 
   @override
   State<_QueueView> createState() => _QueueViewState();
@@ -53,6 +55,13 @@ class _QueueView extends StatefulWidget {
 class _QueueViewState extends State<_QueueView> {
   int _selectedStage = 0;
   int _selectedAdminStage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStage = widget.initialStage.clamp(0, 4);
+    _selectedAdminStage = widget.initialStage.clamp(0, 6);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +119,7 @@ class _QueueViewState extends State<_QueueView> {
     final selected = stages[_selectedAdminStage];
     return DefaultTabController(
       length: stages.length,
+      initialIndex: _selectedAdminStage,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -142,7 +152,7 @@ class _QueueViewState extends State<_QueueView> {
             Align(
               alignment: Alignment.topLeft,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
+                constraints: const BoxConstraints(),
                 child: Column(
                   key: ValueKey('management-stage-$_selectedAdminStage'),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -174,6 +184,7 @@ class _QueueViewState extends State<_QueueView> {
     final selected = stages[_selectedStage];
     return DefaultTabController(
       length: stages.length,
+      initialIndex: _selectedStage,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -206,7 +217,7 @@ class _QueueViewState extends State<_QueueView> {
             Align(
               alignment: Alignment.topLeft,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
+                constraints: const BoxConstraints(),
                 child: Column(
                   key: ValueKey('workspace-stage-$_selectedStage'),
                   crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -524,7 +524,7 @@ void main() {
       );
       expect(
         find.text(
-          'El técnico registró una solución. Si el problema continúa, solicitá otra revisión.',
+          'Revisá la solución y aceptala si estás de acuerdo. Si el problema continúa, solicitá otra revisión.',
         ),
         findsOneWidget,
       );

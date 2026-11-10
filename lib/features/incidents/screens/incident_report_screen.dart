@@ -102,7 +102,7 @@ class _ReportFormState extends State<_ReportForm> {
 
     return ConstrainedBox(
       key: const ValueKey('report-page'),
-      constraints: const BoxConstraints(maxWidth: 760),
+      constraints: const BoxConstraints(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

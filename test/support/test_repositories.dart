@@ -156,6 +156,14 @@ class TestAuthRepository implements AuthRepository {
   Object? signOutError;
   Completer<void>? signInBlocker;
   int signInCalls = 0;
+  int passwordResetCalls = 0;
+  @override
+  Future<void> sendPasswordReset({required String email}) async {
+    passwordResetCalls++;
+    submittedEmail = email;
+    if (signInError != null) throw signInError!;
+  }
+
   int registerCalls = 0;
   int completeProfileCalls = 0;
 

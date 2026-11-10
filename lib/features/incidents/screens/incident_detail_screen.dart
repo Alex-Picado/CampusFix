@@ -8,6 +8,7 @@ import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../controllers/incident_detail_controller.dart';
 import '../models/incident_history_action.dart';
+import '../models/incident_status.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
 import '../repositories/evidence_repository.dart';
@@ -40,8 +41,14 @@ class IncidentDetailScreen extends StatelessWidget {
   }
 }
 
-class _DetailView extends StatelessWidget {
+class _DetailView extends StatefulWidget {
   const _DetailView();
+  @override
+  State<_DetailView> createState() => _DetailViewState();
+}
+
+class _DetailViewState extends State<_DetailView> {
+  bool _reporting = false;
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<IncidentDetailController>();
@@ -81,7 +88,13 @@ class _DetailView extends StatelessWidget {
     }
     final incident = controller.incident!;
     final profile = controller.session.profile!;
-    String person(String id) => id == profile.id ? profile.fullName : id;
+    String person(String id) => id == profile.id
+        ? profile.fullName
+        : id == incident.assignedTechnicianId
+        ? 'Técnico asignado'
+        : id == incident.createdByUserId
+        ? 'Reportante'
+        : 'Equipo de atención';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -128,15 +141,51 @@ class _DetailView extends StatelessWidget {
                   Text('Última actualización: ${_date(incident.updatedAt)}'),
                   if (incident.resolutionDescription != null)
                     Text('Solución: ${incident.resolutionDescription}'),
+                  if (incident.status == IncidentStatus.resolved ||
+                      incident.status == IncidentStatus.closed) ...[
+                    const Divider(height: 28),
+                    Text(
+                      'Conformidad para el cierre',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        for (final approval in [
+                          ('Técnico', incident.technicianApproved),
+                          ('Reportante', incident.reporterApproved),
+                          ('Administración', incident.adminApproved),
+                        ])
+                          Chip(
+                            avatar: Icon(
+                              approval.$2 ? Icons.check_circle : Icons.schedule,
+                              size: 18,
+                              color: approval.$2
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            label: Text(
+                              '${approval.$1}: ${approval.$2 ? 'de acuerdo' : 'pendiente'}',
+                            ),
+                          ),
+                      ],
+                    ),
+                    const Text(
+                      'El cierre requiere el acuerdo de las tres partes sobre esta solución.',
+                    ),
+                  ],
                 ],
               ),
             ),
           ],
         ),
-        IncidentWorkflowPanel(
-          key: const ValueKey('detail-workflow-panel'),
-          incidentId: incident.id,
-        ),
+        if (!controller.canAddProgress && !controller.frozen)
+          IncidentWorkflowPanel(
+            key: const ValueKey('detail-workflow-panel'),
+            incidentId: incident.id,
+          ),
         _section(
           context,
           'Fotografías',
@@ -161,16 +210,33 @@ class _DetailView extends StatelessWidget {
             if (controller.progress.isEmpty)
               const Text('Todavía no hay avances registrados.'),
             for (final entry in controller.progress)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 3,
+                    ),
+                  ),
+                  color: Theme.of(context).colorScheme.primaryContainer
+                      .withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${person(entry.authorUserId)} · ${_date(entry.createdAt)}',
+                      'Avance ${controller.progress.indexOf(entry) + 1} · Técnico: ${person(entry.authorUserId)}',
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const SizedBox(height: 6),
+                    Text(
+                      _date(entry.createdAt),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
                     SelectableText(entry.description),
                     if (controller.evidence.any(
                       (photo) => photo.progressId == entry.id,
@@ -189,8 +255,49 @@ class _DetailView extends StatelessWidget {
               ),
           ],
         ),
-        if (controller.canAddProgress || controller.frozen)
-          const _ProgressForm(),
+        if (controller.canAddProgress || controller.frozen) ...[
+          FilledButton.icon(
+            key: const ValueKey('report-progress'),
+            onPressed: () => setState(() => _reporting = !_reporting),
+            icon: Icon(_reporting ? Icons.expand_less : Icons.edit_note),
+            label: Text(_reporting ? 'Ocultar formulario' : 'Reportar avance'),
+          ),
+          const SizedBox(height: 16),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            alignment: Alignment.topCenter,
+            child: !_reporting && !controller.frozen
+                ? const SizedBox.shrink()
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final children = [
+                        const _ProgressForm(),
+                        IncidentWorkflowPanel(
+                          incidentId: incident.id,
+                          blocked:
+                              controller.saving ||
+                              controller.frozen ||
+                              controller.selecting,
+                        ),
+                      ];
+                      if (constraints.maxWidth < 850) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: children,
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: children[0]),
+                          const SizedBox(width: 20),
+                          Expanded(child: children[1]),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        ],
         _section(context, 'Historial', controller.loadingSections.contains('history'), [
           if (controller.history.isEmpty)
             const Text('No hay eventos registrados.'),
@@ -269,9 +376,11 @@ class _DetailView extends StatelessWidget {
     IncidentHistoryAction.started => 'Atención iniciada',
     IncidentHistoryAction.progressAdded => 'Avance registrado',
     IncidentHistoryAction.resolved => 'Incidencia resuelta',
+    IncidentHistoryAction.solutionAccepted =>
+      'Solución aceptada por el reportante',
     IncidentHistoryAction.reviewRequested => 'Nueva revisión solicitada',
     IncidentHistoryAction.reviewDismissed => 'Solicitud de revisión cerrada',
-    IncidentHistoryAction.closed => 'Incidencia cerrada',
+    IncidentHistoryAction.closed => 'Administración aprobó el cierre',
     IncidentHistoryAction.rejected => 'Incidencia rechazada',
     IncidentHistoryAction.cancelled => 'Incidencia cancelada',
     IncidentHistoryAction.reopened => 'Incidencia reabierta',

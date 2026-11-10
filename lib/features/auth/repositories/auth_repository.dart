@@ -27,6 +27,9 @@ class AuthRepository {
     return _authService.signOut();
   }
 
+  Future<void> sendPasswordReset({required String email}) =>
+      _authService.sendPasswordReset(email: email.trim());
+
   /// Watches the current user ID and subsequent session changes.
   ///
   /// Emits null when no user is signed in.

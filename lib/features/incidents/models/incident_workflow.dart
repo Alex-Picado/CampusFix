@@ -65,7 +65,10 @@ abstract final class IncidentWorkflow {
           IncidentStatus.inProgress,
         ].contains(status))
           IncidentHistoryAction.cancelled,
-        if (status == IncidentStatus.resolved) IncidentHistoryAction.closed,
+        if (status == IncidentStatus.resolved &&
+            !incident.adminApproved &&
+            incident.technicianApproved)
+          IncidentHistoryAction.closed,
         if ([
           IncidentStatus.resolved,
           IncidentStatus.closed,
@@ -89,6 +92,10 @@ abstract final class IncidentWorkflow {
     }
     if (role == UserRole.reporter && incident.createdByUserId == uid) {
       return [
+        if (status == IncidentStatus.resolved &&
+            !incident.reporterApproved &&
+            incident.technicianApproved)
+          IncidentHistoryAction.solutionAccepted,
         if ([IncidentStatus.resolved, IncidentStatus.closed].contains(status))
           IncidentHistoryAction.reviewRequested,
       ];
@@ -147,8 +154,15 @@ abstract final class IncidentWorkflow {
       IncidentHistoryAction.assigned => IncidentStatus.assigned,
       IncidentHistoryAction.started => IncidentStatus.inProgress,
       IncidentHistoryAction.resolved => IncidentStatus.resolved,
-      IncidentHistoryAction.closed ||
-      IncidentHistoryAction.reviewDismissed => IncidentStatus.closed,
+      IncidentHistoryAction.closed =>
+        incident.reporterApproved && incident.technicianApproved
+            ? IncidentStatus.closed
+            : IncidentStatus.resolved,
+      IncidentHistoryAction.solutionAccepted =>
+        incident.adminApproved && incident.technicianApproved
+            ? IncidentStatus.closed
+            : IncidentStatus.resolved,
+      IncidentHistoryAction.reviewDismissed => IncidentStatus.resolved,
       IncidentHistoryAction.rejected => IncidentStatus.rejected,
       IncidentHistoryAction.cancelled => IncidentStatus.cancelled,
       _ => throw const FormatException('Unsupported workflow action.'),
@@ -167,7 +181,25 @@ abstract final class IncidentWorkflow {
         'assignedTechnicianId': null,
       if (action == IncidentHistoryAction.resolved)
         'resolutionDescription': command.reason,
+      if (action == IncidentHistoryAction.resolved) ...{
+        'technicianApproved': true,
+        'reporterApproved': false,
+        'adminApproved': false,
+      },
+      if (action == IncidentHistoryAction.closed) 'adminApproved': true,
+      if (action == IncidentHistoryAction.solutionAccepted)
+        'reporterApproved': true,
+      if ([
+        IncidentHistoryAction.reviewRequested,
+        IncidentHistoryAction.reviewDismissed,
+      ].contains(action)) ...{
+        'reporterApproved': false,
+        'adminApproved': false,
+      },
       if (action == IncidentHistoryAction.reopened) ...{
+        'technicianApproved': false,
+        'reporterApproved': false,
+        'adminApproved': false,
         'assignedTechnicianId': null,
         'priority': null,
         'resolutionDescription': null,

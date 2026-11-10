@@ -24,7 +24,7 @@ extension IncidentStatusLabels on IncidentStatus {
     IncidentStatus.assigned =>
       'Ya tiene un técnico asignado. La atención aún no inicia.',
     IncidentStatus.inProgress => 'El técnico está trabajando en este reporte.',
-    IncidentStatus.resolved => 'El técnico registró una solución. Si el problema continúa, solicitá otra revisión.',
+    IncidentStatus.resolved => 'Revisá la solución y aceptala si estás de acuerdo. Si el problema continúa, solicitá otra revisión.',
     IncidentStatus.reviewRequested => 'Solicitaste otra revisión. Administración decidirá si se reabre el caso.',
     IncidentStatus.closed =>
       'La solución fue revisada y el reporte quedó cerrado.',
@@ -42,10 +42,10 @@ extension IncidentStatusLabels on IncidentStatus {
       'La incidencia está lista para que iniciés la atención.',
     IncidentStatus.inProgress =>
       'La atención está en curso. Registrá los avances en el detalle.',
-    IncidentStatus.resolved =>
-      'Registraste una solución. Administración revisará el cierre.',
+    IncidentStatus.resolved => 'Registraste una solución. El cierre espera la conformidad del reportante y administración.',
     IncidentStatus.reviewRequested => 'El reportante solicitó otra revisión. Administración decidirá los próximos pasos.',
-    IncidentStatus.closed => 'Administración cerró la incidencia.',
+    IncidentStatus.closed =>
+      'La incidencia se cerró con la conformidad de las tres partes.',
     IncidentStatus.rejected =>
       'La incidencia fue rechazada. Consultá el motivo en el detalle.',
     IncidentStatus.cancelled =>

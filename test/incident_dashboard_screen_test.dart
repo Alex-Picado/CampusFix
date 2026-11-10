@@ -20,7 +20,11 @@ import 'support/test_repositories.dart';
 void main() {
   setUpAll(() async {
     if (!const bool.fromEnvironment('CAPTURE_DASHBOARD_EVIDENCE')) return;
-    const directory = '.fvm/sdk-3.47.5/bin/cache/artifacts/material_fonts';
+    const sdk = String.fromEnvironment(
+      'FLUTTER_SDK',
+      defaultValue: '.fvm/sdk-3.47.5',
+    );
+    const directory = '$sdk/bin/cache/artifacts/material_fonts';
     for (final entry in {
       'Roboto': 'roboto-regular.ttf',
       'MaterialIcons': 'materialicons-regular.otf',

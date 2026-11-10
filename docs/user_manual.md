@@ -7,6 +7,11 @@ start as **Reportante**. An existing administrator assigns other roles through
 **Usuarios**. **Mi perfil** lets you update your name. Use **Salir** before another
 person uses the device.
 
+Use **¿Olvidaste tu contraseña?** to request a password recovery email. The bell
+shows updates to authorized cases, including progress, with a red unread dot.
+Read status is remembered on the current device. Desktop users can collapse or
+expand the animated sidebar. Click a home stage card to open that stage directly.
+
 Desktop navigation is on the left; on tablets use **Abrir menú**. Incident links
 use `/#/incidents/<incident-id>`. Sign in with an authorized account to open them.
 Reload recovers the session and confirmed records. An unrelated reporter or an
@@ -30,11 +35,12 @@ the summary cannot load, select **Reintentar**.
    tab row horizontally to reach the later stages. Each card shows a short
    description, its current state, what that state means, category, location and
    latest change. **Finalizadas** contains closed, rejected or cancelled reports.
-   **Solución registrada** means the technician recorded a solution; administrative closure
-   may still be pending. If the problem continues, open **Ver detalle** and use
+   **Solución registrada** means the technician recorded a solution. Open the
+   detail and use **Aceptar solución** if it works. Closure requires the reporter,
+   technician and administrator to agree. If the problem continues, use
    **Solicitar nueva revisión**, explaining what remains wrong. Administration
    will review the request and either reopen the case for another assignment or
-   close the request with a reason. Use **Ver detalle** in either view for responsible
+   answer with a reason and request fresh agreement. Use **Ver detalle** in either view for responsible
    references, solution, progress comments and chronological history.
 
 Search your own reports by exact consecutive number (with or without `#`), text
@@ -60,10 +66,12 @@ Open an assigned case and select
 **Iniciar atención**. If you cannot take or continue the case, select
 **Rechazar asignación** and explain why. The case returns to administration for
 reassignment; the incident remains open and the reason stays in its history.
-During attention, enter a nonblank **Descripción del avance**
+During attention, select **Reportar avance** to open the advance form on the left
+and the resolution form on the right (stacked on smaller screens). Enter a nonblank **Descripción del avance**
 and use **Guardar avance**. A local photograph is optional. To finish, enter
-**Solución realizada** and select **Resolver incidencia**. An administrator performs
-formal closure. Follow retry instructions if a write cannot be confirmed; the
+**Solución realizada** and select **Resolver incidencia**. This records the technician's
+agreement; the case closes only after the reporter accepts and administration approves.
+Follow retry instructions if a write cannot be confirmed; the
 application preserves the pending operation ID.
 
 ## Administrator
@@ -81,10 +89,11 @@ beside the state: green for **BAJA**, amber for **MEDIA**, red for **ALTA** and
 gray for **Sin prioridad**. Open the case to see three steps. In **Clasificar**,
 confirm an active category and priority. The form advances to **Asignar**,
 where you select and confirm a technician. **Seguimiento** shows the current
-state and available actions. Close a case after it has **Solución registrada**.
+state and available actions. Use **Aprobar cierre** after reviewing the registered
+solution. The case remains resolved until the reporter also accepts it.
 If the reporter requests another
-review, reopen it for a new classification and assignment or close the request
-with a reason. Rejection, cancellation and reopening require a reason and a
+review, reopen it for a new classification and assignment or answer the request
+with a reason and obtain fresh agreement. Rejection, cancellation and reopening require a reason and a
 permitted state. Reopening preserves the prior solution in history and clears
 priority and the assigned technician.
 
@@ -93,6 +102,8 @@ filters. **Sin prioridad** and **Sin asignar** are explicit choices. The result
 count refers to all combined criteria across tabs; clear them to restore the global queue.
 
 **Indicadores** uses the global population independently of Management filters.
+It includes weekly and monthly reports, pending closure agreement, unassigned cases
+and daily activity. Click a metric to see its cases. Calendar periods use Costa Rica time.
 **En atención** and **Revisión solicitada** are included in **Abiertas**.
 Rejected and cancelled cases count in total and categories but remain outside
 open under the agreement.

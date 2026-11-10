@@ -90,7 +90,7 @@ service cloud.firestore {
           || (event.action != 'assigned' && details.technicianId == null))
         && ((event.action in ['resolved', 'rejected', 'cancelled', 'reopened', 'reviewRequested', 'reviewDismissed', 'assignmentDeclined'] && isNonblankText(event.reason)
               && event.reason == event.reason.trim())
-          || (event.action in ['classified', 'assigned', 'started', 'closed'] && event.reason == null))
+          || (event.action in ['classified', 'assigned', 'started', 'closed', 'solutionAccepted'] && event.reason == null))
         && ((event.action == 'reopened' && event.previousResolutionDescription == before.resolutionDescription)
           || (event.action != 'reopened' && event.previousResolutionDescription == null));
     }
@@ -110,24 +110,31 @@ service cloud.firestore {
             && next.priority in ['BAJA', 'MEDIA', 'ALTA'] && isActiveCategory(next.categoryId)
             && isDocumentId(next.assignedTechnicianId)
             && get(/databases/$(database)/documents/users/$(next.assignedTechnicianId)).data.role == 'technician')
-          || (event.action == 'closed' && before.status == 'RESUELTA' && next.status == 'CERRADA'
-            && changed.hasOnly(common))
+          || (event.action == 'closed' && before.status == 'RESUELTA'
+            && before.get('technicianApproved', false) == true
+            && before.get('adminApproved', false) == false && next.adminApproved == true
+            && next.status == (before.get('reporterApproved', false) == true ? 'CERRADA' : 'RESUELTA')
+            && changed.hasOnly(common.concat(['adminApproved'])))
           || (event.action == 'rejected' && before.status == 'EN_REVISION' && next.status == 'RECHAZADA'
             && changed.hasOnly(common))
           || (event.action == 'cancelled' && before.status in ['REPORTADA', 'EN_REVISION', 'ASIGNADA', 'EN_ATENCION']
             && next.status == 'CANCELADA' && changed.hasOnly(common))
           || (event.action == 'reopened' && before.status in ['RESUELTA', 'CERRADA', 'REVISION_SOLICITADA'] && next.status == 'EN_REVISION'
-            && changed.hasOnly(common.concat(['assignedTechnicianId', 'priority', 'resolutionDescription']))
+            && changed.hasOnly(common.concat(['assignedTechnicianId', 'priority', 'resolutionDescription',
+              'technicianApproved', 'reporterApproved', 'adminApproved']))
+            && next.technicianApproved == false && next.reporterApproved == false && next.adminApproved == false
             && next.assignedTechnicianId == null && next.priority == null && next.resolutionDescription == null)
           || (event.action == 'reviewDismissed' && before.status == 'REVISION_SOLICITADA'
-            && next.status == 'CERRADA' && changed.hasOnly(common))
+            && next.status == 'RESUELTA' && next.reporterApproved == false && next.adminApproved == false
+            && changed.hasOnly(common.concat(['reporterApproved', 'adminApproved'])))
         )
       ) || (
         isTechnician() && before.assignedTechnicianId == request.auth.uid && (
           (event.action == 'started' && before.status == 'ASIGNADA' && next.status == 'EN_ATENCION'
             && changed.hasOnly(common))
           || (event.action == 'resolved' && before.status == 'EN_ATENCION' && next.status == 'RESUELTA'
-            && changed.hasOnly(common.concat(['resolutionDescription']))
+            && changed.hasOnly(common.concat(['resolutionDescription', 'technicianApproved', 'reporterApproved', 'adminApproved']))
+            && next.technicianApproved == true && next.reporterApproved == false && next.adminApproved == false
             && next.resolutionDescription == event.reason && isNonblankText(next.resolutionDescription))
           || (event.action == 'assignmentDeclined'
             && before.status in ['ASIGNADA', 'EN_ATENCION']
@@ -136,10 +143,18 @@ service cloud.firestore {
         )
       ) || (
         isReporter() && before.createdByUserId == request.auth.uid
-        && event.action == 'reviewRequested'
-        && before.status in ['RESUELTA', 'CERRADA']
-        && next.status == 'REVISION_SOLICITADA'
-        && changed.hasOnly(common)
+        && (
+          (event.action == 'reviewRequested'
+            && before.status in ['RESUELTA', 'CERRADA']
+            && next.status == 'REVISION_SOLICITADA'
+            && next.reporterApproved == false && next.adminApproved == false
+            && changed.hasOnly(common.concat(['reporterApproved', 'adminApproved'])))
+          || (event.action == 'solutionAccepted' && before.status == 'RESUELTA'
+            && before.get('technicianApproved', false) == true
+            && before.get('reporterApproved', false) == false && next.reporterApproved == true
+            && next.status == (before.get('adminApproved', false) == true ? 'CERRADA' : 'RESUELTA')
+            && changed.hasOnly(common.concat(['reporterApproved'])))
+        )
       );
     }
 

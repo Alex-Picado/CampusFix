@@ -320,6 +320,10 @@ _mount(
         .pushNamed('/incidents/case'),
   );
   await tester.pumpAndSettle();
+  if (technician &&
+      find.byKey(const ValueKey('report-progress')).evaluate().isNotEmpty) {
+    await _tap(tester, 'report-progress');
+  }
   return (
     auth: auth,
     users: users,

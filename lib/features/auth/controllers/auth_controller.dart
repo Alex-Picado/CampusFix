@@ -20,6 +20,9 @@ class AuthController extends ChangeNotifier {
   /// Whether an authentication action is currently running.
   bool get isLoading => _isLoading;
 
+  Future<bool> sendPasswordReset({required String email}) =>
+      _execute(() => _authRepository.sendPasswordReset(email: email.trim()));
+
   /// The latest user-facing error, or null when no error is available.
   String? get errorMessage => _errorMessage;
 
@@ -60,26 +63,26 @@ class AuthController extends ChangeNotifier {
   }
 
   /// Signs out through the authentication repository.
-///
-/// Reuses shared loading and error handling.
-/// Returns false on failure, overlapping calls, or disposal.
-Future<bool> signOut() {
-  return _execute(() {
-    return _authRepository.signOut();
-  });
-}
-
-/// Clears the latest authentication form error.
-///
-/// Does nothing after disposal or when no error exists.
-void clearError() {
-  if (_disposed || _errorMessage == null) {
-    return;
+  ///
+  /// Reuses shared loading and error handling.
+  /// Returns false on failure, overlapping calls, or disposal.
+  Future<bool> signOut() {
+    return _execute(() {
+      return _authRepository.signOut();
+    });
   }
 
-  _errorMessage = null;
-  notifyListeners();
-}
+  /// Clears the latest authentication form error.
+  ///
+  /// Does nothing after disposal or when no error exists.
+  void clearError() {
+    if (_disposed || _errorMessage == null) {
+      return;
+    }
+
+    _errorMessage = null;
+    notifyListeners();
+  }
 
   /// Executes [action] with shared loading and error handling.
   ///

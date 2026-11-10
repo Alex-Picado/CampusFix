@@ -14,18 +14,22 @@ import '../../features/incidents/repositories/incident_repository.dart';
 import '../../features/users/models/user_profile.dart';
 import '../../features/users/models/user_role.dart';
 import '../navigation/campus_destination.dart';
+import '../../features/incidents/widgets/administrative_summary.dart';
+import '../../core/widgets/campus_banner.dart';
 
 /// Shows a live summary and shortcuts for the authenticated role.
 class OverviewScreen extends StatelessWidget {
   final UserProfile profile;
   final ValueChanged<CampusDestination> onNavigate;
   final List<CampusDestination> destinations;
+  final void Function(CampusDestination, int)? onOpenStage;
 
   const OverviewScreen({
     super.key,
     required this.profile,
     required this.onNavigate,
     required this.destinations,
+    this.onOpenStage,
   });
 
   @override
@@ -35,6 +39,7 @@ class OverviewScreen extends StatelessWidget {
       profile: profile,
       onNavigate: onNavigate,
       destinations: destinations,
+      onOpenStage: onOpenStage,
     );
   }
 }
@@ -43,12 +48,14 @@ class _PersonalOverview extends StatefulWidget {
   final UserProfile profile;
   final ValueChanged<CampusDestination> onNavigate;
   final List<CampusDestination> destinations;
+  final void Function(CampusDestination, int)? onOpenStage;
 
   const _PersonalOverview({
     super.key,
     required this.profile,
     required this.onNavigate,
     required this.destinations,
+    this.onOpenStage,
   });
 
   @override
@@ -121,6 +128,8 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
               ? 'Revisá el estado de las incidencias y las tareas del campus.'
               : 'Revisá tus asignaciones y continuá con la atención.',
         ),
+        const SizedBox(height: 24),
+        const CampusBanner(),
         const SizedBox(height: 24),
         SectionCard(
           child: Column(
@@ -387,6 +396,10 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (isAdministrator) ...[
+          AdministrativeSummary(incidents: reports),
+          const SizedBox(height: 24),
+        ],
         Text(
           isReporter
               ? 'Resumen de mis reportes'
@@ -434,6 +447,21 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
                       label: groups[index].$1,
                       icon: groups[index].$2,
                       count: groups[index].$3,
+                      onTap: () {
+                        final destination = isAdministrator
+                            ? CampusDestination.management
+                            : isReporter
+                            ? CampusDestination.incidents
+                            : CampusDestination.workspace;
+                        if (widget.onOpenStage != null) {
+                          widget.onOpenStage!(
+                            destination,
+                            isAdministrator ? index + 1 : index,
+                          );
+                        } else {
+                          widget.onNavigate(destination);
+                        }
+                      },
                     ),
                   ),
               ],
@@ -486,25 +514,44 @@ class _CountCard extends StatelessWidget {
   final String label;
   final IconData icon;
   final int count;
+  final VoidCallback onTap;
 
   const _CountCard({
     super.key,
     required this.label,
     required this.icon,
     required this.count,
+    required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) => SectionCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 12),
-        Text('$count', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 4),
-        Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
-      ],
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SectionCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 22,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const Spacer(),
+                const Icon(Icons.arrow_forward, size: 16),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('$count', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 4),
+            Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -516,27 +563,34 @@ class _RecentReport extends StatelessWidget {
   const _RecentReport({required this.report, required this.role});
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        '#${report.sequenceNumber} · ${report.title}',
-        style: Theme.of(context).textTheme.titleSmall,
-      ),
-      const SizedBox(height: 4),
-      Text(
-        report.status.label,
-        style: TextStyle(color: Theme.of(context).colorScheme.primary),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        role == UserRole.reporter
-            ? report.status.reporterGuidance
-            : role == UserRole.administrator
-            ? report.status.administratorGuidance
-            : 'Ubicación: ${report.location}',
-        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-      ),
-    ],
+  Widget build(BuildContext context) => InkWell(
+    onTap: () =>
+        Navigator.of(context)
+            .pushNamed('/incidents/${Uri.encodeComponent(report.id)}'),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '#${report.sequenceNumber} · ${report.title}',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          report.status.label,
+          style: TextStyle(color: Theme.of(context).colorScheme.primary),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          role == UserRole.reporter
+              ? report.status.reporterGuidance
+              : role == UserRole.administrator
+              ? report.status.administratorGuidance
+              : 'Ubicación: ${report.location}',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    ),
   );
 }

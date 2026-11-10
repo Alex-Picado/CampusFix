@@ -19,6 +19,70 @@ import 'support/report_repositories.dart';
 
 void main() {
   testWidgets(
+    'An open notification panel clears private content when the session changes',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final app = await _mountApp(tester, role: UserRole.reporter);
+      await _tap(tester, 'notification-bell');
+      expect(find.text('Notificaciones'), findsOneWidget);
+      app.auth.setUser(null);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('La sesión cambió. Cerrá este panel para continuar.'),
+        findsOneWidget,
+      );
+      expect(find.text('Marcar todas como leídas'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'Password recovery validates email and sends a link without signing in',
+    (tester) async {
+      final app = await _mountApp(tester);
+      await _tap(tester, 'auth-forgot-password');
+      expect(find.byKey(const ValueKey('auth-password')), findsNothing);
+      await _enter(tester, 'auth-email', 'invalid');
+      await _tap(tester, 'auth-submit');
+      expect(app.auth.passwordResetCalls, 0);
+      await _enter(tester, 'auth-email', '  alex@campusfix.test  ');
+      await _tap(tester, 'auth-submit');
+      expect(app.auth.passwordResetCalls, 1);
+      expect(app.auth.submittedEmail, 'alex@campusfix.test');
+      expect(app.auth.currentUserId, isNull);
+      expect(find.textContaining('recibirás un enlace'), findsOneWidget);
+      await _tap(tester, 'auth-switch');
+      expect(find.byKey(const ValueKey('auth-password')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final role in UserRole.values) {
+    testWidgets(
+      'Dashboard cards open the selected stage and sidebar animates for ${role.name}',
+      (tester) async {
+        await _mountApp(tester, role: role);
+        await _tap(tester, 'sidebar-toggle');
+        expect(find.byTooltip('Expandir menú'), findsOneWidget);
+        await _tap(tester, 'sidebar-toggle');
+        expect(find.byTooltip('Contraer menú'), findsOneWidget);
+        final prefix = role == UserRole.administrator
+            ? 'admin-home'
+            : role == UserRole.technician
+            ? 'technician-home'
+            : 'home';
+        await _tap(tester, '$prefix-count-2');
+        final tab = find.byType(TabBar);
+        expect(
+          DefaultTabController.of(tester.element(tab)).index,
+          role == UserRole.administrator ? 3 : 2,
+        );
+        expect(find.byKey(const ValueKey('notification-bell')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
     'Appearance follows the system and remembers an explicit choice',
     (tester) async {
       SharedPreferences.setMockInitialValues({});

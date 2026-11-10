@@ -81,6 +81,10 @@ void main() {
     );
     auth.userId = 'admin';
     await save(command(IncidentHistoryAction.closed));
+    expect(current().status, IncidentStatus.resolved);
+    expect(current().adminApproved, isTrue);
+    auth.userId = 'reporter-1';
+    await save(command(IncidentHistoryAction.solutionAccepted));
     expect(current().status, IncidentStatus.closed);
     expect(current().createdByUserId, original.createdByUserId);
     expect(current().sequenceNumber, original.sequenceNumber);
@@ -95,7 +99,7 @@ void main() {
     );
     expect(
       database.documents['incidents/case']?['lastWorkflowEventId'],
-      'workflow-5',
+      'workflow-6',
     );
   });
   test('Reopening preserves the previous solution and requires new classification and assignment', () async {
@@ -194,7 +198,9 @@ void main() {
         reason: 'Verified working',
       ),
     );
-    expect(current().status, IncidentStatus.closed);
+    expect(current().status, IncidentStatus.resolved);
+    expect(current().reporterApproved, isFalse);
+    expect(current().adminApproved, isFalse);
     expect(current().resolutionDescription, 'Repaired');
   });
   test('A nonassigned technician and a stored role downgrade cannot start attention', () async {

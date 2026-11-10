@@ -26,6 +26,9 @@ class AuthService {
     return _auth.signOut();
   }
 
+  Future<void> sendPasswordReset({required String email}) =>
+      _auth.sendPasswordResetEmail(email: email);
+
   /// Creates an account using [email] and [password].
   ///
   /// Returns the authentication result and signs in the new user.

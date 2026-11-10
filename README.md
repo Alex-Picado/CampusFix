@@ -39,6 +39,8 @@ protected by Firestore rules.
 
 ## Documentation
 
+- [Mejoras de experiencia, notificaciones y cierre por conformidad](docs/experience_update.md).
+
 - [Public release preparation and deployment status](docs/despliegue.md).
 - [User manual](docs/user_manual.md).
 - [Architecture, data and permissions](docs/architecture_delivery.md).

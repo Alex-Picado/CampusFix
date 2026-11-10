@@ -10,7 +10,7 @@ Do not display credentials or private records. Photograph fixtures are synthetic
 | 2-4 min | Create report and attach a local photograph | Confirmed consecutive, REPORTADA and acknowledged photo. |
 | 4-6 min | Administrator classifies and assigns | Category/priority before assignment; ASIGNADA. |
 | 6-8 min | Technician starts and records progress | EN_ATENCION, author/date/comment and optional photo. |
-| 8-9 min | Resolve and administrator closes | Required solution; RESUELTA then CERRADA and audit trail. |
+| 8-9 min | Resolve, reporter accepts and administrator approves | Required solution; RESUELTA until all three agree, then CERRADA and audit trail. |
 | 9-10 min | Search and combine filters | Consecutive/text/category plus state, priority and technician. |
 | 10-11 min | Indicators and inactive categories | Global counts independent of filters; historical names preserved. |
 | 11-12 min | Tablet, protected-route reload and role isolation | Adapted navigation; recovered detail; unrelated user denied. |

@@ -8,7 +8,10 @@ import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
 import '../controllers/incident_dashboard_controller.dart';
 import '../models/incident_indicators.dart';
+import '../models/incident.dart';
+import '../models/incident_status.dart';
 import '../repositories/incident_repository.dart';
+import '../widgets/administrative_summary.dart';
 
 /// Displays global administrative indicators with independently recoverable reads.
 class IncidentDashboardScreen extends StatelessWidget {
@@ -69,7 +72,9 @@ class _DashboardView extends StatelessWidget {
             ),
           )
         else if (indicators != null) ...[
-          _Metrics(indicators: indicators),
+          AdministrativeSummary(incidents: controller.incidents),
+          const SizedBox(height: 24),
+          _Metrics(indicators: indicators, incidents: controller.incidents),
           const SizedBox(height: 16),
           const Text(
             'Abiertas: reportadas, en revisión, asignadas, en atención y con nueva revisión solicitada. '
@@ -90,7 +95,8 @@ class _DashboardView extends StatelessWidget {
 
 class _Metrics extends StatelessWidget {
   final IncidentIndicators indicators;
-  const _Metrics({required this.indicators});
+  final List<Incident> incidents;
+  const _Metrics({required this.indicators, required this.incidents});
 
   @override
   Widget build(BuildContext context) {
@@ -133,20 +139,47 @@ class _Metrics extends StatelessWidget {
             for (final (id, label, count, icon) in metrics)
               SizedBox(
                 width: width,
-                child: SectionCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(icon, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(height: 12),
-                      Text(
-                        '$count',
-                        key: ValueKey('dashboard-$id'),
-                        style: Theme.of(context).textTheme.headlineLarge,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(label),
-                    ],
+                child: InkWell(
+                  onTap: () => AdministrativeSummary.showCases(
+                    context,
+                    label,
+                    incidents
+                        .where(
+                          (row) => switch (id) {
+                            'open' => {
+                              IncidentStatus.reported,
+                              IncidentStatus.underReview,
+                              IncidentStatus.assigned,
+                              IncidentStatus.inProgress,
+                              IncidentStatus.reviewRequested,
+                            }.contains(row.status),
+                            'in-progress' =>
+                              row.status == IncidentStatus.inProgress,
+                            'resolved' => row.status == IncidentStatus.resolved,
+                            'closed' => row.status == IncidentStatus.closed,
+                            _ => true,
+                          },
+                        )
+                        .toList(),
+                  ),
+                  child: SectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          icon,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '$count',
+                          key: ValueKey('dashboard-$id'),
+                          style: Theme.of(context).textTheme.headlineLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(label),
+                      ],
+                    ),
                   ),
                 ),
               ),

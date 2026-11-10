@@ -69,8 +69,9 @@ void main() {
       expect(tester.takeException(), isNull);
       app.auth.setUser('tech');
       await tester.pumpAndSettle();
-      await _tapKey(tester, 'workflow-save');
+      await _tapKey(tester, 'workflow-option-started');
       expect(app.reports.incident.status, IncidentStatus.inProgress);
+      await _tapKey(tester, 'report-progress');
       await _tapKey(tester, 'workflow-save');
       expect(find.text('Escribí la solución realizada.'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const ValueKey('workflow-reason')));
@@ -83,7 +84,13 @@ void main() {
       app.auth.setUser('admin');
       await tester.pumpAndSettle();
       await _tapKey(tester, 'workflow-save');
+      expect(app.reports.incident.status, IncidentStatus.resolved);
+      app.auth.setUser('owner');
+      await tester.pumpAndSettle();
+      await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.status, IncidentStatus.closed);
+      app.auth.setUser('admin');
+      await tester.pumpAndSettle();
       await _tapKey(tester, 'workflow-option-reopened');
       await tester.enterText(
         find.byKey(const ValueKey('workflow-reason')),
@@ -107,6 +114,7 @@ void main() {
         'tech',
         'tech',
         'admin',
+        'owner',
         'admin',
       ]);
       expect(tester.takeException(), isNull);
@@ -272,7 +280,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester, technician: true);
       await _tapKey(tester, 'detail-case');
-      await _choose<IncidentHistoryAction>(tester, 'Rechazar asignación');
+      await _tapKey(tester, 'workflow-option-assignmentDeclined');
       await _tapKey(tester, 'workflow-save');
       expect(find.text('Escribí el motivo de la operación.'), findsOneWidget);
       await tester.enterText(
@@ -306,7 +314,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester, technician: true);
       await _tapKey(tester, 'detail-case');
-      await _choose<IncidentHistoryAction>(tester, 'Rechazar asignación');
+      await _tapKey(tester, 'workflow-option-assignmentDeclined');
       await tester.enterText(
         find.byKey(const ValueKey('workflow-reason')),
         'No puedo atender esta semana',
