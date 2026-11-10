@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../app/theme/appearance_controller.dart';
 import '../../../core/widgets/page_heading.dart';
+import '../../auth/controllers/auth_controller.dart';
 import '../../../core/widgets/section_card.dart';
 import '../controllers/profile_controller.dart';
 import '../models/user_profile.dart';
@@ -22,6 +23,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   bool _hasDraft = false;
+  bool _sendingPasswordReset = false;
+  bool _passwordResetSent = false;
+  String? _passwordResetError;
+
+  /// Sends a Firebase password-change link to the current profile's email.
+  ///
+  /// Keeps feedback local to this account and prevents duplicate submissions.
+  Future<void> _changePassword() async {
+    final auth = context.read<AuthController>();
+    if (_sendingPasswordReset || auth.isLoading) return;
+    final userId = widget.profile.id;
+    setState(() {
+      _sendingPasswordReset = true;
+      _passwordResetError = null;
+      _passwordResetSent = false;
+    });
+    final success = await auth.sendPasswordReset(email: widget.profile.email);
+    if (!mounted || widget.profile.id != userId) return;
+    setState(() {
+      _sendingPasswordReset = false;
+      _passwordResetSent = success;
+      if (!success) _passwordResetError = auth.errorMessage;
+    });
+  }
 
   @override
   void initState() {
@@ -153,6 +178,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.lock_outline,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Contraseña',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Te enviaremos un enlace a ${widget.profile.email} para que elijás una nueva contraseña.',
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                key: const ValueKey('profile-change-password'),
+                onPressed:
+                    _sendingPasswordReset ||
+                        context.watch<AuthController>().isLoading
+                    ? null
+                    : _changePassword,
+                icon: _sendingPasswordReset
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.password),
+                label: Text(
+                  _sendingPasswordReset
+                      ? 'Enviando enlace...'
+                      : 'Cambiar contraseña',
+                ),
+              ),
+              if (_passwordResetSent) ...[
+                const SizedBox(height: 12),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    'Enlace enviado. Revisá tu correo y la carpeta de spam para cambiar la contraseña.',
+                  ),
+                ),
+              ],
+              if (_passwordResetError != null) ...[
+                const SizedBox(height: 12),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _passwordResetError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         const SizedBox(height: 24),

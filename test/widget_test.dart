@@ -798,6 +798,48 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('Profile sends a password-change link to the signed-in email', (
+    tester,
+  ) async {
+    final app = await _mountApp(tester, role: UserRole.reporter);
+    await _tap(tester, 'nav-profile');
+    expect(find.textContaining('alex@campusfix.test'), findsWidgets);
+    await _tap(tester, 'profile-change-password');
+    expect(app.auth.passwordResetCalls, 1);
+    expect(app.auth.submittedEmail, 'alex@campusfix.test');
+    expect(
+      find.textContaining('Enlace enviado. Revisá tu correo'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('profile-page')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Profile password link errors allow retry without claiming success',
+    (tester) async {
+      final app = await _mountApp(tester, role: UserRole.technician);
+      await _tap(tester, 'nav-profile');
+      app.auth.signInError = FirebaseAuthException(
+        code: 'network-request-failed',
+      );
+      await _tap(tester, 'profile-change-password');
+      expect(
+        find.text('No pudimos conectar. Revisá tu conexión a internet.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Enlace enviado.'), findsNothing);
+      app.auth.signInError = null;
+      await _tap(tester, 'profile-change-password');
+      expect(app.auth.passwordResetCalls, 2);
+      expect(
+        find.textContaining('Enlace enviado. Revisá tu correo'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Profile saves validate names and preserve the email and role', (
     tester,
   ) async {
