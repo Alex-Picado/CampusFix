@@ -24,7 +24,7 @@ enum IncidentStatus {
   /// An incident rejected during review.
   rejected('RECHAZADA'),
 
-  /// An incident cancelled before resolution.
+  /// An incident withdrawn from attention without recording a formal closure.
   cancelled('CANCELADA'),
 
   /// A resolved or closed incident requiring another review.

@@ -8,12 +8,14 @@ role notifications, interactive dashboards and three-party closure approvals.
 The new Firestore rules were published and read back to verify their source.
 Later updates add report confirmation, resolution confirmation, a fully hidden
 sidebar, solution-only reporter notifications and session retention of 30 minutes
-or 30 days according to **Recordarme**. The authenticated
+or 30 days according to **Recordarme**. The November 10 update adds author-only
+report cancellation and removal from personal views, retaining administrative
+audit. Unfinished reports are cancelled atomically when removed. The authenticated
 three-role production walkthrough remains separate from the verified public
 sign-in page and automated application/emulator checks.
 
-Executed checks: 342 Flutter tests, clean Flutter analysis, a release web build,
-and the previously executed 88 Firestore permission tests for these rules. The
+Executed checks: 349 Flutter tests, clean Flutter analysis, a release web build,
+and 91 Firestore permission tests for these rules. The
 published index, JavaScript, manifest and campus photograph return HTTP 200 and
 match the reviewed build byte for byte. A browser screenshot is saved locally at
 `build/evidence/production/ingreso-ucr-publicado.jpg`.
@@ -21,9 +23,9 @@ The updated sign-in page was also checked in the production browser with
 **Recordarme** unchecked (30 minutes) and checked (30 days). Its screenshot is
 `build/evidence/production/ingreso-recordarme-publicado.jpg`.
 
-Published Firestore ruleset: `aac15141-0df8-4eb9-9cd0-c057dad3591b`.
-Previous ruleset: `bc33e7f0-b8d0-4477-8dc0-e25ad7f55ada`.
-Rules SHA-256: `f2b7c67e24d72a6f7f6386fcd67930da3d0315761573726a0e79f2575125911e`.
+Published Firestore ruleset: `dfa06fe3-dcf6-4341-91ac-3f27915a3a20`.
+Previous ruleset: `c6bfc36f-ea3f-4976-a373-c842224bdae5`.
+Rules SHA-256: `830a30f7e2cc55cc260d23ca043ba722d36b56f08a587c30c9d0b38be619f20f`.
 
 The combined CLI deploy encountered a 403 on its Service Usage API precheck.
 Rules were instead validated, published and verified through the Firebase Rules

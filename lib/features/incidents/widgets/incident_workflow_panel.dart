@@ -80,7 +80,14 @@ class _WorkflowFormState extends State<_WorkflowForm> {
   Widget build(BuildContext context) {
     final controller = context.watch<IncidentWorkflowController>();
     if (!controller.active) return const SizedBox.shrink();
-    final actions = controller.actions;
+    final actions = controller.actions
+        .where(
+          (action) =>
+              controller.role != UserRole.reporter ||
+              (action != IncidentHistoryAction.cancelled &&
+                  action != IncidentHistoryAction.removedFromList),
+        )
+        .toList();
     if (controller.role == UserRole.reporter &&
         actions.isEmpty &&
         controller.loadingSources.isEmpty &&

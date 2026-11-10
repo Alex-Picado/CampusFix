@@ -14,6 +14,7 @@ import '../repositories/incident_repository.dart';
 import '../repositories/evidence_repository.dart';
 import '../widgets/evidence_widgets.dart';
 import '../widgets/incident_workflow_panel.dart';
+import '../widgets/reporter_report_actions.dart';
 
 /// Protected detail, chronological comments/history and assigned-technician progress.
 class IncidentDetailScreen extends StatelessWidget {
@@ -112,6 +113,12 @@ class _DetailViewState extends State<_DetailView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Chip(label: Text(incident.status.label)),
+                  if (incident.reporterHidden) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'El reportante eliminó este reporte de su lista. Se conserva su historial.',
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   SelectableText(incident.description),
                   const SizedBox(height: 12),
@@ -180,6 +187,10 @@ class _DetailViewState extends State<_DetailView> {
               ),
             ),
           ],
+        ),
+        ReporterReportActions(
+          incident: incident,
+          onRemoved: () => Navigator.of(context).maybePop(),
         ),
         if (!controller.canAddProgress && !controller.frozen)
           IncidentWorkflowPanel(
@@ -383,6 +394,8 @@ class _DetailViewState extends State<_DetailView> {
     IncidentHistoryAction.closed => 'Administración aprobó el cierre',
     IncidentHistoryAction.rejected => 'Incidencia rechazada',
     IncidentHistoryAction.cancelled => 'Incidencia cancelada',
+    IncidentHistoryAction.removedFromList =>
+      'Reporte eliminado de la lista del reportante',
     IncidentHistoryAction.reopened => 'Incidencia reabierta',
   };
 }

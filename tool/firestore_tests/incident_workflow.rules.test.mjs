@@ -52,10 +52,11 @@ async function attempt(uid, action, options = {}) {
     closed: { status: old.reporterApproved && old.technicianApproved ? 'CERRADA' : 'RESUELTA', adminApproved: true },
     solutionAccepted: { status: old.adminApproved && old.technicianApproved ? 'CERRADA' : 'RESUELTA', reporterApproved: true },
     rejected: { status: 'RECHAZADA' }, cancelled: { status: 'CANCELADA' },
+    removedFromList: { status: ['CERRADA','CANCELADA','RECHAZADA'].includes(old.status) ? old.status : 'CANCELADA', reporterHidden: true },
     reopened: { status: 'EN_REVISION', assignedTechnicianId: null, priority: null, resolutionDescription: null, technicianApproved: false, reporterApproved: false, adminApproved: false },
   }[action] ?? {};
   const next = { ...old, ...changes, updatedAt: serverTimestamp(), lastWorkflowEventId: eventId, ...options.changeIncident };
-  const reason = action === 'resolved' ? 'Replaced' : ['rejected','cancelled','reopened','reviewRequested','reviewDismissed','assignmentDeclined'].includes(action) ? 'Reason supplied' : null;
+  const reason = action === 'resolved' ? 'Replaced' : ['rejected','cancelled','removedFromList','reopened','reviewRequested','reviewDismissed','assignmentDeclined'].includes(action) ? 'Reason supplied' : null;
   const event = { actorUserId: uid, createdAt: serverTimestamp(), action, fromStatus: old.status,
     toStatus: next.status, fromTechnicianId: old.assignedTechnicianId, toTechnicianId: next.assignedTechnicianId,
     reason, details: { categoryId: action === 'classified' ? next.categoryId : null,
@@ -74,6 +75,57 @@ async function classified() { await assertSucceeds(attempt('admin', 'classified'
 async function assigned() { await classified(); await assertSucceeds(attempt('admin', 'assigned')); }
 async function attending() { await assigned(); await assertSucceeds(attempt('tech', 'started')); }
 async function resolved() { await attending(); await assertSucceeds(attempt('tech', 'resolved')); }
+
+test('Only the stored reporter author cancels an open report with an atomic reasoned audit', async () => {
+  for (const status of ['REPORTADA','EN_REVISION','ASIGNADA','EN_ATENCION','RESUELTA','REVISION_SOLICITADA','REABIERTA']) {
+    await seed({status});
+    for (const uid of ['other','tech','other-tech','missing']) await assertFails(attempt(uid,'cancelled'));
+    await assertFails(attempt('owner','cancelled',{incidentOnly:true}));
+    await assertFails(attempt('owner','cancelled',{eventOnly:true}));
+    await assertSucceeds(attempt('owner','cancelled'));
+  }
+  for (const status of ['CERRADA','CANCELADA','RECHAZADA']) {
+    await seed({status}); await assertFails(attempt('owner','cancelled'));
+  }
+});
+
+test('Removal is author-only, cancels open work and retains the administrative report and immutable history', async () => {
+  await attending();
+  for (const uid of ['other','tech','other-tech','admin','missing']) await assertFails(attempt(uid,'removedFromList'));
+  await assertFails(attempt('owner','removedFromList',{changeIncident:{createdByUserId:'other'}}));
+  await assertFails(attempt('owner','removedFromList',{changeIncident:{resolutionDescription:'Forged solution'}}));
+  await assertFails(attempt('owner','removedFromList',{changeIncident:{reporterHidden:false}}));
+  for (const reason of [null,'','  ',' untrimmed ']) {
+    await assertFails(attempt('owner','removedFromList',{changeEvent:{reason, details:{categoryId:null,priority:null,technicianId:null,reason}}}));
+  }
+  await assertSucceeds(attempt('owner','removedFromList',{eventId:'withdrawal'}));
+  const admin = dbFor('admin');
+  const data = (await assertSucceeds(getDoc(doc(admin,'incidents/case')))).data();
+  assert.equal(data.status,'CANCELADA'); assert.equal(data.reporterHidden,true);
+  assert.equal(data.assignedTechnicianId,'tech'); assert.equal(data.createdByUserId,'owner');
+  const event = (await assertSucceeds(getDoc(doc(admin,'incidents/case/history/withdrawal')))).data();
+  assert.equal(event.action,'removedFromList'); assert.equal(event.actorUserId,'owner');
+  await assertFails(attempt('owner','removedFromList'));
+  await assertFails(updateDoc(doc(dbFor('owner'),'incidents/case'),{reporterHidden:false}));
+  const owner = dbFor('owner');
+  const batch = writeBatch(owner);
+  batch.delete(doc(owner,'incidents/case'));
+  await assertFails(batch.commit());
+});
+
+test('Removal of a finalized report preserves its outcome, solution, assignment and all approvals', async () => {
+  for (const status of ['CERRADA','RECHAZADA','CANCELADA']) {
+    await seed({status,reporterHidden:false,resolutionDescription:'Original solution',
+      technicianApproved:true,reporterApproved:true,adminApproved:true});
+    await assertFails(attempt('owner','removedFromList',{changeIncident:{status:'CANCELADA' === status ? 'CERRADA' : 'CANCELADA'}}));
+    await assertFails(attempt('owner','removedFromList',{changeIncident:{adminApproved:false}}));
+    await assertSucceeds(attempt('owner','removedFromList'));
+    const data = (await getDoc(doc(dbFor('admin'),'incidents/case'))).data();
+    assert.equal(data.status,status); assert.equal(data.resolutionDescription,'Original solution');
+    assert.equal(data.technicianApproved,true); assert.equal(data.reporterApproved,true); assert.equal(data.adminApproved,true);
+    await assertFails(attempt('admin','reopened'));
+  }
+});
 
 test('The full lifecycle commits changes and immutable audit events with actors and dates', async () => {
   await resolved(); await assertSucceeds(attempt('owner', 'solutionAccepted')); await assertSucceeds(attempt('admin', 'closed'));

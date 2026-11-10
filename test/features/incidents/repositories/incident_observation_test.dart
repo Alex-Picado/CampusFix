@@ -53,6 +53,37 @@ void main() {
     await auth.states.close();
   });
 
+  test('Removed reports disappear from author queries while administration retains the same records', () async {
+    final own = <List<Incident>>[];
+    final all = <List<Incident>>[];
+    subscriptions.add(
+      repository.watchOwn(userId: 'reporter-1').listen(own.add),
+    );
+    subscriptions.add(repository.watchAll().listen(all.add));
+    await settle();
+    final records = {
+      'visible': incident(),
+      'removed': {
+        ...incident(sequence: 2),
+        'reporterHidden': true,
+        'status': 'CANCELADA',
+      },
+    };
+    for (final channel in database.queries) {
+      channel.emit(records);
+    }
+    await settle();
+    expect(own.single.map((row) => row.id), ['visible']);
+    expect(
+      all.single.map((row) => row.id),
+      containsAll(['visible', 'removed']),
+    );
+    expect(
+      all.single.firstWhere((row) => row.id == 'removed').reporterHidden,
+      isTrue,
+    );
+  });
+
   test('Technician queues filter by the authenticated UID and cancel on account changes', () async {
     auth.userId = 'tech';
     final values = <List<Incident>>[];

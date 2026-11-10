@@ -39,6 +39,9 @@ enum IncidentHistoryAction {
   /// An incident was cancelled.
   cancelled('cancelled'),
 
+  /// The author withdrew the report from their views without deleting audit.
+  removedFromList('removedFromList'),
+
   /// An incident was reopened for review.
   reopened('reopened');
 

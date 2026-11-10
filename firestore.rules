@@ -88,7 +88,7 @@ service cloud.firestore {
           || (event.action != 'classified' && details.categoryId == null && details.priority == null))
         && ((event.action == 'assigned' && details.technicianId == next.assignedTechnicianId)
           || (event.action != 'assigned' && details.technicianId == null))
-        && ((event.action in ['resolved', 'rejected', 'cancelled', 'reopened', 'reviewRequested', 'reviewDismissed', 'assignmentDeclined'] && isNonblankText(event.reason)
+        && ((event.action in ['resolved', 'rejected', 'cancelled', 'removedFromList', 'reopened', 'reviewRequested', 'reviewDismissed', 'assignmentDeclined'] && isNonblankText(event.reason)
               && event.reason == event.reason.trim())
           || (event.action in ['classified', 'assigned', 'started', 'closed', 'solutionAccepted'] && event.reason == null))
         && ((event.action == 'reopened' && event.previousResolutionDescription == before.resolutionDescription)
@@ -98,7 +98,7 @@ service cloud.firestore {
     function validWorkflowTransition(before, next, event) {
       let changed = next.diff(before).affectedKeys();
       let common = ['status', 'updatedAt', 'lastWorkflowEventId'];
-      return (
+      return before.get('reporterHidden', false) == false && ((
         isAdmin() && (
           (event.action == 'classified' && before.status in ['REPORTADA', 'EN_REVISION']
             && next.status == 'EN_REVISION'
@@ -154,8 +154,15 @@ service cloud.firestore {
             && before.get('reporterApproved', false) == false && next.reporterApproved == true
             && next.status == (before.get('adminApproved', false) == true ? 'CERRADA' : 'RESUELTA')
             && changed.hasOnly(common.concat(['reporterApproved'])))
+          || (event.action == 'cancelled'
+            && before.status in ['REPORTADA', 'EN_REVISION', 'ASIGNADA', 'EN_ATENCION', 'RESUELTA', 'REVISION_SOLICITADA', 'REABIERTA']
+            && next.status == 'CANCELADA' && changed.hasOnly(common))
+          || (event.action == 'removedFromList'
+            && next.reporterHidden == true
+            && next.status == (before.status in ['CERRADA', 'CANCELADA', 'RECHAZADA'] ? before.status : 'CANCELADA')
+            && changed.hasOnly(common.concat(['reporterHidden'])))
         )
-      );
+      ));
     }
 
     function validWorkflowChange(before, next, event) {

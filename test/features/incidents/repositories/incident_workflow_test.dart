@@ -4,6 +4,7 @@ import 'package:campusfix/features/incidents/models/incident_priority.dart';
 import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:campusfix/features/incidents/models/incident_workflow.dart';
 import 'package:campusfix/features/incidents/services/incident_service.dart';
+import 'package:campusfix/features/users/models/user_role.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -67,6 +68,71 @@ void main() {
     database.store('users/tech', {'role': 'technician'});
     database.store('users/other-tech', {'role': 'technician'});
     auth.userId = 'admin';
+  });
+
+  test('Authors can withdraw active reports and a stable removal retry preserves all history', () async {
+    await classify();
+    await assign();
+    auth.userId = 'tech';
+    await save(command(IncidentHistoryAction.started));
+    final before = Map.of(database.documents['incidents/case']!);
+    auth.userId = 'reporter-1';
+    await save(
+      command(IncidentHistoryAction.cancelled, reason: 'Duplicate report'),
+    );
+    expect(current().status, IncidentStatus.cancelled);
+    expect(current().reporterHidden, isFalse);
+    final removal = command(
+      IncidentHistoryAction.removedFromList,
+      reason: 'Remove from my list',
+    );
+    await save(removal);
+    final commits = database.writeCommits;
+    await save(removal);
+    expect(database.writeCommits, commits);
+    expect(current().reporterHidden, isTrue);
+    expect(current().createdAt, before['createdAt'].toDate());
+    expect(current().assignedTechnicianId, 'tech');
+    expect(database.documents['incidents/case/history/created'], isNotNull);
+    expect(
+      database
+          .documents['incidents/case/history/${removal.eventId}']?['actorUserId'],
+      'reporter-1',
+    );
+  });
+
+  test('Removing open reports cancels them; removing finalized reports preserves their outcome and approvals', () async {
+    auth.userId = 'reporter-1';
+    final original = Map.of(database.documents['incidents/case']!);
+    for (final status in IncidentStatus.values) {
+      database.store('incidents/case', {
+        ...original,
+        'status': status.value,
+        'technicianApproved': true,
+        'reporterApproved': true,
+        'adminApproved': true,
+      });
+      await save(
+        command(
+          IncidentHistoryAction.removedFromList,
+          reason: 'Remove from my list',
+        ),
+      );
+      final row = current();
+      expect(
+        row.status,
+        IncidentWorkflow.isFinal(status) ? status : IncidentStatus.cancelled,
+      );
+      expect(row.reporterHidden, isTrue);
+      expect(
+        IncidentWorkflow.actions(row, UserRole.administrator, 'admin'),
+        isEmpty,
+      );
+      expect(
+        row.technicianApproved && row.reporterApproved && row.adminApproved,
+        isTrue,
+      );
+    }
   });
 
   test('The full lifecycle preserves immutable incident data and records every actor', () async {
