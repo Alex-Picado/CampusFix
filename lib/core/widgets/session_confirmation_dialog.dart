@@ -15,63 +15,78 @@ Future<bool> showSessionConfirmationDialog({
   Key? cancelKey,
   IconData icon = Icons.info_outline,
 }) async {
+  return await showSessionDialog<bool>(
+        context: context,
+        barrierDismissible: cancelLabel != null,
+        builder: (context) => AlertDialog(
+          icon: Icon(
+            icon,
+            color: Theme.of(context).colorScheme.primary,
+            size: 36,
+          ),
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            if (cancelLabel != null)
+              TextButton(
+                key: cancelKey,
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(cancelLabel),
+              ),
+            FilledButton(
+              key: confirmKey,
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        ),
+      ) ==
+      true;
+}
+
+/// Hides private dialog content and removes only its route on account changes.
+Future<T?> showSessionDialog<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  bool barrierDismissible = true,
+}) async {
   final session = context.read<SessionController>();
   final profile = session.profile;
   if (profile == null || session.status != SessionStatus.authenticated) {
-    return false;
+    return null;
   }
   final navigator = Navigator.of(context);
   bool valid() =>
       session.status == SessionStatus.authenticated &&
       session.profile?.id == profile.id &&
       session.profile?.role == profile.role;
-  late final DialogRoute<bool> route;
+  late final DialogRoute<T> route;
   void sessionChanged() {
     if (valid()) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!valid() && navigator.mounted && route.isActive) {
-        navigator.removeRoute(route, false);
+        navigator.removeRoute(route);
       }
     });
   }
 
-  route = DialogRoute<bool>(
+  route = DialogRoute<T>(
     context: context,
-    barrierDismissible: cancelLabel != null,
+    barrierDismissible: barrierDismissible,
     builder: (context) => AnimatedBuilder(
       animation: session,
       builder: (context, _) => valid()
           ? PopScope(
-              canPop: cancelLabel != null,
-              child: AlertDialog(
-                icon: Icon(
-                  icon,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 36,
-                ),
-                title: Text(title),
-                content: Text(message),
-                actions: [
-                  if (cancelLabel != null)
-                    TextButton(
-                      key: cancelKey,
-                      onPressed: () => navigator.pop(false),
-                      child: Text(cancelLabel),
-                    ),
-                  FilledButton(
-                    key: confirmKey,
-                    onPressed: () => navigator.pop(true),
-                    child: Text(confirmLabel),
-                  ),
-                ],
-              ),
+              canPop: barrierDismissible,
+              child: Builder(builder: builder),
             )
           : const SizedBox.shrink(),
     ),
   );
   session.addListener(sessionChanged);
   try {
-    return await navigator.push(route) == true && valid();
+    final result = await navigator.push(route);
+    return valid() ? result : null;
   } finally {
     session.removeListener(sessionChanged);
   }

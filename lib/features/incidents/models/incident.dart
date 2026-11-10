@@ -50,6 +50,9 @@ class Incident {
   final bool reporterApproved;
   final bool adminApproved;
 
+  /// Removed from the author's views; administrative audit remains available.
+  final bool reporterHidden;
+
   /// Creates an incident with the reported state by default.
   const Incident({
     required this.id,
@@ -69,6 +72,7 @@ class Incident {
     this.technicianApproved = false,
     this.reporterApproved = false,
     this.adminApproved = false,
+    this.reporterHidden = false,
   });
 
   /// Returns the agreed incident fields, excluding the document identifier.
@@ -94,6 +98,7 @@ class Incident {
       if (technicianApproved) 'technicianApproved': true,
       if (reporterApproved) 'reporterApproved': true,
       if (adminApproved) 'adminApproved': true,
+      if (reporterHidden) 'reporterHidden': true,
     };
   }
 
@@ -134,6 +139,7 @@ class Incident {
       'technicianApproved',
       'reporterApproved',
       'adminApproved',
+      'reporterHidden',
     ]) {
       if (data[key] != null && data[key] is! bool) {
         throw const FormatException('Invalid resolution approval.');
@@ -182,6 +188,7 @@ class Incident {
       technicianApproved: data['technicianApproved'] == true,
       reporterApproved: data['reporterApproved'] == true,
       adminApproved: data['adminApproved'] == true,
+      reporterHidden: data['reporterHidden'] == true,
     );
   }
 
@@ -209,6 +216,7 @@ class Incident {
     bool? technicianApproved,
     bool? reporterApproved,
     bool? adminApproved,
+    bool? reporterHidden,
   }) {
     return Incident(
       id: id,
@@ -232,6 +240,7 @@ class Incident {
       technicianApproved: technicianApproved ?? this.technicianApproved,
       reporterApproved: reporterApproved ?? this.reporterApproved,
       adminApproved: adminApproved ?? this.adminApproved,
+      reporterHidden: reporterHidden ?? this.reporterHidden,
     );
   }
 }

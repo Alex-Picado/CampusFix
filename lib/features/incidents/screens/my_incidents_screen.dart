@@ -13,6 +13,7 @@ import '../models/incident_status.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
 import '../widgets/incident_search_panel.dart';
+import '../widgets/reporter_report_actions.dart';
 import 'incident_report_screen.dart';
 
 /// Switches between the reporter's live reports and an independently owned form.
@@ -326,6 +327,7 @@ class _IncidentListState extends State<_IncidentList> {
           },
           child: const Text('Ver detalle'),
         ),
+        ReporterReportActions(incident: incident),
       ],
     ),
   );

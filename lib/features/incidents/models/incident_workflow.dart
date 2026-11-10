@@ -47,6 +47,11 @@ class IncidentWorkflowCommand {
 abstract final class IncidentWorkflow {
   /// Bounds atomic security checks to one principal and four backup technicians.
   static const maxBackupTechnicians = 4;
+  static bool isFinal(IncidentStatus status) => const [
+    IncidentStatus.closed,
+    IncidentStatus.cancelled,
+    IncidentStatus.rejected,
+  ].contains(status);
 
   /// Returns the actions available to the stored role and current assignment.
   static List<IncidentHistoryAction> actions(
@@ -54,6 +59,7 @@ abstract final class IncidentWorkflow {
     UserRole role,
     String uid,
   ) {
+    if (incident.reporterHidden) return const [];
     final status = incident.status;
     if (role == UserRole.administrator) {
       return [
@@ -106,6 +112,8 @@ abstract final class IncidentWorkflow {
           IncidentHistoryAction.solutionAccepted,
         if ([IncidentStatus.resolved, IncidentStatus.closed].contains(status))
           IncidentHistoryAction.reviewRequested,
+        if (!isFinal(status)) IncidentHistoryAction.cancelled,
+        IncidentHistoryAction.removedFromList,
       ];
     }
     return const [];
@@ -155,6 +163,7 @@ abstract final class IncidentWorkflow {
       IncidentHistoryAction.resolved,
       IncidentHistoryAction.rejected,
       IncidentHistoryAction.cancelled,
+      IncidentHistoryAction.removedFromList,
       IncidentHistoryAction.reopened,
       IncidentHistoryAction.reviewRequested,
       IncidentHistoryAction.reviewDismissed,
@@ -191,6 +200,8 @@ abstract final class IncidentWorkflow {
       IncidentHistoryAction.reviewDismissed => IncidentStatus.resolved,
       IncidentHistoryAction.rejected => IncidentStatus.rejected,
       IncidentHistoryAction.cancelled => IncidentStatus.cancelled,
+      IncidentHistoryAction.removedFromList =>
+        isFinal(incident.status) ? incident.status : IncidentStatus.cancelled,
       _ => throw const FormatException('Unsupported workflow action.'),
     };
     if (assignment && incident.priority == null) {
@@ -200,6 +211,8 @@ abstract final class IncidentWorkflow {
     }
     return {
       'status': status.value,
+      if (action == IncidentHistoryAction.removedFromList)
+        'reporterHidden': true,
       if (classification) 'categoryId': command.categoryId,
       if (classification) 'priority': command.priority!.value,
       if (assignment) ...{

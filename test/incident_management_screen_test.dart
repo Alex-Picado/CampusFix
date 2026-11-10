@@ -23,6 +23,116 @@ import 'support/test_repositories.dart';
 
 void main() {
   testWidgets(
+    'Reporters cancel with a reason, then remove their report while administrators retain its audit',
+    (tester) async {
+      final app = await _mount(tester, reporter: true);
+      await _tapKey(tester, 'report-cancel-case');
+      await _tapKey(tester, 'report-withdraw-back');
+      expect(app.reports.history, isEmpty);
+      await _tapKey(tester, 'report-cancel-case');
+      await _tapKey(tester, 'report-withdraw-confirm');
+      expect(find.text('Escribí el motivo de la operación.'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('report-withdraw-reason')),
+        'Reporte duplicado',
+      );
+      await _tapKey(tester, 'report-withdraw-confirm');
+      expect(app.reports.incident.status, IncidentStatus.cancelled);
+      expect(app.reports.incident.reporterHidden, isFalse);
+      await _tapText(tester, 'Finalizadas (1)');
+      expect(find.byKey(const ValueKey('incident-case')), findsOneWidget);
+      expect(find.byKey(const ValueKey('report-cancel-case')), findsNothing);
+      await _tapKey(tester, 'report-remove-case');
+      await _tapKey(tester, 'report-withdraw-confirm');
+      expect(app.reports.incident.reporterHidden, isTrue);
+      expect(find.byKey(const ValueKey('incident-case')), findsNothing);
+      expect(app.reports.history.map((event) => event.action), [
+        IncidentHistoryAction.cancelled,
+        IncidentHistoryAction.removedFromList,
+      ]);
+      expect(app.reports.history.first.reason, 'Reporte duplicado');
+      app.auth.setUser('admin');
+      await tester.pumpAndSettle();
+      await _tapKey(tester, 'nav-management');
+      await _tapText(tester, 'Abrir incidencia');
+      expect(
+        find.textContaining('Reporte eliminado de la lista del reportante'),
+        findsOneWidget,
+      );
+      expect(find.text('Reporte duplicado'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Removing an attending report from its detail cancels work and returns to the reporter list',
+    (tester) async {
+      final app = await _mount(tester, reporter: true);
+      await _tapKey(tester, 'detail-case');
+      app.reports.incident = app.reports.incident.copyWith(
+        status: IncidentStatus.inProgress,
+        assignedTechnicianId: 'tech',
+      );
+      app.reports.changes.add(null);
+      await tester.pumpAndSettle();
+      await _tapKey(tester, 'report-remove-case');
+      expect(find.textContaining('Se cancelará el reporte'), findsOneWidget);
+      await _tapKey(tester, 'report-withdraw-confirm');
+      expect(find.byKey(const ValueKey('my-incidents-page')), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-case')), findsNothing);
+      expect(app.reports.incident.status, IncidentStatus.cancelled);
+      expect(app.reports.incident.reporterHidden, isTrue);
+      expect(
+        IncidentWorkflow.actions(
+          app.reports.incident,
+          UserRole.technician,
+          'tech',
+        ),
+        isEmpty,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Removal preserves one operation through a lost acknowledgement after the card disappears',
+    (tester) async {
+      final app = await _mount(tester, reporter: true);
+      app.reports.failure = FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'unavailable',
+      );
+      app.reports.commitBeforeError = true;
+      await _tapKey(tester, 'report-remove-case');
+      await _tapKey(tester, 'report-withdraw-confirm');
+      expect(app.reports.incident.reporterHidden, isTrue);
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('Reintentar el mismo cambio'), findsOneWidget);
+      final operation = app.reports.submissions.single;
+      app.reports.failure = null;
+      await _tapKey(tester, 'report-withdraw-confirm');
+      expect(app.reports.submissions, [operation, operation]);
+      expect(app.reports.history, hasLength(1));
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'An account change dismisses withdrawal without writing for either account',
+    (tester) async {
+      final app = await _mount(tester, reporter: true);
+      await _tapKey(tester, 'report-remove-case');
+      app.auth.setUser('admin');
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(app.reports.incident.reporterHidden, isFalse);
+      expect(app.reports.history, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Assignment hides inactive technicians, accepts ordered backups and can go back',
     (tester) async {
       final app = await _mount(tester);
@@ -451,7 +561,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('workflow-save')), findsNothing);
       expect(app.users.activeAllUsersWatches, 0);
-      expect(app.reports.active, 0);
+      // The reporter bell keeps its empty own-report feed after the role change.
+      expect(app.reports.active, 1);
+      expect(find.byKey(const ValueKey('report-cancel-case')), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -629,6 +741,7 @@ Future<({TestAuthRepository auth, TestUserRepository users, _Reports reports})>
 _mount(
   WidgetTester tester, {
   bool technician = false,
+  bool reporter = false,
   bool tablet = false,
 }) async {
   tester.view.physicalSize = tablet
@@ -653,7 +766,11 @@ _mount(
   }
   final auth = TestAuthRepository(
     users: users,
-    currentUserId: technician ? 'tech' : 'admin',
+    currentUserId: reporter
+        ? 'owner'
+        : technician
+        ? 'tech'
+        : 'admin',
   );
   final reports = _Reports(auth: auth, users: users);
   if (technician) {
@@ -685,7 +802,14 @@ _mount(
     await tester.tap(find.byTooltip('Abrir menú'));
     await tester.pumpAndSettle();
   }
-  await _tapKey(tester, technician ? 'nav-workspace' : 'nav-management');
+  await _tapKey(
+    tester,
+    reporter
+        ? 'nav-incidents'
+        : technician
+        ? 'nav-workspace'
+        : 'nav-management',
+  );
   return (auth: auth, users: users, reports: reports);
 }
 
@@ -727,6 +851,13 @@ class _Reports extends Fake implements IncidentRepository {
   });
   @override
   Stream<List<Incident>> watchAll() => watch(() => [incident]);
+  @override
+  Stream<List<Incident>> watchOwn({required String userId}) => watch(
+    () => [
+      if (incident.createdByUserId == userId && !incident.reporterHidden)
+        incident,
+    ],
+  );
   @override
   Stream<List<Incident>> watchAssigned({required String userId}) =>
       watch(() => [if (incident.assignedTechnicianId == userId) incident]);

@@ -111,15 +111,18 @@ class IncidentRepository {
       throw const FormatException('A user ID is required.');
     }
     yield* _incidentService.watchOwn(userId: userId).map((documents) {
-      final incidents = documents.entries.map((entry) {
-        final incident = Incident.fromMap(id: entry.key, data: entry.value);
-        if (incident.createdByUserId != userId) {
-          throw const FormatException(
-            'The own-report query returned another author.',
-          );
-        }
-        return incident;
-      }).toList();
+      final incidents = documents.entries
+          .map((entry) {
+            final incident = Incident.fromMap(id: entry.key, data: entry.value);
+            if (incident.createdByUserId != userId) {
+              throw const FormatException(
+                'The own-report query returned another author.',
+              );
+            }
+            return incident;
+          })
+          .where((incident) => !incident.reporterHidden)
+          .toList();
       incidents.sort((first, second) {
         final byDate = second.createdAt.compareTo(first.createdAt);
         if (byDate != 0) return byDate;

@@ -200,6 +200,7 @@ class IncidentWorkflowController extends ChangeNotifier {
           IncidentHistoryAction.resolved,
           IncidentHistoryAction.rejected,
           IncidentHistoryAction.cancelled,
+          IncidentHistoryAction.removedFromList,
           IncidentHistoryAction.reopened,
           IncidentHistoryAction.reviewRequested,
           IncidentHistoryAction.reviewDismissed,

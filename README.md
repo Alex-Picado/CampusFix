@@ -14,6 +14,9 @@ The reporting form manages validated drafts, stable submission retries and
 server reconciliation, clearing its private state when the view or session ends.
 The personal incident list observes the reporter's own records and updates their
 status, location and creation date without reloading the application.
+Reporters can cancel their own unfinished reports with a reason, or remove them
+from their personal views. Removal cancels unfinished work atomically and retains
+the administrative report and its complete audit history.
 Protected detail routes show photographs, responsible accounts, comments and
 history. Assigned technicians in attention can record progress with optional
 photographs. Image bytes are stored in the versioned `local_storage/evidence/`

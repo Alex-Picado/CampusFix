@@ -39,6 +39,7 @@ live name lookup avoids rewriting incidents on rename.
 | Operation | Reporter | Technician | Administrator |
 | --- | --- | --- | --- |
 | Create / own report list | Own identity | No reporter operation | No reporter operation |
+| Cancel / remove from personal views | Own report; reasoned atomic audit | Denied | Existing cancellation policy; no personal removal |
 | Detail, history, progress reads | Own reports | Assigned reports | All reports |
 | Global incident list / indicators | Denied | Denied | Allowed |
 | Classify, assign, close | Denied | Denied | Valid state and references |
@@ -49,6 +50,13 @@ live name lookup avoids rewriting incidents on rename.
 | Upload local photograph bytes | Own report | Assigned case in attention | No implicit owner/technician write |
 
 Firestore rules validate permissions, schemas, related writes and transitions.
+Personal removal records `reporterHidden: true` with a `removedFromList` history
+event in the same transaction. Unfinished reports become cancelled; closed,
+rejected and cancelled reports retain their outcome and approvals. Reporter
+queries filter the flag after validating ownership; this feeds their list, home
+and notifications on every device. Administrative and assigned-technician queries
+retain the record for consultation. Workflow writes cannot reactivate removed
+reports. Physical deletion remains denied, including audit and evidence.
 Local photo authorization checks again after receiving bytes. Client navigation
 never replaces those checks. No administrative credential or role override exists
 in Flutter. Signed-out sessions cannot read protected records or images.

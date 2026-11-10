@@ -104,7 +104,14 @@ class _WorkflowFormState extends State<_WorkflowForm> {
         }
       });
     }
-    final allActions = controller.actions;
+    final allActions = controller.actions
+        .where(
+          (action) =>
+              controller.role != UserRole.reporter ||
+              (action != IncidentHistoryAction.cancelled &&
+                  action != IncidentHistoryAction.removedFromList),
+        )
+        .toList();
     const destructive = [
       IncidentHistoryAction.rejected,
       IncidentHistoryAction.cancelled,

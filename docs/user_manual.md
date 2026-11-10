@@ -58,6 +58,18 @@ Search your own reports by exact consecutive number (with or without `#`), text
 or category. The same search applies to every tab. Use **Limpiar
 búsqueda** to reset the criteria.
 
+Use **Cancelar reporte** on a card or in its detail to withdraw a report that has
+not been finalized. Enter a reason and confirm; it moves to **Finalizadas** and
+attention stops. **Volver** dismisses the window without saving.
+
+**Eliminar de mi lista** is also available immediately after submitting a report
+and returning to the list. Confirm to remove it from your list, home indicators
+and notifications across devices. Removing an unfinished report cancels attention
+in the same operation. Removing a closed, rejected or cancelled report preserves
+that outcome. Administration retains the complete report and audit, including
+progress and photographs. This does not permanently delete records or reuse the
+consecutive number. A failed confirmation offers a retry of the same operation.
+
 The public client explains that photographs are available in the local version.
 Reports and text progress remain available. Existing local photographs are
 retained; their absence from the public client does not mean they were deleted.

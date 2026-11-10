@@ -105,6 +105,7 @@ void main() {
       'closed': IncidentHistoryAction.closed,
       'rejected': IncidentHistoryAction.rejected,
       'cancelled': IncidentHistoryAction.cancelled,
+      'removedFromList': IncidentHistoryAction.removedFromList,
       'reopened': IncidentHistoryAction.reopened,
     };
     expect(IncidentHistoryAction.values, unorderedEquals(codes.values));

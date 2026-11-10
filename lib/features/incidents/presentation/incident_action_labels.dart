@@ -17,6 +17,7 @@ extension IncidentActionLabels on IncidentHistoryAction {
     IncidentHistoryAction.closed => 'Aprobar cierre',
     IncidentHistoryAction.rejected => 'Rechazar incidencia',
     IncidentHistoryAction.cancelled => 'Cancelar incidencia',
+    IncidentHistoryAction.removedFromList => 'Eliminar de mi lista',
     IncidentHistoryAction.reopened => 'Reabrir incidencia',
   };
 }
