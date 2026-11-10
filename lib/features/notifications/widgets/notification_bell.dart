@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../users/models/user_profile.dart';
+import '../../users/models/user_role.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
 import '../../incidents/repositories/incident_repository.dart';
@@ -135,7 +136,7 @@ class _NotificationBellState extends State<NotificationBell> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     subtitle: Text(
-                                      '${entry.event.action.label}\n${date.day}/${date.month}/${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
+                                      '${widget.profile.role == UserRole.reporter ? 'Tu incidencia tiene una solución para revisar.' : entry.event.action.label}\n${date.day}/${date.month}/${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
                                     ),
                                     isThreeLine: true,
                                     trailing: _controller.isUnread(entry)

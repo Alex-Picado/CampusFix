@@ -8,9 +8,18 @@ start as **Reportante**. An existing administrator assigns other roles through
 person uses the device.
 
 Use **¿Olvidaste tu contraseña?** to request a password recovery email. The bell
-shows updates to authorized cases, including progress, with a red unread dot.
-Read status is remembered on the current device. Desktop users can collapse or
-expand the animated sidebar. Click a home stage card to open that stage directly.
+shows a red unread dot. Reporters receive notifications only when a case reaches
+**Solucionada**; its full progress remains available in the case detail. Technicians
+and administrators receive updates to their authorized cases. Read status is
+remembered on the current device. Use **Ocultar menú** and **Mostrar menú** to
+hide or show the animated desktop sidebar; hiding it gives that space to the page.
+Click a home stage card to open that stage directly.
+
+**Recordarme** is initially unchecked. Without it, the session expires after
+30 minutes with the page closed; with it, after 30 days. Keeping the page open
+maintains the session. Returning before expiry renews the selected interval.
+**Salir** ends the session immediately. A session saved before this feature may
+require one new sign-in.
 
 Desktop navigation is on the left; on tablets use **Abrir menú**. Incident links
 use `/#/incidents/<incident-id>`. Sign in with an authorized account to open them.
@@ -26,9 +35,11 @@ the summary cannot load, select **Reintentar**.
 
 1. Open **Mis incidencias**, then **Crear incidencia**.
 2. Enter title, description and location, and select an active category.
-3. Select **Guardar incidencia** and wait for the confirmed consecutive number.
+3. Select **Guardar incidencia**. Once saving is confirmed, a small window shows
+   the consecutive number and explains that the report will be evaluated soon.
+   Select **OK** to return to **Mis incidencias**, on **Pendientes**.
    If confirmation fails, use the offered retry instead of creating another case.
-4. In the local client, select and save a photograph after saving the incident.
+4. In the local client, open the saved incident's detail to select and save a photograph.
    Use a single-frame JPEG, PNG or WebP up to 3 MB and 40 million pixels.
 5. In **Mis incidencias**, switch between **Pendientes**, **Asignadas**,
    **En atención**, **Solucionada** and **Finalizadas**. On a phone, swipe the
@@ -69,7 +80,10 @@ reassignment; the incident remains open and the reason stays in its history.
 During attention, select **Reportar avance** to open the advance form on the left
 and the resolution form on the right (stacked on smaller screens). Enter a nonblank **Descripción del avance**
 and use **Guardar avance**. A local photograph is optional. To finish, enter
-**Solución realizada** and select **Resolver incidencia**. This records the technician's
+**Solución realizada** and select **Resolver incidencia**. Review the warning:
+after resolution you cannot add progress or resume attention until administration
+reopens and reassigns the case. **Seguir atendiendo** cancels and preserves your
+solution draft; **Sí, resolver incidencia** confirms it. This records the technician's
 agreement; the case closes only after the reporter accepts and administration approves.
 Follow retry instructions if a write cannot be confirmed; the
 application preserves the pending operation ID.

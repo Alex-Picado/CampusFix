@@ -2,29 +2,66 @@ import '../../users/models/user_profile.dart';
 import '../../users/models/user_role.dart';
 import '../../users/repositories/user_repository.dart';
 import '../services/auth_service.dart';
+import '../services/session_retention.dart';
+import '../services/session_retention_ports.dart';
 
 /// Exposes authentication operations to the application.
 class AuthRepository {
   final AuthService _authService;
   final UserRepository _userRepository;
+  final SessionRetention? _sessionRetention;
+  final SessionPageLifecycle? _pageLifecycle;
+  Future<void>? _expirationSignOut;
 
   /// Creates a repository using authentication and profile dependencies.
-  AuthRepository({required this._authService, required this._userRepository});
+  AuthRepository({
+    required this._authService,
+    required this._userRepository,
+    this._sessionRetention,
+    this._pageLifecycle,
+  });
 
   /// Signs in an existing user with [email] and [password].
   ///
   /// Completes when authentication succeeds.
   /// Propagates errors reported by the authentication service.
-  Future<void> signIn({required String email, required String password}) async {
-    await _authService.signIn(email: email, password: password);
+  Future<void> signIn({
+    required String email,
+    required String password,
+    bool rememberMe = false,
+  }) async {
+    await _expirationSignOut;
+    if (_sessionRetention != null) {
+      await _authService.useLocalPersistence();
+      _sessionRetention.prepareLogin(email, rememberMe);
+    }
+    try {
+      final result = await _authService.signIn(
+        email: email,
+        password: password,
+      );
+      final user = result.user;
+      if (user != null &&
+          _sessionRetention != null &&
+          !_sessionRetention.accept(user.uid, user.email)) {
+        await _authService.signOut();
+        throw StateError('The sign-in session could not be retained.');
+      }
+    } catch (_) {
+      _sessionRetention?.cancelLogin();
+      rethrow;
+    }
   }
 
   /// Signs out the current user.
   ///
   /// Completes when the sign-out operation finishes.
   /// Propagates errors reported by the authentication service.
-  Future<void> signOut() {
-    return _authService.signOut();
+  Future<void> signOut() async {
+    final uid = _authService.getCurrentUser()?.uid;
+    await _authService.signOut();
+    _sessionRetention?.end(uid);
+    _pageLifecycle?.stop();
   }
 
   Future<void> sendPasswordReset({required String email}) =>
@@ -36,12 +73,57 @@ class AuthRepository {
   /// Forwards authentication errors to the stream listener.
   /// The caller must cancel its subscription when no longer needed.
   Stream<String?> watchUserId() {
-    return _authService.watchAuthState().map<String?>((user) {
-      if (user == null) {
-        return null;
+    return Stream<String?>.multi((sink) {
+      var cancelled = false;
+      void receive() {
+        if (cancelled) return;
+        final user = _authService.getCurrentUser();
+        if (user == null) {
+          _sessionRetention?.release();
+          _pageLifecycle?.stop();
+          sink.add(null);
+          return;
+        }
+        try {
+          if (_sessionRetention != null &&
+              !_sessionRetention.accept(user.uid, user.email)) {
+            _pageLifecycle?.stop();
+            sink.add(null);
+            _expirationSignOut ??= _authService.signOut().whenComplete(
+              () => _expirationSignOut = null,
+            );
+            _expirationSignOut!.then(
+              (_) => _sessionRetention.end(user.uid),
+              onError: (Object error) {
+                if (!cancelled) sink.addError(error);
+              },
+            );
+            return;
+          }
+          if (_sessionRetention != null) {
+            _pageLifecycle?.start(
+              _sessionRetention.touch,
+              _sessionRetention.suspend,
+            );
+          }
+          sink.add(user.uid);
+        } catch (error) {
+          sink.addError(error);
+        }
       }
 
-      return user.uid;
+      final auth = _authService.watchAuthState().listen(
+        (_) => receive(),
+        onError: sink.addError,
+        onDone: sink.close,
+      );
+      final reopen = _pageLifecycle?.reopens.listen((_) => receive());
+      sink.onCancel = () async {
+        cancelled = true;
+        _pageLifecycle?.stop();
+        await auth.cancel();
+        await reopen?.cancel();
+      };
     });
   }
 
@@ -58,6 +140,7 @@ class AuthRepository {
     required String fullName,
     required String email,
     required String password,
+    bool rememberMe = false,
   }) async {
     final normalizedName = fullName.trim();
     final normalizedEmail = email.trim();
@@ -66,11 +149,31 @@ class AuthRepository {
       throw const FormatException('All registration fields are required.');
     }
 
+    await _expirationSignOut;
     if (_authService.getCurrentUser() != null) {
       throw StateError('Sign out before creating another account.');
     }
 
-    await _authService.register(email: normalizedEmail, password: password);
+    if (_sessionRetention != null) {
+      await _authService.useLocalPersistence();
+      _sessionRetention.prepareLogin(normalizedEmail, rememberMe);
+    }
+    try {
+      final result = await _authService.register(
+        email: normalizedEmail,
+        password: password,
+      );
+      final user = result.user;
+      if (user != null && _sessionRetention != null) {
+        if (!_sessionRetention.accept(user.uid, user.email)) {
+          await _authService.signOut();
+          throw StateError('The sign-up session could not be retained.');
+        }
+      }
+    } catch (_) {
+      _sessionRetention?.cancelLogin();
+      rethrow;
+    }
 
     return completeProfile(fullName: normalizedName);
   }

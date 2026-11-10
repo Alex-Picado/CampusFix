@@ -89,7 +89,7 @@ void main() {
   );
 
   testWidgets(
-    'Creates a normalized report and clears the form for another report',
+    'Confirms a saved report in a modal and returns to the pending list on OK',
     (tester) async {
       final app = await _mount(tester);
       await _openReport(tester);
@@ -97,23 +97,28 @@ void main() {
       await _tap(tester, 'report-submit');
       expect(app.incidents.requests.single['title'], 'Broken light');
       expect(app.incidents.requests.single['categoryId'], 'lighting');
+      expect(find.text('Incidencia #1 reportada'), findsOneWidget);
       expect(
-        find.text('Incidencia #1 guardada correctamente.'),
+        find.text('Tu incidencia ha sido reportada. Pronto será evaluada.'),
         findsOneWidget,
       );
-      expect(_field(tester, 'title').readOnly, isTrue);
-      await _tap(tester, 'report-new');
+      expect(find.byKey(const ValueKey('report-title')), findsNothing);
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('report-confirm-ok')), findsOneWidget);
+      expect(app.incidents.requests, hasLength(1));
+      await _tap(tester, 'report-confirm-ok');
+      expect(find.byKey(const ValueKey('my-incidents-page')), findsOneWidget);
+      expect(find.text('#1 · Broken light'), findsOneWidget);
+      await _tap(tester, 'incidents-create');
       expect(_field(tester, 'title').controller!.text, isEmpty);
       expect(_field(tester, 'description').controller!.text, isEmpty);
       expect(_field(tester, 'location').controller!.text, isEmpty);
-      expect(find.text('Incidencia #1 guardada correctamente.'), findsNothing);
+      expect(find.text('Incidencia #1 reportada'), findsNothing);
       await _fill(tester);
       await _tap(tester, 'report-submit');
       expect(app.incidents.allocations, 2);
-      expect(
-        find.text('Incidencia #2 guardada correctamente.'),
-        findsOneWidget,
-      );
+      expect(find.text('Incidencia #2 reportada'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -151,10 +156,7 @@ void main() {
       expect(app.incidents.requests, hasLength(2));
       expect(app.incidents.requests.first, app.incidents.requests.last);
       expect(app.incidents.allocations, 1);
-      expect(
-        find.text('Incidencia #1 guardada correctamente.'),
-        findsOneWidget,
-      );
+      expect(find.text('Incidencia #1 reportada'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -193,12 +195,11 @@ void main() {
       app.incidents.saveBeforeError = true;
       await _tap(tester, 'report-submit');
       await _tap(tester, 'report-edit');
-      expect(
-        find.text('Incidencia #1 guardada correctamente.'),
-        findsOneWidget,
-      );
+      expect(find.text('Incidencia #1 reportada'), findsOneWidget);
       expect(app.incidents.requests, hasLength(1));
-      expect(_field(tester, 'title').readOnly, isTrue);
+      expect(find.byKey(const ValueKey('report-title')), findsNothing);
+      await _tap(tester, 'report-confirm-ok');
+      expect(find.text('#1 · Broken light'), findsOneWidget);
     },
   );
 
@@ -223,6 +224,25 @@ void main() {
   });
 
   testWidgets(
+    'Changing account dismisses a saved report confirmation without navigating the new account',
+    (tester) async {
+      final app = await _mount(tester);
+      await _openReport(tester);
+      await _fill(tester);
+      await _tap(tester, 'report-submit');
+      expect(find.byKey(const ValueKey('report-confirm-ok')), findsOneWidget);
+      app.users.put(_profile('second-user'));
+      app.auth.setUser('second-user');
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byKey(const ValueKey('overview-page')), findsOneWidget);
+      expect(find.byKey(const ValueKey('my-incidents-page')), findsNothing);
+      expect(app.incidents.requests, hasLength(1));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Leaving a pending report cannot show its result on another account',
     (tester) async {
       final app = await _mount(tester);
@@ -243,7 +263,7 @@ void main() {
       blocker.complete();
       await tester.pumpAndSettle();
       expect(_field(tester, 'title').controller!.text, isEmpty);
-      expect(find.text('Incidencia #1 guardada correctamente.'), findsNothing);
+      expect(find.text('Incidencia #1 reportada'), findsNothing);
       app.users.put(_profile('second-user', role: UserRole.technician));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('report-page')), findsNothing);
@@ -266,7 +286,9 @@ void main() {
     await _fill(tester);
     await _tap(tester, 'report-submit');
     expect(app.incidents.requests, hasLength(1));
-    expect(find.text('Incidencia #1 guardada correctamente.'), findsOneWidget);
+    expect(find.text('Incidencia #1 reportada'), findsOneWidget);
+    await _tap(tester, 'report-confirm-ok');
+    expect(find.byKey(const ValueKey('my-incidents-page')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -359,7 +381,7 @@ void main() {
       expect(app.categories.activeWatches, 1);
       await _fill(tester);
       await _tap(tester, 'report-submit');
-      await _tap(tester, 'report-back');
+      await _tap(tester, 'report-confirm-ok');
       expect(app.categories.activeWatches, 0);
       expect(app.incidents.activeOwnWatches, 1);
       expect(find.text('#1 · Broken light'), findsOneWidget);

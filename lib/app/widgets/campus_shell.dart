@@ -128,7 +128,7 @@ class _CampusShellState extends State<CampusShell> {
         } else {
           leading = IconButton(
             key: const ValueKey('sidebar-toggle'),
-            tooltip: _sidebarExpanded ? 'Contraer menú' : 'Expandir menú',
+            tooltip: _sidebarExpanded ? 'Ocultar menú' : 'Mostrar menú',
             onPressed: () =>
                 setState(() => _sidebarExpanded = !_sidebarExpanded),
             icon: AnimatedRotation(
@@ -191,22 +191,39 @@ class _CampusShellState extends State<CampusShell> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!useDrawer) ...[
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeInOutCubic,
-                    width: _sidebarExpanded ? 240 : 76,
-                    child: ClipRect(
-                      child: CampusNavigation(
-                        selected: _selected,
-                        destinations: destinations,
-                        onSelected: _select,
-                        collapsed: !_sidebarExpanded,
+                if (!useDrawer)
+                  ClipRect(
+                    child: AnimatedAlign(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeInOutCubic,
+                      alignment: Alignment.centerLeft,
+                      widthFactor: _sidebarExpanded ? 1 : 0,
+                      child: ExcludeFocus(
+                        excluding: !_sidebarExpanded,
+                        child: ExcludeSemantics(
+                          excluding: !_sidebarExpanded,
+                          child: IgnorePointer(
+                            ignoring: !_sidebarExpanded,
+                            child: SizedBox(
+                              width: 241,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: CampusNavigation(
+                                      selected: _selected,
+                                      destinations: destinations,
+                                      onSelected: _select,
+                                    ),
+                                  ),
+                                  const VerticalDivider(width: 1),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  const VerticalDivider(width: 1),
-                ],
                 Expanded(
                   child: SingleChildScrollView(
                     key: ValueKey(_selected),

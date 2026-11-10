@@ -21,6 +21,34 @@ import 'support/test_repositories.dart';
 
 void main() {
   testWidgets(
+    'Changing accounts cancels a resolution confirmation without resolving the case',
+    (tester) async {
+      final app = await _mount(tester, technician: true);
+      await _tapKey(tester, 'detail-case');
+      await _tapKey(tester, 'workflow-option-started');
+      await _tapKey(tester, 'report-progress');
+      await tester.ensureVisible(find.byKey(const ValueKey('workflow-reason')));
+      await tester.enterText(
+        find.byKey(const ValueKey('workflow-reason')),
+        'Reparación finalizada',
+      );
+      await _tapKey(tester, 'workflow-save');
+      expect(find.byKey(const ValueKey('resolution-confirm')), findsOneWidget);
+      app.auth.setUser('admin');
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(app.reports.incident.status, IncidentStatus.inProgress);
+      expect(
+        app.reports.history.where(
+          (event) => event.action == IncidentHistoryAction.resolved,
+        ),
+        isEmpty,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Administrator and assigned technician complete classification through reopening in the real UI',
     (tester) async {
       final app = await _mount(tester);
@@ -80,6 +108,25 @@ void main() {
         'Reemplacé la luminaria',
       );
       await _tapKey(tester, 'workflow-save');
+      expect(app.reports.incident.status, IncidentStatus.inProgress);
+      expect(find.text('¿Resolver esta incidencia?'), findsOneWidget);
+      await _tapKey(tester, 'resolution-cancel');
+      expect(app.reports.incident.status, IncidentStatus.inProgress);
+      expect(
+        app.reports.history.where(
+          (event) => event.action == IncidentHistoryAction.resolved,
+        ),
+        isEmpty,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('workflow-reason')))
+            .controller!
+            .text,
+        'Reemplacé la luminaria',
+      );
+      await _tapKey(tester, 'workflow-save');
+      await _tapKey(tester, 'resolution-confirm');
       expect(app.reports.incident.status, IncidentStatus.resolved);
       app.auth.setUser('admin');
       await tester.pumpAndSettle();

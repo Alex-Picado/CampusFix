@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../features/auth/repositories/auth_repository.dart';
 import '../features/auth/services/auth_service.dart';
+import '../features/auth/services/session_retention.dart';
+import '../features/auth/services/session_retention_platform.dart';
 import '../features/catalogs/repositories/category_repository.dart';
 import '../features/catalogs/services/category_service.dart';
 import '../features/incidents/repositories/evidence_repository.dart';
@@ -33,6 +35,8 @@ Widget createCampusApplication({
     authRepository: AuthRepository(
       authService: authService,
       userRepository: users,
+      sessionRetention: SessionRetention(store: createSessionRetentionStore()),
+      pageLifecycle: createSessionPageLifecycle(),
     ),
     userRepository: users,
     categoryRepository: CategoryRepository(

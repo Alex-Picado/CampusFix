@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/widgets/section_card.dart';
+import '../../../core/widgets/session_confirmation_dialog.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
@@ -60,6 +61,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
   String? _technicianId;
   IncidentPriority? _priority;
   _AdministratorStep? _submittedStep;
+  bool _confirmingResolution = false;
 
   void _selectAction(IncidentHistoryAction? action) => setState(() {
     _action = action;
@@ -111,6 +113,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
         ? null
         : primary;
     final enabled =
+        !_confirmingResolution &&
         !widget.blocked &&
         controller.ready &&
         !controller.saving &&
@@ -164,6 +167,38 @@ class _WorkflowFormState extends State<_WorkflowForm> {
           key: const ValueKey('workflow-save'),
           onPressed: enabled
               ? () async {
+                  if (action == IncidentHistoryAction.resolved &&
+                      _reason.text.trim().isNotEmpty) {
+                    final before = controller.incident!;
+                    FocusScope.of(context).unfocus();
+                    setState(() => _confirmingResolution = true);
+                    final confirmed = await showSessionConfirmationDialog(
+                      context: context,
+                      title: '¿Resolver esta incidencia?',
+                      message: 'Al resolverla ya no podrás registrar avances ni continuar la atención. Solo podrás retomarla si administración la reabre y te la vuelve a asignar.\n\nVerificá que terminaste el trabajo y que la solución está completa.',
+                      confirmLabel: 'Sí, resolver incidencia',
+                      confirmKey: const ValueKey('resolution-confirm'),
+                      cancelLabel: 'Seguir atendiendo',
+                      cancelKey: const ValueKey('resolution-cancel'),
+                      icon: Icons.fact_check_outlined,
+                    );
+                    if (!mounted || !context.mounted) return;
+                    setState(() => _confirmingResolution = false);
+                    if (!confirmed || !controller.active) return;
+                    if (widget.blocked ||
+                        controller.incident?.updatedAt != before.updatedAt ||
+                        !controller.actions.contains(action)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'La incidencia cambió. Revisá su estado antes de resolverla.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                  }
+                  if (!context.mounted) return;
                   _submittedStep = step;
                   final navigator = Navigator.of(context);
                   final route = ModalRoute.of(context);

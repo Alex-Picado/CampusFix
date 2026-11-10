@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../incidents/models/incident.dart';
 import '../../incidents/models/incident_history_event.dart';
+import '../../incidents/models/incident_status.dart';
 import '../../incidents/repositories/incident_repository.dart';
 import '../../users/models/user_profile.dart';
 import '../../users/models/user_role.dart';
@@ -53,7 +54,11 @@ class NotificationController extends ChangeNotifier {
     final result = <CampusNotification>[
       for (final row in _cases.values)
         for (final event in _events[row.id] ?? <IncidentHistoryEvent>[])
-          if (event.actorUserId != profile.id) CampusNotification(row, event),
+          if (event.actorUserId != profile.id &&
+              (profile.role != UserRole.reporter ||
+                  (event.toStatus == IncidentStatus.resolved &&
+                      event.fromStatus != IncidentStatus.resolved)))
+            CampusNotification(row, event),
     ]..sort((a, b) => b.event.createdAt.compareTo(a.event.createdAt));
     return result;
   }

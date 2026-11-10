@@ -26,6 +26,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _confirmation = TextEditingController();
   bool _registering = false;
   bool _recovering = false;
+  bool _rememberMe = false;
   String? _recoveryMessage;
 
   /// Validates visible inputs and leaves session navigation to SessionGate.
@@ -50,11 +51,16 @@ class _AuthScreenState extends State<AuthScreen> {
         fullName: _name.text,
         email: _email.text,
         password: _password.text,
+        rememberMe: _rememberMe,
       );
       return;
     }
 
-    await auth.signIn(email: _email.text, password: _password.text);
+    await auth.signIn(
+      email: _email.text,
+      password: _password.text,
+      rememberMe: _rememberMe,
+    );
   }
 
   /// Clears old validation and password data when switching form modes.
@@ -190,6 +196,28 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ],
               const SizedBox(height: 20),
+              if (!_recovering) ...[
+                Material(
+                  color: Colors.transparent,
+                  child: CheckboxListTile(
+                    key: const ValueKey('auth-remember-me'),
+                    value: _rememberMe,
+                    onChanged: auth.isLoading
+                        ? null
+                        : (value) =>
+                              setState(() => _rememberMe = value ?? false),
+                    title: const Text('Recordarme'),
+                    subtitle: Text(
+                      _rememberMe
+                          ? 'Conservar la sesión 30 días después de cerrar la página.'
+                          : 'La sesión vence tras 30 minutos con la página cerrada.',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               AuthErrorNotice(message: auth.errorMessage),
               if (_recoveryMessage != null)
                 Padding(

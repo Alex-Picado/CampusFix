@@ -29,9 +29,17 @@ class AuthController extends ChangeNotifier {
   /// Signs in using [email] and [password].
   ///
   /// Removes surrounding email whitespace and preserves the password.
-  Future<bool> signIn({required String email, required String password}) {
+  Future<bool> signIn({
+    required String email,
+    required String password,
+    bool rememberMe = false,
+  }) {
     return _execute(() {
-      return _authRepository.signIn(email: email.trim(), password: password);
+      return _authRepository.signIn(
+        email: email.trim(),
+        password: password,
+        rememberMe: rememberMe,
+      );
     });
   }
 
@@ -43,12 +51,14 @@ class AuthController extends ChangeNotifier {
     required String fullName,
     required String email,
     required String password,
+    bool rememberMe = false,
   }) {
     return _execute(() async {
       await _authRepository.register(
         fullName: fullName,
         email: email,
         password: password,
+        rememberMe: rememberMe,
       );
     });
   }

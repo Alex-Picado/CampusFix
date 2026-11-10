@@ -19,6 +19,40 @@ import 'support/report_repositories.dart';
 
 void main() {
   testWidgets(
+    'Recordarme is optional, submitted at login and reset after signing out',
+    (tester) async {
+      final app = await _mountApp(tester);
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.byKey(const ValueKey('auth-remember-me')),
+            )
+            .value,
+        false,
+      );
+      await _enter(tester, 'auth-email', 'alex@campusfix.test');
+      await _enter(tester, 'auth-password', 'class-project-password');
+      await _tap(tester, 'auth-remember-me');
+      await _tap(tester, 'auth-submit');
+      expect(app.auth.submittedRememberMe, true);
+      await _tap(tester, 'session-sign-out');
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.byKey(const ValueKey('auth-remember-me')),
+            )
+            .value,
+        false,
+      );
+      await _enter(tester, 'auth-email', 'alex@campusfix.test');
+      await _enter(tester, 'auth-password', 'class-project-password');
+      await _tap(tester, 'auth-submit');
+      expect(app.auth.submittedRememberMe, false);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'An open notification panel clears private content when the session changes',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
@@ -61,10 +95,29 @@ void main() {
       'Dashboard cards open the selected stage and sidebar animates for ${role.name}',
       (tester) async {
         await _mountApp(tester, role: role);
+        final originalLeft = tester
+            .getTopLeft(find.byKey(const ValueKey('overview-page')))
+            .dx;
         await _tap(tester, 'sidebar-toggle');
-        expect(find.byTooltip('Expandir menú'), findsOneWidget);
+        expect(find.byTooltip('Mostrar menú'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('nav-overview')).hitTestable(),
+          findsNothing,
+        );
+        expect(
+          tester.getTopLeft(find.byKey(const ValueKey('overview-page'))).dx,
+          originalLeft - 241,
+        );
         await _tap(tester, 'sidebar-toggle');
-        expect(find.byTooltip('Contraer menú'), findsOneWidget);
+        expect(find.byTooltip('Ocultar menú'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('nav-overview')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(
+          tester.getTopLeft(find.byKey(const ValueKey('overview-page'))).dx,
+          originalLeft,
+        );
         final prefix = role == UserRole.administrator
             ? 'admin-home'
             : role == UserRole.technician

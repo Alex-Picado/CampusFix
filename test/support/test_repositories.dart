@@ -152,6 +152,7 @@ class TestAuthRepository implements AuthRepository {
   String accountEmail = 'alex@campusfix.test';
   String? submittedEmail;
   String? submittedPassword;
+  bool? submittedRememberMe;
   Object? signInError;
   Object? signOutError;
   Completer<void>? signInBlocker;
@@ -188,10 +189,15 @@ class TestAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signIn({required String email, required String password}) async {
+  Future<void> signIn({
+    required String email,
+    required String password,
+    bool rememberMe = false,
+  }) async {
     signInCalls++;
     submittedEmail = email;
     submittedPassword = password;
+    submittedRememberMe = rememberMe;
     await signInBlocker?.future;
     final error = signInError;
     if (error != null) {
@@ -214,8 +220,10 @@ class TestAuthRepository implements AuthRepository {
     required String fullName,
     required String email,
     required String password,
+    bool rememberMe = false,
   }) async {
     registerCalls++;
+    submittedRememberMe = rememberMe;
     accountEmail = email.trim();
     setUser('registered-user');
     return completeProfile(fullName: fullName);

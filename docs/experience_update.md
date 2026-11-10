@@ -1,11 +1,21 @@
 # Mejoras de experiencia y conformidad de cierre
 
-- Campanita disponible en los tres roles, tanto en el menú principal como en el detalle. Observa el historial autorizado, incluidos los avances. El punto rojo identifica novedades de otras personas. Permite abrir la incidencia y marcar novedades como leídas. La lectura se conserva en este dispositivo y se separa por cuenta y rol; no es un servicio de notificaciones push.
+- Campanita disponible en los tres roles, tanto en el menú principal como en el detalle. El reportante recibe únicamente avisos cuando su incidencia pasa a Solucionada; los avances y demás cambios siguen disponibles en el detalle. Técnico y administración ven las novedades del historial autorizado. El punto rojo identifica novedades de otras personas. Permite abrir la incidencia y marcar novedades como leídas. La lectura se conserva en este dispositivo y se separa por cuenta y rol; no es un servicio de notificaciones push.
 - Tarjetas del inicio abren la etapa exacta en Mis incidencias, Mi trabajo o Gestión. La actividad reciente abre el detalle.
 - Administración dispone de totales semanales y mensuales, pendientes de conformidad, casos sin técnico y actividad diaria de siete días. Los períodos se calculan en hora de Costa Rica, con semanas de lunes a domingo. Cada indicador abre los casos que cuenta.
-- Menú lateral con transición animada y modo compacto con ayudas al pasar el cursor. En pantallas pequeñas se presenta como menú desplegable. Listados, formularios y tarjetas ocupan el ancho disponible.
+- Menú lateral con transición animada que se oculta por completo mediante Ocultar menú y reaparece con Mostrar menú. El contenido recupera ese espacio al ocultarlo. En pantallas pequeñas se presenta como menú desplegable. Listados, formularios y tarjetas ocupan el ancho disponible.
+- Guardar incidencia muestra una ventana de confirmación únicamente cuando el guardado está confirmado. OK vuelve a Mis incidencias en Pendientes. El formulario no queda bloqueado después del envío. Las fotografías locales se agregan desde el detalle.
 - El técnico inicia o rechaza asignaciones con botones separados. Una vez iniciada la atención, Reportar avance despliega el formulario de avance a la izquierda y la resolución a la derecha; en pantallas pequeñas se apilan. Los avances muestran número, autor, fecha, descripción y fotografías asociadas.
+- Resolver incidencia requiere confirmar el aviso de que no se podrá continuar la atención hasta que administración reabra y reasigne el caso. Seguir atendiendo cancela sin guardar y conserva el texto de la solución. Las ventanas de confirmación se cierran si cambia la cuenta o el rol.
 - Recuperar contraseña está disponible desde el ingreso, valida el correo y envía el enlace de Firebase Authentication. La confirmación no revela si existe una cuenta. En un emulador, los enlaces se consultan en el emulador de autenticación; en producción se utiliza la plantilla y configuración de correo del proyecto Firebase.
+
+## Recordarme y recuperación de sesión
+
+Recordarme está desmarcado inicialmente. Al ingresar o registrarse se elige cuánto se conserva la sesión después de cerrar la página: 30 minutos sin marcarlo y 30 días al marcarlo. Una página abierta mantiene la sesión. Salir finaliza la sesión inmediatamente y elimina su registro de conservación.
+
+El cliente web registra la última actividad en el navegador y actualiza el momento de cierre con pagehide. Un latido cada minuto sirve de respaldo si el navegador termina abruptamente sin emitir ese evento. Al volver a cargar o recuperar una página desde el historial, valida el plazo y la identidad antes de consultar el perfil y mostrar vistas privadas. Las sesiones anteriores sin estos datos requieren un nuevo ingreso una sola vez.
+
+Esta es una política de restauración del cliente en este navegador; no modifica la duración de los tokens ni revoca sesiones de otros dispositivos en Firebase. La persistencia de Firebase conserva las credenciales, mientras el registro propio almacena únicamente identidad, preferencia y fecha; no contiene contraseñas ni tokens.
 
 ## Cierre por conformidad
 

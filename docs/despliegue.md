@@ -6,15 +6,20 @@ The user authorized production publication on November 9, 2026. The updated
 application is live at https://campus-fix-ucr.web.app with the UCR sign-in design,
 role notifications, interactive dashboards and three-party closure approvals.
 The new Firestore rules were published and read back to verify their source.
-This publication does not perform a Git push or merge. The authenticated
+Later updates add report confirmation, resolution confirmation, a fully hidden
+sidebar, solution-only reporter notifications and session retention of 30 minutes
+or 30 days according to **Recordarme**. The authenticated
 three-role production walkthrough remains separate from the verified public
 sign-in page and automated application/emulator checks.
 
-Executed checks: 329 Flutter tests, clean Flutter analysis, a release web build,
+Executed checks: 342 Flutter tests, clean Flutter analysis, a release web build,
 and the previously executed 88 Firestore permission tests for these rules. The
 published index, JavaScript, manifest and campus photograph return HTTP 200 and
 match the reviewed build byte for byte. A browser screenshot is saved locally at
 `build/evidence/production/ingreso-ucr-publicado.jpg`.
+The updated sign-in page was also checked in the production browser with
+**Recordarme** unchecked (30 minutes) and checked (30 days). Its screenshot is
+`build/evidence/production/ingreso-recordarme-publicado.jpg`.
 
 Published Firestore ruleset: `aac15141-0df8-4eb9-9cd0-c057dad3591b`.
 Previous ruleset: `bc33e7f0-b8d0-4477-8dc0-e25ad7f55ada`.

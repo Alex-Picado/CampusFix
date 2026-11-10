@@ -34,11 +34,13 @@ class MyIncidentsScreen extends StatefulWidget {
 
 class _MyIncidentsScreenState extends State<MyIncidentsScreen> {
   bool _creating = false;
+  late int _initialListStage;
 
   @override
   void initState() {
     super.initState();
     _creating = widget.initiallyCreating;
+    _initialListStage = widget.initialStage;
   }
 
   @override
@@ -63,6 +65,10 @@ class _MyIncidentsScreenState extends State<MyIncidentsScreen> {
       return IncidentReportScreen(
         userId: widget.userId,
         onBack: () => setState(() => _creating = false),
+        onReported: () => setState(() {
+          _creating = false;
+          _initialListStage = 0;
+        }),
       );
     }
     return ChangeNotifierProvider(
@@ -74,7 +80,7 @@ class _MyIncidentsScreenState extends State<MyIncidentsScreen> {
         userId: widget.userId,
       ),
       child: _IncidentList(
-        initialStage: widget.initialStage,
+        initialStage: _initialListStage,
         onCreate: () => setState(() => _creating = true),
       ),
     );

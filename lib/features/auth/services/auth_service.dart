@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Handles authentication operations through Firebase.
 class AuthService {
@@ -6,6 +7,10 @@ class AuthService {
 
   /// Creates a service using the provided Firebase Auth instance.
   AuthService({required this._auth});
+
+  Future<void> useLocalPersistence() async {
+    if (kIsWeb) await _auth.setPersistence(Persistence.LOCAL);
+  }
 
   /// Signs in an existing user with [email] and [password].
   ///

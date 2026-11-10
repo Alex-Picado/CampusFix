@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/widgets/page_heading.dart';
 import '../../../core/widgets/section_card.dart';
+import '../../../core/widgets/session_confirmation_dialog.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
 import '../../catalogs/repositories/category_repository.dart';
@@ -16,11 +17,13 @@ import '../widgets/evidence_widgets.dart';
 class IncidentReportScreen extends StatelessWidget {
   final String userId;
   final VoidCallback onBack;
+  final VoidCallback? onReported;
 
   const IncidentReportScreen({
     super.key,
     required this.userId,
     required this.onBack,
+    this.onReported,
   });
 
   @override
@@ -39,7 +42,7 @@ class IncidentReportScreen extends StatelessWidget {
         sessionController: session,
         userId: userId,
       ),
-      child: _ReportForm(onBack: onBack),
+      child: _ReportForm(onBack: onBack, onReported: onReported),
     );
   }
 }
@@ -47,8 +50,9 @@ class IncidentReportScreen extends StatelessWidget {
 /// Presents controller state without retaining a separate submission payload.
 class _ReportForm extends StatefulWidget {
   final VoidCallback onBack;
+  final VoidCallback? onReported;
 
-  const _ReportForm({required this.onBack});
+  const _ReportForm({required this.onBack, this.onReported});
 
   @override
   State<_ReportForm> createState() => _ReportFormState();
@@ -59,6 +63,7 @@ class _ReportFormState extends State<_ReportForm> {
   late final TextEditingController _title;
   late final TextEditingController _description;
   late final TextEditingController _location;
+  bool _confirmationScheduled = false;
 
   @override
   void initState() {
@@ -84,6 +89,32 @@ class _ReportFormState extends State<_ReportForm> {
         );
       }
     }
+    if (_controller.isActive &&
+        _controller.createdIncident != null &&
+        !_confirmationScheduled) {
+      _confirmationScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _confirmReported());
+    }
+  }
+
+  Future<void> _confirmReported() async {
+    if (!mounted ||
+        !_controller.isActive ||
+        _controller.createdIncident == null) {
+      return;
+    }
+    final accepted = await showSessionConfirmationDialog(
+      context: context,
+      title:
+          'Incidencia #${_controller.createdIncident!.sequenceNumber} reportada',
+      message: 'Tu incidencia ha sido reportada. Pronto será evaluada.',
+      confirmLabel: 'OK',
+      confirmKey: const ValueKey('report-confirm-ok'),
+      icon: Icons.check_circle_outline,
+    );
+    if (mounted && _controller.isActive && accepted) {
+      (widget.onReported ?? widget.onBack)();
+    }
   }
 
   /// Delegates submission; success feedback comes only from confirmed state.
@@ -98,7 +129,17 @@ class _ReportFormState extends State<_ReportForm> {
     if (!controller.isActive) return const SizedBox.shrink();
     final loadError = controller.loadErrorMessage;
     final submitError = controller.submitErrorMessage;
-    final success = controller.successMessage;
+    if (controller.createdIncident != null) {
+      return const SectionCard(
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline),
+            SizedBox(width: 12),
+            Expanded(child: Text('Reporte enviado')),
+          ],
+        ),
+      );
+    }
 
     return ConstrainedBox(
       key: const ValueKey('report-page'),
@@ -161,10 +202,7 @@ class _ReportFormState extends State<_ReportForm> {
                   const SizedBox(height: 16),
                   _feedback(submitError, error: true),
                 ],
-                if (success != null) ...[
-                  const SizedBox(height: 16),
-                  _feedback(success),
-                ] else if (controller.hasUnconfirmedSubmission &&
+                if (controller.hasUnconfirmedSubmission &&
                     !controller.isSubmitting) ...[
                   const SizedBox(height: 16),
                   const Text(
@@ -177,34 +215,24 @@ class _ReportFormState extends State<_ReportForm> {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    if (success != null)
-                      FilledButton.icon(
-                        key: const ValueKey('report-new'),
-                        onPressed: controller.resetDraft,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Crear otra incidencia'),
-                      )
-                    else
-                      FilledButton.icon(
-                        key: const ValueKey('report-submit'),
-                        onPressed: controller.canSubmit ? _submit : null,
-                        icon: controller.isSubmitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.send_outlined),
-                        label: Text(
-                          controller.isSubmitting
-                              ? 'Guardando...'
-                              : controller.hasUnconfirmedSubmission
-                              ? 'Reintentar guardado'
-                              : 'Guardar incidencia',
-                        ),
+                    FilledButton.icon(
+                      key: const ValueKey('report-submit'),
+                      onPressed: controller.canSubmit ? _submit : null,
+                      icon: controller.isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_outlined),
+                      label: Text(
+                        controller.isSubmitting
+                            ? 'Guardando...'
+                            : controller.hasUnconfirmedSubmission
+                            ? 'Reintentar guardado'
+                            : 'Guardar incidencia',
                       ),
+                    ),
                     if (controller.hasUnconfirmedSubmission &&
                         !controller.isSubmitting)
                       OutlinedButton(
@@ -228,16 +256,6 @@ class _ReportFormState extends State<_ReportForm> {
               ],
             ),
           ),
-          if (controller.createdIncident != null) ...[
-            const SizedBox(height: 16),
-            ReportPhotoUpload(incidentId: controller.createdIncident!.id),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context)
-                  .pushNamed('/incidents/${controller.createdIncident!.id}'),
-              child: const Text('Ver detalle'),
-            ),
-          ],
         ],
       ),
     );

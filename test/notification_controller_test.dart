@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:campusfix/features/incidents/models/incident.dart';
 import 'package:campusfix/features/incidents/models/incident_history_action.dart';
 import 'package:campusfix/features/incidents/models/incident_history_event.dart';
+import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:campusfix/features/incidents/repositories/incident_repository.dart';
 import 'package:campusfix/features/notifications/controllers/notification_controller.dart';
 import 'package:campusfix/features/users/models/user_profile.dart';
@@ -14,9 +15,74 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  test('Reporters only see arrivals in Solucionada, never intermediate tracking or closure approvals', () async {
+    final repository = _Feed();
+    repository.events.clear();
+    for (final action in IncidentHistoryAction.values) {
+      repository.events.add(
+        IncidentHistoryEvent(
+          id: action.name,
+          actorUserId: 'other',
+          createdAt: DateTime.utc(2026),
+          action: action,
+          fromStatus: action == IncidentHistoryAction.resolved
+              ? IncidentStatus.inProgress
+              : IncidentStatus.resolved,
+          toStatus: IncidentStatus.resolved,
+        ),
+      );
+    }
+    repository.events.add(
+      IncidentHistoryEvent(
+        id: 'review-return',
+        actorUserId: 'admin',
+        createdAt: DateTime.utc(2026, 2),
+        action: IncidentHistoryAction.reviewDismissed,
+        fromStatus: IncidentStatus.reviewRequested,
+        toStatus: IncidentStatus.resolved,
+      ),
+    );
+    repository.events.add(
+      IncidentHistoryEvent(
+        id: 'own-resolution',
+        actorUserId: 'me',
+        createdAt: DateTime.utc(2026),
+        action: IncidentHistoryAction.resolved,
+        toStatus: IncidentStatus.resolved,
+      ),
+    );
+    repository.events.add(
+      IncidentHistoryEvent(
+        id: 'not-a-resolution',
+        actorUserId: 'other',
+        createdAt: DateTime.utc(2026),
+        action: IncidentHistoryAction.resolved,
+        toStatus: IncidentStatus.inProgress,
+      ),
+    );
+    final controller = NotificationController(
+      repository: repository,
+      profile: const UserProfile(
+        id: 'me',
+        fullName: 'Me',
+        email: 'me@test.invalid',
+        role: UserRole.reporter,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.entries.map((entry) => entry.event.id), [
+      'review-return',
+      'resolved',
+    ]);
+    expect(controller.unread, 2);
+    controller.dispose();
+    await repository.changes.close();
+  });
+
   for (final role in UserRole.values) {
     test(
-      'Unread progress persists by account, reacts live and revokes access for ${role.name}',
+      'Unread notifications persist and respect the role filter for ${role.name}',
       () async {
         final repository = _Feed();
         final profile = UserProfile(
@@ -53,7 +119,20 @@ void main() {
         );
         repository.changes.add(null);
         await Future<void>.delayed(Duration.zero);
-        expect(controller.unread, 1);
+        expect(controller.unread, role == UserRole.reporter ? 0 : 1);
+        repository.events.add(
+          IncidentHistoryEvent(
+            id: 'resolution-2',
+            actorUserId: 'tech',
+            createdAt: DateTime.utc(2026, 11, 10),
+            action: IncidentHistoryAction.resolved,
+            fromStatus: IncidentStatus.inProgress,
+            toStatus: IncidentStatus.resolved,
+          ),
+        );
+        repository.changes.add(null);
+        await Future<void>.delayed(Duration.zero);
+        expect(controller.unread, role == UserRole.reporter ? 1 : 2);
         repository.rows = [];
         repository.changes.add(null);
         await Future<void>.delayed(Duration.zero);
@@ -84,10 +163,12 @@ class _Feed extends Fake implements IncidentRepository {
   ];
   final events = [
     IncidentHistoryEvent(
-      id: 'assignment',
-      actorUserId: 'admin',
+      id: 'resolution-1',
+      actorUserId: 'tech',
       createdAt: DateTime.utc(2026),
-      action: IncidentHistoryAction.assigned,
+      action: IncidentHistoryAction.resolved,
+      fromStatus: IncidentStatus.inProgress,
+      toStatus: IncidentStatus.resolved,
     ),
   ];
   Stream<T> watch<T>(T Function() value) => Stream.multi((sink) {
