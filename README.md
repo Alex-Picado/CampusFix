@@ -39,6 +39,8 @@ protected by Firestore rules.
 
 ## Documentation
 
+- [Arranque para colaboradores con las mismas versiones de producción](docs/colaboradores.md).
+
 - [Mejoras de experiencia, notificaciones y cierre por conformidad](docs/experience_update.md).
 
 - [Public release preparation and deployment status](docs/despliegue.md).

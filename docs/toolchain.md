@@ -8,8 +8,8 @@ switch the active runtimes automatically.
 
 | Runtime | Version | Configuration |
 | --- | --- | --- |
-| Flutter | `3.47.5` stable | `.fvmrc` |
-| Dart | `3.13.4`, bundled with Flutter | Included in the selected Flutter SDK. |
+| Flutter | `3.47.9` stable | `.fvmrc` |
+| Dart | `3.13.7`, bundled with Flutter | Included in the selected Flutter SDK. |
 | Node.js | `24.19.0` | `.node-version` |
 | npm | `11.17.0` in the verified environment | Informational; not independently pinned. |
 
@@ -92,6 +92,14 @@ npm start --prefix services/local_evidence
 ```
 
 ## Verification results
+
+The November 9, 2026 production build used Flutter `3.47.9`, Dart `3.13.7`
+and Node.js `24.19.0`. The current SDK pin and committed `pubspec.lock` now
+match that installation. The application passed 329 Flutter tests, analysis
+and a release web build; the deployed Firestore rules passed 88 emulator tests.
+See [collaborator setup](colaboradores.md) for the current startup commands.
+
+### Historical verification
 
 Verified on Windows on October 21, 2026:
 

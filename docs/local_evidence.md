@@ -2,7 +2,7 @@
 
 ## Installation and startup
 
-Use Flutter `3.47.5`, Dart `3.13.4` and Node.js `24.19.0`. From the checkout root:
+Use Flutter `3.47.9`, Dart `3.13.7` and Node.js `24.19.0`. From the checkout root:
 
 ```text
 flutter pub get --enforce-lockfile

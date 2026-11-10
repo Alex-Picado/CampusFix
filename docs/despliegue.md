@@ -32,7 +32,7 @@ no instructor approval, paid plan or external image provider is assumed.
 
 ## Prepare locally
 
-Use Flutter 3.47.5/Dart 3.13.4 and Node 24.19.0 on PATH. From the repository root:
+Use Flutter 3.47.9/Dart 3.13.7 and Node 24.19.0 on PATH. From the repository root:
 
 ```powershell
 flutter analyze --no-pub
