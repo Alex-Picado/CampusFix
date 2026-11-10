@@ -13,10 +13,11 @@ class CampusBanner extends StatelessWidget {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/images/campus-ucr.jpg',
+              'assets/images/campus-ucr.png',
               fit: BoxFit.cover,
-              alignment: Alignment.centerRight,
-              semanticLabel: 'Mural del girasol, Universidad de Costa Rica',
+              alignment: Alignment.center,
+              semanticLabel:
+                  'Edificio de nuestra sede de la Universidad de Costa Rica',
               errorBuilder: (_, _, _) =>
                   const ColoredBox(color: Color(0xFF0C344E)),
             ),

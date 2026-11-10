@@ -64,7 +64,9 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/images/campus-ucr.jpg
+    - assets/images/campus-ucr.png
+    - assets/images/ucr-logo.png
+    - assets/images/ucr-logo-dark.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -146,56 +146,48 @@ class AuthPage extends StatelessWidget {
 class _UniversityHeader extends StatelessWidget {
   const _UniversityHeader();
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-    decoration: const BoxDecoration(
-      color: Color(0xFF0C344E),
-      border: Border(top: BorderSide(color: Color(0xFF00C0F3), width: 5)),
-    ),
-    child: Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF00C0F3),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: const Text(
-            'UCR',
-            style: TextStyle(
-              color: Color(0xFF0C344E),
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1,
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0C344E),
+        border: Border(top: BorderSide(color: Color(0xFF00C0F3), width: 5)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Image.asset(
+              dark
+                  ? 'assets/images/ucr-logo-dark.png'
+                  : 'assets/images/ucr-logo.png',
+              width: 160,
+              height: 80,
+              fit: BoxFit.contain,
+              semanticLabel: 'Logo de la Universidad de Costa Rica',
             ),
           ),
-        ),
-        const SizedBox(width: 16),
-        const Expanded(
-          child: Text(
-            'Universidad de Costa Rica',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
+          const Spacer(),
+          if (MediaQuery.sizeOf(context).width >= 800) ...[
+            const SizedBox(width: 16),
+            const Text(
+              'GESTIÓN DE INCIDENCIAS DEL CAMPUS',
+              style: TextStyle(
+                color: Color(0xFF8ED8F8),
+                letterSpacing: 1.3,
+                fontSize: 11,
+              ),
             ),
-          ),
-        ),
-        if (MediaQuery.sizeOf(context).width >= 800) ...[
-          const SizedBox(width: 16),
-          const Text(
-            'GESTIÓN DE INCIDENCIAS DEL CAMPUS',
-            style: TextStyle(
-              color: Color(0xFF8ED8F8),
-              letterSpacing: 1.3,
-              fontSize: 11,
-            ),
-          ),
+          ],
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class _CampusIdentity extends StatelessWidget {
@@ -211,10 +203,11 @@ class _CampusIdentity extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           Image.asset(
-            'assets/images/campus-ucr.jpg',
+            'assets/images/campus-ucr.png',
             fit: BoxFit.cover,
-            alignment: const Alignment(0.25, 0),
-            semanticLabel: 'Mural del girasol en la Universidad de Costa Rica',
+            alignment: Alignment.center,
+            semanticLabel:
+                'Edificio de nuestra sede de la Universidad de Costa Rica',
             errorBuilder: (_, _, _) =>
                 const ColoredBox(color: Color(0xFF02477B)),
           ),
@@ -291,7 +284,7 @@ class _CampusIdentity extends StatelessWidget {
                   ),
                   const SizedBox(height: 40),
                   const Text(
-                    'Mural del girasol · Sede Rodrigo Facio',
+                    'Nuestra sede · Universidad de Costa Rica',
                     style: TextStyle(color: Color(0xFFBAD2ED), fontSize: 12),
                   ),
                 ],
