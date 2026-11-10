@@ -70,6 +70,60 @@ service cloud.firestore {
         && data.toTechnicianId == null && data.reason == description;
     }
 
+    // Minimal routing documents keep private profiles out of technician reads.
+    function activeBackup(uid) {
+      let path = /databases/$(database)/documents/technicianAvailability/$(uid);
+      return get(path).data == {'role': 'technician', 'isActive': true};
+    }
+
+    function validTechnicianQueue(queue, principal) {
+      return queue is list && queue.size() <= 4
+        && queue.toSet().size() == queue.size() && !queue.hasAny([principal])
+        && (queue.size() < 1 || queue[0] is string)
+        && (queue.size() < 2 || queue[1] is string)
+        && (queue.size() < 3 || queue[2] is string)
+        && (queue.size() < 4 || queue[3] is string);
+    }
+
+    function activeBackupAfter(uid) {
+      let data = getAfter(/databases/$(database)/documents/technicianAvailability/$(uid)).data;
+      return data == {'role': 'technician', 'isActive': true};
+    }
+
+    function validAssignedQueue(next) {
+      let queue = next.get('technicianQueue', []);
+      return validTechnicianQueue(queue, next.assignedTechnicianId)
+        && (queue.size() < 1 || activeBackupAfter(queue[0]))
+        && (queue.size() < 2 || activeBackupAfter(queue[1]))
+        && (queue.size() < 3 || activeBackupAfter(queue[2]))
+        && (queue.size() < 4 || activeBackupAfter(queue[3]));
+    }
+
+    function firstActiveBackup(queue) {
+      return queue.size() > 0 && activeBackup(queue[0]) ? 0
+        : queue.size() > 1 && activeBackup(queue[1]) ? 1
+        : queue.size() > 2 && activeBackup(queue[2]) ? 2
+        : queue.size() > 3 && activeBackup(queue[3]) ? 3 : -1;
+    }
+
+    function queueAfter(queue, index) {
+      return index == 0 ? queue.removeAll([queue[0]])
+        : index == 1 ? queue.removeAll([queue[0], queue[1]])
+        : index == 2 ? queue.removeAll([queue[0], queue[1], queue[2]])
+        : queue.removeAll([queue[0], queue[1], queue[2], queue[3]]);
+    }
+
+    function validDecline(before, next) {
+      let queue = before.get('technicianQueue', []);
+      let index = firstActiveBackup(queue);
+      return queue is list && queue.size() <= 4
+        && (index < 0
+          ? next.status == 'EN_REVISION' && next.assignedTechnicianId == null
+            && next.get('technicianQueue', []) == []
+          : next.status == 'ASIGNADA' && next.assignedTechnicianId == queue[index]
+            && next.get('technicianQueue', []) == queueAfter(queue, index));
+    }
+
     // Validates the bidirectional link between an incident update and a new event.
     function validWorkflowEvent(before, next, event) {
       let details = event.details;
@@ -78,7 +132,10 @@ service cloud.firestore {
         && event.keys().hasOnly(['actorUserId', 'createdAt', 'action', 'fromStatus',
           'toStatus', 'fromTechnicianId', 'toTechnicianId', 'reason', 'details', 'previousResolutionDescription'])
         && details is map && details.keys().hasAll(['categoryId', 'priority', 'technicianId', 'reason'])
-        && details.keys().hasOnly(['categoryId', 'priority', 'technicianId', 'reason'])
+        && details.keys().hasOnly(['categoryId', 'priority', 'technicianId', 'reason', 'technicianQueue'])
+        && (event.action == 'assigned'
+          ? details.get('technicianQueue', []) == next.get('technicianQueue', [])
+          : details.get('technicianQueue', []) == [])
         && event.actorUserId == request.auth.uid && event.createdAt == request.time
         && event.fromStatus == before.status && event.toStatus == next.status
         && event.fromTechnicianId == before.assignedTechnicianId
@@ -106,10 +163,12 @@ service cloud.firestore {
             && isDocumentId(next.categoryId) && isActiveCategory(next.categoryId)
             && next.priority in ['BAJA', 'MEDIA', 'ALTA'])
           || (event.action == 'assigned' && before.status == 'EN_REVISION' && next.status == 'ASIGNADA'
-            && changed.hasOnly(common.concat(['assignedTechnicianId']))
+            && changed.hasOnly(common.concat(['assignedTechnicianId', 'technicianQueue']))
+            && validAssignedQueue(next)
             && next.priority in ['BAJA', 'MEDIA', 'ALTA'] && isActiveCategory(next.categoryId)
             && isDocumentId(next.assignedTechnicianId)
-            && get(/databases/$(database)/documents/users/$(next.assignedTechnicianId)).data.role == 'technician')
+            && get(/databases/$(database)/documents/users/$(next.assignedTechnicianId)).data.role == 'technician'
+            && get(/databases/$(database)/documents/users/$(next.assignedTechnicianId)).data.get('isActive', true) == true)
           || (event.action == 'closed' && before.status == 'RESUELTA'
             && before.get('technicianApproved', false) == true
             && before.get('adminApproved', false) == false && next.adminApproved == true
@@ -120,10 +179,11 @@ service cloud.firestore {
           || (event.action == 'cancelled' && before.status in ['REPORTADA', 'EN_REVISION', 'ASIGNADA', 'EN_ATENCION']
             && next.status == 'CANCELADA' && changed.hasOnly(common))
           || (event.action == 'reopened' && before.status in ['RESUELTA', 'CERRADA', 'REVISION_SOLICITADA'] && next.status == 'EN_REVISION'
-            && changed.hasOnly(common.concat(['assignedTechnicianId', 'priority', 'resolutionDescription',
+            && changed.hasOnly(common.concat(['assignedTechnicianId', 'technicianQueue', 'priority', 'resolutionDescription',
               'technicianApproved', 'reporterApproved', 'adminApproved']))
             && next.technicianApproved == false && next.reporterApproved == false && next.adminApproved == false
-            && next.assignedTechnicianId == null && next.priority == null && next.resolutionDescription == null)
+            && next.assignedTechnicianId == null && next.priority == null && next.resolutionDescription == null
+            && next.get('technicianQueue', []) == [])
           || (event.action == 'reviewDismissed' && before.status == 'REVISION_SOLICITADA'
             && next.status == 'RESUELTA' && next.reporterApproved == false && next.adminApproved == false
             && changed.hasOnly(common.concat(['reporterApproved', 'adminApproved'])))
@@ -138,8 +198,8 @@ service cloud.firestore {
             && next.resolutionDescription == event.reason && isNonblankText(next.resolutionDescription))
           || (event.action == 'assignmentDeclined'
             && before.status in ['ASIGNADA', 'EN_ATENCION']
-            && next.status == 'EN_REVISION' && next.assignedTechnicianId == null
-            && changed.hasOnly(common.concat(['assignedTechnicianId'])))
+            && validDecline(before, next)
+            && changed.hasOnly(common.concat(['assignedTechnicianId', 'technicianQueue'])))
         )
       ) || (
         isReporter() && before.createdByUserId == request.auth.uid
@@ -309,13 +369,31 @@ service cloud.firestore {
       let data = request.resource.data;
 
       return data.keys().hasAll(['fullName', 'email', 'role'])
-        && data.keys().hasOnly(['fullName', 'email', 'role'])
+        && data.keys().hasOnly(['fullName', 'email', 'role', 'isActive'])
+        && data.get('isActive', true) is bool
         && data.fullName is string
         && data.fullName.size() > 0
         && data.email is string
         && data.email.size() > 0
         && data.role is string
         && data.role in ['reporter', 'technician', 'administrator'];
+    }
+
+    function availabilityMatchesUser(userId, data) {
+      let path = /databases/$(database)/documents/technicianAvailability/$(userId);
+      return !exists(path) || (getAfter(path).data.role == data.role
+        && getAfter(path).data.isActive == data.get('isActive', true));
+    }
+
+    match /technicianAvailability/{userId} {
+      allow get, list: if isAdmin() || isTechnician();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasAll(['role', 'isActive'])
+        && request.resource.data.keys().hasOnly(['role', 'isActive'])
+        && request.resource.data.isActive is bool
+        && request.resource.data.role == getAfter(/databases/$(database)/documents/users/$(userId)).data.role
+        && request.resource.data.isActive == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('isActive', true);
+      allow delete: if false;
     }
 
     match /users/{userId} {
@@ -333,6 +411,7 @@ service cloud.firestore {
         && request.auth.uid == userId
         && isValidProfile()
         && request.resource.data.role == 'reporter'
+        && request.resource.data.get('isActive', true) == true
         && request.resource.data.email == request.auth.token.email;
 
       // Owners may edit their names; administrators may change roles.
@@ -348,7 +427,8 @@ service cloud.firestore {
           (
             isAdmin()
             && request.resource.data.diff(resource.data)
-              .affectedKeys().hasOnly(['role'])
+              .affectedKeys().hasOnly(['role', 'isActive'])
+            && availabilityMatchesUser(userId, request.resource.data)
           )
         );
 

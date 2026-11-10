@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 
 import '../../auth/services/auth_service.dart';
 import '../../users/models/user_role.dart';
@@ -95,9 +96,20 @@ class IncidentService {
     required String incidentId,
     required IncidentWorkflowCommand command,
   }) async {
+    final stableCommand = IncidentWorkflowCommand(
+      eventId: command.eventId,
+      action: command.action,
+      expectedStatus: command.expectedStatus,
+      expectedUpdatedAt: command.expectedUpdatedAt,
+      categoryId: command.categoryId,
+      priority: command.priority,
+      technicianId: command.technicianId,
+      reason: command.reason,
+      technicianQueue: List.unmodifiable(command.technicianQueue),
+    );
     final uid = _requireSession();
     final parent = _firestore.collection('incidents').doc(incidentId);
-    final event = parent.collection('history').doc(command.eventId);
+    final event = parent.collection('history').doc(stableCommand.eventId);
     await _firestore.runTransaction<void>((tx) async {
       _requireSession(uid);
       final existing = await tx.get(event);
@@ -115,11 +127,17 @@ class IncidentService {
         final data = existing.data()!;
         final details = data['details'];
         if (data['actorUserId'] != uid ||
-            data['action'] != command.action.value ||
-            data['fromStatus'] != command.expectedStatus.value ||
+            data['action'] != stableCommand.action.value ||
+            data['fromStatus'] != stableCommand.expectedStatus.value ||
             details is! Map ||
-            !command.details.entries.every(
-              (entry) => details[entry.key] == entry.value,
+            !stableCommand.details.entries
+                .where((entry) => entry.key != 'technicianQueue')
+                .every((entry) => details[entry.key] == entry.value) ||
+            (details['technicianQueue'] != null &&
+                details['technicianQueue'] is! List) ||
+            !listEquals(
+              stableCommand.technicianQueue,
+              (details['technicianQueue'] as List?) ?? const [],
             )) {
           throw const FormatException('Conflicting workflow submission.');
         }
@@ -140,15 +158,28 @@ class IncidentService {
           code: 'permission-denied',
         );
       }
+      final unavailable = <String>{};
+      if (stableCommand.action == IncidentHistoryAction.assignmentDeclined) {
+        for (final candidate in incident.technicianQueue) {
+          final availability = await tx.get(
+            _firestore.collection('technicianAvailability').doc(candidate),
+          );
+          if (availability.data()?['role'] != 'technician' ||
+              availability.data()?['isActive'] != true) {
+            unavailable.add(candidate);
+          }
+        }
+      }
       final changes = IncidentWorkflow.changes(
         incident,
-        command,
+        stableCommand,
         UserRole.values.byName(role as String),
         uid,
+        unavailableTechnicianIds: unavailable,
       );
-      if (command.action == IncidentHistoryAction.classified ||
-          command.action == IncidentHistoryAction.assigned) {
-        final categoryId = command.categoryId ?? incident.categoryId;
+      if (stableCommand.action == IncidentHistoryAction.classified ||
+          stableCommand.action == IncidentHistoryAction.assigned) {
+        final categoryId = stableCommand.categoryId ?? incident.categoryId;
         final category = await tx.get(
           _firestore.collection('categories').doc(categoryId),
         );
@@ -159,36 +190,55 @@ class IncidentService {
           throw const FormatException('An active category is required.');
         }
       }
-      if (command.technicianId != null) {
-        final technician = await tx.get(
-          _firestore.collection('users').doc(command.technicianId),
-        );
-        if (technician.data()?['role'] != 'technician') {
-          throw const FormatException('The assignee must be a technician.');
+      final availabilityWrites = <String, Map<String, dynamic>>{};
+      if (stableCommand.technicianId != null) {
+        for (final candidate in [
+          stableCommand.technicianId!,
+          ...stableCommand.technicianQueue,
+        ]) {
+          final technician = await tx.get(
+            _firestore.collection('users').doc(candidate),
+          );
+          if (technician.data()?['role'] != 'technician' ||
+              technician.data()?['isActive'] == false) {
+            throw const FormatException(
+              'All assignees must be active technicians.',
+            );
+          }
+          availabilityWrites[candidate] = {
+            'role': 'technician',
+            'isActive': true,
+          };
         }
       }
       _requireSession(uid);
+      for (final entry in availabilityWrites.entries) {
+        tx.set(
+          _firestore.collection('technicianAvailability').doc(entry.key),
+          entry.value,
+        );
+      }
       final timestamp = FieldValue.serverTimestamp();
       tx.set(parent, {
         ...data,
         ...changes,
         'updatedAt': timestamp,
-        'lastWorkflowEventId': command.eventId,
+        'lastWorkflowEventId': stableCommand.eventId,
       });
       tx.set(event, {
         'actorUserId': uid,
         'createdAt': timestamp,
-        'action': command.action.value,
+        'action': stableCommand.action.value,
         'fromStatus': incident.status.value,
         'toStatus': changes['status'],
         'fromTechnicianId': incident.assignedTechnicianId,
         'toTechnicianId': changes.containsKey('assignedTechnicianId')
             ? changes['assignedTechnicianId']
             : incident.assignedTechnicianId,
-        'reason': command.reason,
-        'details': command.details,
+        'reason': stableCommand.reason,
+        'details': stableCommand.details,
         'previousResolutionDescription':
-            command.action == IncidentHistoryAction.reopened
+            stableCommand.action == IncidentHistoryAction.reopened
             ? incident.resolutionDescription
             : null,
       });

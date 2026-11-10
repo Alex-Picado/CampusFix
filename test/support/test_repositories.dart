@@ -15,6 +15,7 @@ class TestUserRepository implements UserRepository {
   int nameUpdateCalls = 0;
   Completer<void>? roleUpdateBlocker;
   int roleUpdateCalls = 0;
+  int availabilityUpdateCalls = 0;
   int allUsersWatchCalls = 0;
   int activeAllUsersWatches = 0;
 
@@ -69,6 +70,7 @@ class TestUserRepository implements UserRepository {
         fullName: fullName.trim(),
         email: profile.email,
         role: profile.role,
+        isActive: profile.isActive,
       ),
     );
   }
@@ -123,6 +125,28 @@ class TestUserRepository implements UserRepository {
         fullName: profile.fullName,
         email: profile.email,
         role: role,
+        isActive: profile.isActive,
+      ),
+    );
+  }
+
+  @override
+  Future<void> updateAvailability({
+    required String userId,
+    required bool isActive,
+  }) async {
+    availabilityUpdateCalls++;
+    final profile = profiles[userId];
+    if (profile == null || profile.role != UserRole.technician) {
+      throw StateError('Missing technician.');
+    }
+    await saveProfile(
+      UserProfile(
+        id: profile.id,
+        fullName: profile.fullName,
+        email: profile.email,
+        role: profile.role,
+        isActive: isActive,
       ),
     );
   }

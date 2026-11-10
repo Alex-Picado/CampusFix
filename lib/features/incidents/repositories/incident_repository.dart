@@ -53,7 +53,11 @@ class IncidentRepository {
     if (command.eventId == 'created') {
       throw const FormatException('Reserved event ID.');
     }
-    for (final id in [command.categoryId, command.technicianId]) {
+    for (final id in [
+      command.categoryId,
+      command.technicianId,
+      ...command.technicianQueue,
+    ]) {
       if (id != null) _requireIncidentId(id);
     }
     if (command.reason != null &&

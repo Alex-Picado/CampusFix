@@ -1,6 +1,7 @@
 import '../models/user_profile.dart';
 import '../services/user_service.dart';
 import '../models/user_role.dart';
+
 /// Converts stored user data into application profiles and back.
 class UserRepository {
   final UserService _userService;
@@ -48,7 +49,6 @@ class UserRepository {
     return _userService.setProfile(userId: profile.id, data: profile.toMap());
   }
 
-
   /// Updates the name of the profile identified by [userId].
   ///
   /// Removes surrounding name whitespace.
@@ -70,8 +70,6 @@ class UserRepository {
     );
   }
 
-
-
   /// Watches all profiles sorted by their case-insensitive full name.
   ///
   /// Converts stored documents into application models.
@@ -83,12 +81,7 @@ class UserRepository {
       final profiles = <UserProfile>[];
 
       for (final entry in documents.entries) {
-        profiles.add(
-          UserProfile.fromMap(
-            id: entry.key,
-            data: entry.value,
-          ),
-        );
+        profiles.add(UserProfile.fromMap(id: entry.key, data: entry.value));
       }
 
       profiles.sort((first, second) {
@@ -101,25 +94,27 @@ class UserRepository {
     });
   }
 
+  /// Sets availability for a technician; authorization remains in Firestore.
+  Future<void> updateAvailability({
+    required String userId,
+    required bool isActive,
+  }) {
+    if (userId.trim().isEmpty) {
+      throw const FormatException('User ID is required.');
+    }
+    return _userService.updateAvailability(userId: userId, isActive: isActive);
+  }
+
   /// Updates the role of the profile identified by [userId].
   ///
   /// Stores the enum name used by the profile model and security rules.
   /// Throws a [FormatException] if the identifier is empty.
   /// Propagates errors reported by the service.
-  Future<void> updateRole({
-    required String userId,
-    required UserRole role,
-  }) {
+  Future<void> updateRole({required String userId, required UserRole role}) {
     if (userId.trim().isEmpty) {
       throw const FormatException('User ID is required.');
     }
 
-    return _userService.updateRole(
-      userId: userId,
-      role: role.name,
-    );
+    return _userService.updateRole(userId: userId, role: role.name);
   }
-
-
-
 }

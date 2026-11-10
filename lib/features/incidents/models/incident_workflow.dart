@@ -16,6 +16,9 @@ class IncidentWorkflowCommand {
   final String? categoryId;
   final IncidentPriority? priority;
   final String? technicianId;
+
+  /// Ordered backup technicians frozen with the assignment command.
+  final List<String> technicianQueue;
   final String? reason;
 
   const IncidentWorkflowCommand({
@@ -26,6 +29,7 @@ class IncidentWorkflowCommand {
     this.categoryId,
     this.priority,
     this.technicianId,
+    this.technicianQueue = const [],
     this.reason,
   });
 
@@ -34,12 +38,16 @@ class IncidentWorkflowCommand {
     'categoryId': categoryId,
     'priority': priority?.value,
     'technicianId': technicianId,
+    if (technicianQueue.isNotEmpty) 'technicianQueue': technicianQueue,
     'reason': reason,
   };
 }
 
 /// Defines permitted actions and validates the complete lifecycle before writes.
 abstract final class IncidentWorkflow {
+  /// Bounds atomic security checks to one principal and four backup technicians.
+  static const maxBackupTechnicians = 4;
+
   /// Returns the actions available to the stored role and current assignment.
   static List<IncidentHistoryAction> actions(
     Incident incident,
@@ -112,8 +120,9 @@ abstract final class IncidentWorkflow {
     Incident incident,
     IncidentWorkflowCommand command,
     UserRole role,
-    String uid,
-  ) {
+    String uid, {
+    Set<String> unavailableTechnicianIds = const {},
+  }) {
     if (incident.status != command.expectedStatus ||
         incident.updatedAt != command.expectedUpdatedAt) {
       throw StateError(
@@ -128,6 +137,20 @@ abstract final class IncidentWorkflow {
     final action = command.action;
     final classification = action == IncidentHistoryAction.classified;
     final assignment = action == IncidentHistoryAction.assigned;
+    if (command.technicianQueue.length > maxBackupTechnicians ||
+        command.technicianQueue.toSet().length !=
+            command.technicianQueue.length ||
+        command.technicianQueue.contains(command.technicianId) ||
+        command.technicianQueue.any(
+          (id) => id.trim().isEmpty || id.contains('/'),
+        ) ||
+        (!assignment && command.technicianQueue.isNotEmpty)) {
+      throw const FormatException('Invalid backup technician order.');
+    }
+    final remaining = incident.technicianQueue
+        .skipWhile(unavailableTechnicianIds.contains)
+        .toList();
+    final nextTechnician = remaining.firstOrNull;
     final needsReason = [
       IncidentHistoryAction.resolved,
       IncidentHistoryAction.rejected,
@@ -148,8 +171,11 @@ abstract final class IncidentWorkflow {
     }
     final status = switch (action) {
       IncidentHistoryAction.classified ||
-      IncidentHistoryAction.reopened ||
-      IncidentHistoryAction.assignmentDeclined => IncidentStatus.underReview,
+      IncidentHistoryAction.reopened => IncidentStatus.underReview,
+      IncidentHistoryAction.assignmentDeclined =>
+        nextTechnician == null
+            ? IncidentStatus.underReview
+            : IncidentStatus.assigned,
       IncidentHistoryAction.reviewRequested => IncidentStatus.reviewRequested,
       IncidentHistoryAction.assigned => IncidentStatus.assigned,
       IncidentHistoryAction.started => IncidentStatus.inProgress,
@@ -176,9 +202,14 @@ abstract final class IncidentWorkflow {
       'status': status.value,
       if (classification) 'categoryId': command.categoryId,
       if (classification) 'priority': command.priority!.value,
-      if (assignment) 'assignedTechnicianId': command.technicianId,
-      if (action == IncidentHistoryAction.assignmentDeclined)
-        'assignedTechnicianId': null,
+      if (assignment) ...{
+        'assignedTechnicianId': command.technicianId,
+        'technicianQueue': command.technicianQueue,
+      },
+      if (action == IncidentHistoryAction.assignmentDeclined) ...{
+        'assignedTechnicianId': nextTechnician,
+        'technicianQueue': remaining.skip(1).toList(),
+      },
       if (action == IncidentHistoryAction.resolved)
         'resolutionDescription': command.reason,
       if (action == IncidentHistoryAction.resolved) ...{
@@ -201,6 +232,7 @@ abstract final class IncidentWorkflow {
         'reporterApproved': false,
         'adminApproved': false,
         'assignedTechnicianId': null,
+        'technicianQueue': <String>[],
         'priority': null,
         'resolutionDescription': null,
       },

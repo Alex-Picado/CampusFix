@@ -14,19 +14,28 @@ class UserProfile {
   /// Role used to determine the user's permitted operations.
   final UserRole role;
 
+  /// Whether a technician can receive new assignments. Legacy profiles are active.
+  final bool isActive;
+
   /// Creates a user profile with all required information.
   const UserProfile({
     required this.id,
     required this.fullName,
     required this.email,
     required this.role,
+    this.isActive = true,
   });
 
   /// Returns the profile fields to store in Firestore.
   ///
   /// The identifier is used as the document ID and is not included.
   Map<String, dynamic> toMap() {
-    return {'fullName': fullName, 'email': email, 'role': role.name};
+    return {
+      'fullName': fullName,
+      'email': email,
+      'role': role.name,
+      if (!isActive) 'isActive': false,
+    };
   }
 
   /// Creates a profile from a Firestore document ID and its fields.
@@ -40,6 +49,9 @@ class UserProfile {
     final fullName = data['fullName'];
     final email = data['email'];
     final roleName = data['role'];
+    if (data.containsKey('isActive') && data['isActive'] is! bool) {
+      throw const FormatException('Invalid technician availability.');
+    }
 
     if (fullName is! String || email is! String || roleName is! String) {
       throw const FormatException('Invalid user profile data.');
@@ -57,6 +69,12 @@ class UserProfile {
       throw const FormatException('Unsupported user role.');
     }
 
-    return UserProfile(id: id, fullName: fullName, email: email, role: role);
+    return UserProfile(
+      id: id,
+      fullName: fullName,
+      email: email,
+      role: role,
+      isActive: data['isActive'] != false,
+    );
   }
 }

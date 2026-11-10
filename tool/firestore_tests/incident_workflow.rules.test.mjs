@@ -60,13 +60,15 @@ async function attempt(uid, action, options = {}) {
     toStatus: next.status, fromTechnicianId: old.assignedTechnicianId, toTechnicianId: next.assignedTechnicianId,
     reason, details: { categoryId: action === 'classified' ? next.categoryId : null,
       priority: action === 'classified' ? next.priority : null,
-      technicianId: action === 'assigned' ? next.assignedTechnicianId : null, reason },
+      technicianId: action === 'assigned' ? next.assignedTechnicianId : null, reason,
+      ...(action === 'assigned' && next.technicianQueue?.length ? { technicianQueue: next.technicianQueue } : {}) },
     previousResolutionDescription: action === 'reopened' ? old.resolutionDescription : null,
     ...options.changeEvent };
   const db = dbFor(uid);
   const batch = writeBatch(db);
   if (!options.eventOnly) batch.set(doc(db, 'incidents/case'), next);
   if (!options.incidentOnly) batch.set(doc(db, 'incidents/case/history', eventId), event);
+  for (const uid of options.routing ?? []) batch.set(doc(db, 'technicianAvailability', uid), { role: 'technician', isActive: true });
   if (options.extraEvent) batch.set(doc(db, 'incidents/case/history/orphan'), event);
   return batch.commit();
 }
@@ -285,4 +287,103 @@ test('Unapproved legacy resolutions cannot be closed without a new technician re
   await assertFails(attempt('admin','closed'));
   await assertFails(attempt('owner','solutionAccepted'));
   await assertSucceeds(attempt('admin','reopened'));
+});
+
+
+async function seedRouting(queue) {
+  await inspect(async (db) => {
+    for (const uid of queue) {
+      await setDoc(doc(db, 'users', uid), { fullName: uid, email: `${uid}@test.invalid`, role: 'technician' });
+      await setDoc(doc(db, 'technicianAvailability', uid), { role: 'technician', isActive: true });
+    }
+  });
+}
+async function changeAvailability(uid, active, role = 'technician') {
+  const db = dbFor('admin');
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'users', uid), { role, isActive: active });
+  batch.set(doc(db, 'technicianAvailability', uid), { role, isActive: active });
+  return batch.commit();
+}
+async function assignQueue(queue) {
+  await classified();
+  await seedRouting(queue);
+  await assertSucceeds(attempt('admin', 'assigned', { changeIncident: { technicianQueue: queue } }));
+}
+
+test('Queues reject duplicate, self, unapproved and oversized backups', async () => {
+  await classified();
+  await seedRouting(['other-tech', 'backup-2', 'backup-3', 'backup-4', 'backup-5']);
+  for (const queue of [['other-tech', 'other-tech'], ['tech'], ['missing-tech'],
+    ['other-tech', 'backup-2', 'backup-3', 'backup-4', 'backup-5']]) {
+    await assertFails(attempt('admin', 'assigned', { changeIncident: { technicianQueue: queue } }));
+  }
+  await changeAvailability('other-tech', false);
+  await assertFails(attempt('admin', 'assigned', { changeIncident: { technicianQueue: ['other-tech'] } }));
+  await inspect(db => updateDoc(doc(db, 'users/tech'), { isActive: false }));
+  await assertFails(attempt('admin', 'assigned'));
+});
+
+test('Decline must choose the first active backup and preserve the remaining order', async () => {
+  await assignQueue(['other-tech', 'backup-2', 'backup-3', 'backup-4']);
+  await assertFails(attempt('tech', 'assignmentDeclined', { changeIncident: {
+    status: 'ASIGNADA', assignedTechnicianId: 'backup-2', technicianQueue: ['backup-3', 'backup-4'],
+  } }));
+  await assertFails(attempt('tech', 'assignmentDeclined', { changeIncident: {
+    status: 'ASIGNADA', assignedTechnicianId: 'other-tech', technicianQueue: [],
+  } }));
+  await assertFails(attempt('other-tech', 'assignmentDeclined'));
+  await assertSucceeds(attempt('tech', 'assignmentDeclined', { eventId: 'queue-decline', changeIncident: {
+    status: 'ASIGNADA', assignedTechnicianId: 'other-tech', technicianQueue: ['backup-2', 'backup-3', 'backup-4'],
+  } }));
+  await assertFails(getDoc(doc(dbFor('tech'), 'incidents/case')));
+  await assertSucceeds(getDoc(doc(dbFor('tech'), 'incidents/case/history/queue-decline')));
+  await assertSucceeds(attempt('other-tech', 'started'));
+});
+
+test('Unavailable and demoted backups are skipped and skipped staff cannot read the case', async () => {
+  await assignQueue(['other-tech', 'backup-2', 'backup-3', 'backup-4']);
+  await assertSucceeds(changeAvailability('other-tech', false));
+  await assertSucceeds(changeAvailability('backup-2', true, 'reporter'));
+  await assertFails(attempt('tech', 'assignmentDeclined', { changeIncident: {
+    status: 'ASIGNADA', assignedTechnicianId: 'other-tech', technicianQueue: ['backup-2', 'backup-3', 'backup-4'],
+  } }));
+  await assertSucceeds(attempt('tech', 'assignmentDeclined', { changeIncident: {
+    status: 'ASIGNADA', assignedTechnicianId: 'backup-3', technicianQueue: ['backup-4'],
+  } }));
+  await assertFails(getDoc(doc(dbFor('other-tech'), 'incidents/case')));
+  await assertSucceeds(getDoc(doc(dbFor('backup-3'), 'incidents/case')));
+});
+
+test('Four inactive backups exhaust the queue within atomic rule limits', async () => {
+  const queue = ['other-tech', 'backup-2', 'backup-3', 'backup-4'];
+  await assignQueue(queue);
+  for (const uid of queue) await assertSucceeds(changeAvailability(uid, false));
+  await assertSucceeds(attempt('tech', 'assignmentDeclined', { changeIncident: { technicianQueue: [] } }));
+  const data = (await getDoc(doc(dbFor('admin'), 'incidents/case'))).data();
+  assert.equal(data.status, 'EN_REVISION');
+  assert.equal(data.assignedTechnicianId, null);
+  assert.equal(data.priority, 'ALTA');
+});
+
+test('Only administrators can change availability and mirrored data must match', async () => {
+  await seedRouting(['other-tech']);
+  await assertFails(updateDoc(doc(dbFor('admin'), 'users/other-tech'), { isActive: false }));
+  await assertFails(updateDoc(doc(dbFor('tech'), 'users/tech'), { isActive: false }));
+  await assertFails(setDoc(doc(dbFor('tech'), 'technicianAvailability/other-tech'), { role: 'technician', isActive: false }));
+  await assertSucceeds(changeAvailability('other-tech', false));
+  await assertSucceeds(getDoc(doc(dbFor('tech'), 'technicianAvailability/other-tech')));
+  await assertFails(getDoc(doc(dbFor('tech'), 'users/other-tech')));
+  await assertFails(getDoc(doc(dbFor('owner'), 'technicianAvailability/other-tech')));
+  await assertFails(setDoc(doc(dbFor('admin'), 'technicianAvailability/other-tech'), { role: 'technician', isActive: true }));
+});
+
+
+test('An assignment can initialize all five routing records in the same atomic write', async () => {
+  const queue = ['other-tech', 'backup-2', 'backup-3', 'backup-4'];
+  await classified();
+  await seedRouting(queue);
+  await assertSucceeds(attempt('admin', 'assigned', {
+    changeIncident: { technicianQueue: queue }, routing: ['tech', ...queue],
+  }));
 });

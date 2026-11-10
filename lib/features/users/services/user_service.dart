@@ -57,8 +57,7 @@ class UserService {
     });
   }
 
-
-    /// Watches all stored profiles, indexed by document ID.
+  /// Watches all stored profiles, indexed by document ID.
   ///
   /// Emits the initial collection and subsequent changes.
   /// Firestore rules restrict this query to administrators.
@@ -75,19 +74,43 @@ class UserService {
     });
   }
 
+  /// Changes technician availability together with its minimal routing record.
+  /// The transaction rejects users whose technician role changed concurrently.
+  Future<void> updateAvailability({
+    required String userId,
+    required bool isActive,
+  }) {
+    final user = _firestore.collection('users').doc(userId);
+    return _firestore.runTransaction<void>((tx) async {
+      final snapshot = await tx.get(user);
+      final data = snapshot.data();
+      if (data == null || data['role'] != 'technician') {
+        throw StateError('A technician profile is required.');
+      }
+      tx.set(user, {...data, 'isActive': isActive});
+      tx.set(_firestore.collection('technicianAvailability').doc(userId), {
+        'role': 'technician',
+        'isActive': isActive,
+      });
+    });
+  }
+
   /// Updates only the role of an existing profile.
   ///
   /// Preserves the remaining document fields.
   /// Firestore rules enforce administrator permissions and valid roles.
   /// Propagates errors reported by Firestore.
-  Future<void> updateRole({
-    required String userId,
-    required String role,
-  }) {
-    return _firestore.collection('users').doc(userId).update({
-      'role': role,
+  Future<void> updateRole({required String userId, required String role}) {
+    final user = _firestore.collection('users').doc(userId);
+    return _firestore.runTransaction<void>((tx) async {
+      final snapshot = await tx.get(user);
+      final data = snapshot.data();
+      if (data == null) throw StateError('Missing profile.');
+      tx.set(user, {...data, 'role': role});
+      tx.set(_firestore.collection('technicianAvailability').doc(userId), {
+        'role': role,
+        'isActive': data['isActive'] != false,
+      });
     });
   }
-
-
 }

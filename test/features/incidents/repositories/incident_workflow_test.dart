@@ -4,6 +4,7 @@ import 'package:campusfix/features/incidents/models/incident_priority.dart';
 import 'package:campusfix/features/incidents/models/incident_status.dart';
 import 'package:campusfix/features/incidents/models/incident_workflow.dart';
 import 'package:campusfix/features/incidents/services/incident_service.dart';
+import 'package:campusfix/features/users/services/user_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,6 +31,7 @@ void main() {
     IncidentHistoryAction action, {
     String? reason,
     String? technicianId,
+    List<String> technicianQueue = const [],
     bool classify = false,
   }) {
     final incident = current();
@@ -41,6 +43,7 @@ void main() {
       categoryId: classify ? 'lighting' : null,
       priority: classify ? IncidentPriority.high : null,
       technicianId: technicianId,
+      technicianQueue: technicianQueue,
       reason: reason,
     );
   }
@@ -68,6 +71,174 @@ void main() {
     database.store('users/other-tech', {'role': 'technician'});
     auth.userId = 'admin';
   });
+
+  test(
+    'An assignment freezes the caller backup list before asynchronous reads',
+    () async {
+      await classify();
+      final queue = ['other-tech'];
+      final pending = save(
+        command(
+          IncidentHistoryAction.assigned,
+          technicianId: 'tech',
+          technicianQueue: queue,
+        ),
+      );
+      queue.clear();
+      await pending;
+      expect(current().technicianQueue, ['other-tech']);
+    },
+  );
+
+  test('Availability and role changes update routing atomically while preserving profiles', () async {
+    database.store('users/other-tech', {
+      'role': 'technician',
+      'fullName': 'Technician',
+      'email': 'tech@test.invalid',
+    });
+    final users = UserService(firestore: database);
+    await users.updateAvailability(userId: 'other-tech', isActive: false);
+    expect(database.documents['users/other-tech']?['isActive'], isFalse);
+    expect(database.documents['users/other-tech']?['fullName'], 'Technician');
+    expect(database.documents['technicianAvailability/other-tech'], {
+      'role': 'technician',
+      'isActive': false,
+    });
+    await users.updateRole(userId: 'other-tech', role: 'reporter');
+    expect(database.documents['technicianAvailability/other-tech'], {
+      'role': 'reporter',
+      'isActive': false,
+    });
+    await expectLater(
+      users.updateAvailability(userId: 'other-tech', isActive: true),
+      throwsStateError,
+    );
+  });
+
+  test('A decline advances the ordered queue and a retry never advances twice', () async {
+    database.store('users/third-tech', {'role': 'technician'});
+    await classify();
+    final assignment = command(
+      IncidentHistoryAction.assigned,
+      technicianId: 'tech',
+      technicianQueue: ['other-tech', 'third-tech'],
+    );
+    await save(assignment);
+    await save(assignment);
+    expect(current().technicianQueue, ['other-tech', 'third-tech']);
+    auth.userId = 'tech';
+    final decline = command(
+      IncidentHistoryAction.assignmentDeclined,
+      reason: 'Injury',
+    );
+    await save(decline);
+    expect(current().status, IncidentStatus.assigned);
+    expect(current().assignedTechnicianId, 'other-tech');
+    expect(current().technicianQueue, ['third-tech']);
+    await save(decline);
+    expect(current().assignedTechnicianId, 'other-tech');
+    expect(current().technicianQueue, ['third-tech']);
+    expect(
+      database
+          .documents['incidents/case/history/${decline.eventId}']?['toTechnicianId'],
+      'other-tech',
+    );
+  });
+
+  test(
+    'Unavailable backups are skipped and an exhausted queue returns to review',
+    () async {
+      database.store('users/third-tech', {'role': 'technician'});
+      await classify();
+      await save(
+        command(
+          IncidentHistoryAction.assigned,
+          technicianId: 'tech',
+          technicianQueue: ['other-tech', 'third-tech'],
+        ),
+      );
+      database.store('technicianAvailability/other-tech', {
+        'role': 'technician',
+        'isActive': false,
+      });
+      auth.userId = 'tech';
+      await save(
+        command(
+          IncidentHistoryAction.assignmentDeclined,
+          reason: 'Cannot attend',
+        ),
+      );
+      expect(current().assignedTechnicianId, 'third-tech');
+      expect(current().technicianQueue, isEmpty);
+      auth.userId = 'third-tech';
+      await save(
+        command(
+          IncidentHistoryAction.assignmentDeclined,
+          reason: 'Unavailable',
+        ),
+      );
+      expect(current().status, IncidentStatus.underReview);
+      expect(current().assignedTechnicianId, isNull);
+      expect(current().priority, IncidentPriority.high);
+    },
+  );
+
+  test(
+    'A concurrent availability change retries before choosing a backup',
+    () async {
+      database.store('users/third-tech', {'role': 'technician'});
+      await classify();
+      await save(
+        command(
+          IncidentHistoryAction.assigned,
+          technicianId: 'tech',
+          technicianQueue: ['other-tech', 'third-tech'],
+        ),
+      );
+      final attempts = database.transactionAttempts;
+      database.onTransactionRead = (path) {
+        if (path == 'technicianAvailability/other-tech') {
+          database.onTransactionRead = null;
+          database.store(path, {'role': 'technician', 'isActive': false});
+        }
+      };
+      auth.userId = 'tech';
+      await save(
+        command(IncidentHistoryAction.assignmentDeclined, reason: 'Unable'),
+      );
+      expect(database.transactionAttempts, greaterThan(attempts + 1));
+      expect(current().assignedTechnicianId, 'third-tech');
+    },
+  );
+
+  test(
+    'Inactive principals and backups are rejected before any assignment writes',
+    () async {
+      await classify();
+      database.store('users/other-tech', {
+        'role': 'technician',
+        'isActive': false,
+      });
+      await expectLater(
+        save(
+          command(IncidentHistoryAction.assigned, technicianId: 'other-tech'),
+        ),
+        throwsFormatException,
+      );
+      await expectLater(
+        save(
+          command(
+            IncidentHistoryAction.assigned,
+            technicianId: 'tech',
+            technicianQueue: ['other-tech'],
+          ),
+        ),
+        throwsFormatException,
+      );
+      expect(current().assignedTechnicianId, isNull);
+      expect(current().status, IncidentStatus.underReview);
+    },
+  );
 
   test('The full lifecycle preserves immutable incident data and records every actor', () async {
     final original = current();

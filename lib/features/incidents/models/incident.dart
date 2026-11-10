@@ -39,6 +39,9 @@ class Incident {
   /// Identifier of the assigned technician, if available.
   final String? assignedTechnicianId;
 
+  /// Ordered backups, excluding the current assignee; empty for legacy records.
+  final List<String> technicianQueue;
+
   /// Solution recorded by the technician when resolving the incident.
   final String? resolutionDescription;
 
@@ -61,6 +64,7 @@ class Incident {
     this.priority,
     this.status = IncidentStatus.reported,
     this.assignedTechnicianId,
+    this.technicianQueue = const [],
     this.resolutionDescription,
     this.technicianApproved = false,
     this.reporterApproved = false,
@@ -85,6 +89,7 @@ class Incident {
       'updatedAt': updatedAt,
       'createdByUserId': createdByUserId,
       'assignedTechnicianId': assignedTechnicianId,
+      if (technicianQueue.isNotEmpty) 'technicianQueue': technicianQueue,
       'resolutionDescription': resolutionDescription,
       if (technicianApproved) 'technicianApproved': true,
       if (reporterApproved) 'reporterApproved': true,
@@ -114,6 +119,16 @@ class Incident {
     final updatedAt = data['updatedAt'];
     final createdByUserId = data['createdByUserId'];
     final assignedTechnicianId = data['assignedTechnicianId'];
+    final queue = data['technicianQueue'] ?? const <String>[];
+    if (queue is! List ||
+        queue.length > 4 ||
+        queue.any(
+          (id) => id is! String || id.trim().isEmpty || id.contains('/'),
+        ) ||
+        queue.toSet().length != queue.length ||
+        queue.contains(assignedTechnicianId)) {
+      throw const FormatException('Invalid technician queue.');
+    }
     final resolutionDescription = data['resolutionDescription'];
     for (final key in [
       'technicianApproved',
@@ -162,6 +177,7 @@ class Incident {
       updatedAt: updatedAt,
       createdByUserId: createdByUserId,
       assignedTechnicianId: assignedTechnicianId,
+      technicianQueue: List<String>.unmodifiable(queue.cast<String>()),
       resolutionDescription: resolutionDescription,
       technicianApproved: data['technicianApproved'] == true,
       reporterApproved: data['reporterApproved'] == true,
@@ -185,6 +201,7 @@ class Incident {
     IncidentStatus? status,
     DateTime? updatedAt,
     String? assignedTechnicianId,
+    List<String>? technicianQueue,
     String? resolutionDescription,
     bool clearPriority = false,
     bool clearAssignedTechnician = false,
@@ -208,6 +225,7 @@ class Incident {
       assignedTechnicianId: clearAssignedTechnician
           ? null
           : assignedTechnicianId ?? this.assignedTechnicianId,
+      technicianQueue: technicianQueue ?? this.technicianQueue,
       resolutionDescription: clearResolution
           ? null
           : resolutionDescription ?? this.resolutionDescription,

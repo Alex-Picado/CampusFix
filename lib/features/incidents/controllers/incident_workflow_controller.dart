@@ -37,6 +37,9 @@ class IncidentWorkflowController extends ChangeNotifier {
   String? readError;
   String? saveError;
   String? success;
+
+  /// One selected action shared by the main flow and the report action area.
+  IncidentHistoryAction? selectedAction;
   bool saving = false;
   IncidentWorkflowCommand? pending;
   IncidentWorkflowCommand? _confirmed;
@@ -107,7 +110,7 @@ class IncidentWorkflowController extends ChangeNotifier {
         List<UserProfile> rows,
       ) {
         technicians = List.unmodifiable(
-          rows.where((row) => row.role == UserRole.technician),
+          rows.where((row) => row.role == UserRole.technician && row.isActive),
         );
       });
     }
@@ -169,6 +172,7 @@ class IncidentWorkflowController extends ChangeNotifier {
     String? categoryId,
     IncidentPriority? priority,
     String? technicianId,
+    List<String> technicianQueue = const [],
     String? reason,
   }) async {
     if (!ready ||
@@ -210,6 +214,17 @@ class IncidentWorkflowController extends ChangeNotifier {
             : 'Escribí el motivo de la operación.',
       );
     }
+    if (action == IncidentHistoryAction.assigned &&
+        (technicianQueue.length > IncidentWorkflow.maxBackupTechnicians ||
+            technicianQueue.toSet().length != technicianQueue.length ||
+            technicianQueue.contains(technicianId) ||
+            technicianQueue.any(
+              (id) => !technicians.any((user) => user.id == id),
+            ))) {
+      return _invalid(
+        'Seleccioná hasta cuatro suplentes activos, sin repetir técnicos.',
+      );
+    }
     try {
       final current = incident!;
       final command = IncidentWorkflowCommand(
@@ -220,6 +235,7 @@ class IncidentWorkflowController extends ChangeNotifier {
         categoryId: categoryId,
         priority: priority,
         technicianId: technicianId,
+        technicianQueue: List.unmodifiable(technicianQueue),
         reason: reason?.trim(),
       );
       IncidentWorkflow.changes(current, command, role, uid);
@@ -228,6 +244,17 @@ class IncidentWorkflowController extends ChangeNotifier {
       return _invalid(AppErrorMessages.fromError(failure));
     }
     return retry();
+  }
+
+  /// Clears feedback when choosing another form, preserving frozen commands.
+  void selectAction(IncidentHistoryAction action) {
+    if (!active || saving || pending != null || !actions.contains(action)) {
+      return;
+    }
+    selectedAction = action;
+    saveError = null;
+    success = null;
+    notifyListeners();
   }
 
   bool _invalid(String message) {

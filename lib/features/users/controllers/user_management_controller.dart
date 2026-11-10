@@ -121,16 +121,12 @@ class UserManagementController extends ChangeNotifier {
     required String userId,
     required UserRole role,
   }) async {
-    if (_disposed ||
-        _isLoading ||
-        _isSaving ||
-        _loadErrorMessage != null) {
+    if (_disposed || _isLoading || _isSaving || _loadErrorMessage != null) {
       return false;
     }
 
     if (userId == _currentUserId && role != UserRole.administrator) {
-      _saveErrorMessage =
-          'Tu cuenta debe conservar el rol de administrador.';
+      _saveErrorMessage = 'Tu cuenta debe conservar el rol de administrador.';
       notifyListeners();
       return false;
     }
@@ -144,10 +140,7 @@ class UserManagementController extends ChangeNotifier {
         return false;
       }
 
-      await _userRepository.updateRole(
-        userId: userId,
-        role: role,
-      );
+      await _userRepository.updateRole(userId: userId, role: role);
 
       return !_disposed;
     } catch (error) {
@@ -155,6 +148,40 @@ class UserManagementController extends ChangeNotifier {
         _saveErrorMessage = AppErrorMessages.fromError(error);
       }
 
+      return false;
+    } finally {
+      if (!_disposed) {
+        _isSaving = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Changes availability for an observed technician, guarding duplicate writes.
+  Future<bool> updateAvailability({
+    required String userId,
+    required bool isActive,
+  }) async {
+    if (_disposed ||
+        _isLoading ||
+        _isSaving ||
+        _loadErrorMessage != null ||
+        !_users.any(
+          (user) => user.id == userId && user.role == UserRole.technician,
+        )) {
+      return false;
+    }
+    _isSaving = true;
+    _saveErrorMessage = null;
+    notifyListeners();
+    try {
+      await _userRepository.updateAvailability(
+        userId: userId,
+        isActive: isActive,
+      );
+      return !_disposed;
+    } catch (error) {
+      if (!_disposed) _saveErrorMessage = AppErrorMessages.fromError(error);
       return false;
     } finally {
       if (!_disposed) {
