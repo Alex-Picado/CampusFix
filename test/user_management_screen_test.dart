@@ -12,6 +12,21 @@ import 'support/test_repositories.dart';
 import 'support/report_repositories.dart';
 
 void main() {
+  testWidgets('Administrator can deactivate and reactivate a technician', (
+    tester,
+  ) async {
+    final app = await _mount(tester);
+    await _tap(tester, 'nav-users');
+    await _selectRole(tester, UserRole.technician);
+    await _tap(tester, 'user-active-other-user');
+    expect(app.users.profiles['other-user']!.isActive, isFalse);
+    expect(find.text('Técnico inactivo'), findsOneWidget);
+    await _tap(tester, 'user-active-other-user');
+    expect(app.users.profiles['other-user']!.isActive, isTrue);
+    expect(app.users.availabilityUpdateCalls, 2);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Only an open administrator user page observes all accounts', (
     tester,
   ) async {

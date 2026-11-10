@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:campusfix/app/providers/app_providers.dart';
+import 'package:campusfix/core/widgets/section_card.dart';
+import 'package:campusfix/features/incidents/widgets/workflow_action_option.dart';
 import 'package:campusfix/features/incidents/models/incident.dart';
 import 'package:campusfix/features/incidents/models/incident_history_action.dart';
 import 'package:campusfix/features/incidents/models/incident_history_event.dart';
@@ -21,12 +23,211 @@ import 'support/test_repositories.dart';
 
 void main() {
   testWidgets(
+    'Assignment hides inactive technicians, accepts ordered backups and can go back',
+    (tester) async {
+      final app = await _mount(tester);
+      app.users.put(
+        const UserProfile(
+          id: 'backup',
+          fullName: 'Backup technician',
+          email: 'backup@test.invalid',
+          role: UserRole.technician,
+        ),
+      );
+      app.users.put(
+        const UserProfile(
+          id: 'inactive',
+          fullName: 'Unavailable technician',
+          email: 'inactive@test.invalid',
+          role: UserRole.technician,
+          isActive: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _tapText(tester, 'Abrir incidencia');
+      await _tapKey(tester, 'workflow-option-classified');
+      await _choose<IncidentPriority>(tester, 'ALTA');
+      await _tapKey(tester, 'workflow-save');
+      expect(find.text('Editar clasificación'), findsNothing);
+      await _tapKey(tester, 'workflow-back-classification');
+      expect(find.text('Clasificá la prioridad'), findsOneWidget);
+      await _tapKey(tester, 'workflow-save');
+      await _tapKey(tester, 'workflow-option-assigned');
+      final principal = find
+          .byWidgetPredicate(
+            (widget) => widget is DropdownButtonFormField<String>,
+          )
+          .first;
+      await tester.ensureVisible(principal);
+      await tester.tap(principal);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Unavailable technician · inactive@test.invalid'),
+        findsNothing,
+      );
+      await tester.tap(find.text('tech · tech@test.invalid').last);
+      await tester.pumpAndSettle();
+      final backup = find
+          .byWidgetPredicate(
+            (widget) => widget is DropdownButtonFormField<String>,
+          )
+          .last;
+      await tester.ensureVisible(backup);
+      await tester.tap(backup);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text('Backup technician · backup@test.invalid').last,
+      );
+      await tester.pumpAndSettle();
+      await _tapKey(tester, 'workflow-save');
+      expect(app.reports.incident.assignedTechnicianId, 'tech');
+      expect(app.reports.incident.technicianQueue, ['backup']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Workflow options choose forms without writes and preserve an unchanged selection',
+    (tester) async {
+      final app = await _mount(tester, technician: true);
+      await _tapKey(tester, 'detail-case');
+      expect(find.byKey(const ValueKey('workflow-save')), findsNothing);
+      expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+      await _tapKey(tester, 'workflow-option-started');
+      expect(app.reports.submissions, isEmpty);
+      expect(app.reports.incident.status, IncidentStatus.assigned);
+      await _tapKey(tester, 'workflow-save');
+      expect(app.reports.incident.status, IncidentStatus.inProgress);
+      await _tapKey(tester, 'report-progress');
+      expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+      expect(find.byKey(const ValueKey('workflow-save')), findsNothing);
+      final progressCard = find
+          .ancestor(
+            of: find.byKey(const ValueKey('progress-description')),
+            matching: find.byType(SectionCard),
+          )
+          .first;
+      final workflowCard = find
+          .ancestor(
+            of: find.byKey(const ValueKey('workflow-option-resolved')),
+            matching: find.byType(SectionCard),
+          )
+          .first;
+      expect(
+        tester.getTopLeft(progressCard).dy,
+        closeTo(tester.getTopLeft(workflowCard).dy, 0.1),
+      );
+      await _tapKey(tester, 'workflow-option-resolved');
+      expect(app.reports.submissions, hasLength(1));
+      expect(find.text('Solución realizada'), findsOneWidget);
+      final reason = find.byKey(const ValueKey('workflow-reason'));
+      await tester.ensureVisible(reason);
+      await tester.enterText(reason, 'Reparación en borrador');
+      await _tapKey(tester, 'workflow-option-resolved');
+      expect(
+        tester.widget<TextField>(reason).controller!.text,
+        'Reparación en borrador',
+      );
+      expect(
+        tester
+            .widget<WorkflowActionOption>(
+              find.byKey(const ValueKey('workflow-option-resolved')),
+            )
+            .selected,
+        isTrue,
+      );
+      await _tapKey(tester, 'workflow-option-assignmentDeclined');
+      expect(app.reports.submissions, hasLength(1));
+      expect(find.text('Motivo para rechazar la asignación'), findsOneWidget);
+      expect(find.text('Solución realizada'), findsNothing);
+      expect(tester.widget<TextField>(reason).controller!.text, isEmpty);
+      expect(
+        tester
+            .widget<WorkflowActionOption>(
+              find.byKey(const ValueKey('workflow-option-resolved')),
+            )
+            .selected,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<WorkflowActionOption>(
+              find.byKey(const ValueKey('workflow-option-assignmentDeclined')),
+            )
+            .selected,
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Administrator choices show the form only after selection', (
+    tester,
+  ) async {
+    final app = await _mount(tester);
+    await _tapText(tester, 'Abrir incidencia');
+    expect(find.byKey(const ValueKey('workflow-save')), findsNothing);
+    expect(
+      find.byType(DropdownButtonFormField<IncidentPriority>),
+      findsNothing,
+    );
+    await _tapKey(tester, 'workflow-option-classified');
+    expect(
+      find.byType(DropdownButtonFormField<IncidentPriority>),
+      findsOneWidget,
+    );
+    expect(app.reports.submissions, isEmpty);
+    await _tapKey(tester, 'workflow-option-cancelled');
+    expect(
+      find.byType(DropdownButtonFormField<IncidentPriority>),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('workflow-reason')), findsOneWidget);
+    expect(app.reports.submissions, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Reporter choices reveal review fields without accepting the solution',
+    (tester) async {
+      final app = await _mount(tester);
+      app.reports.incident = app.reports.incident.copyWith(
+        status: IncidentStatus.resolved,
+        assignedTechnicianId: 'tech',
+        technicianApproved: true,
+        resolutionDescription: 'Trabajo finalizado',
+      );
+      app.auth.setUser('owner');
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.byKey(const ValueKey('overview-page'))))
+          .pushNamed('/incidents/case');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('workflow-save')), findsNothing);
+      expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+      await _tapKey(tester, 'workflow-option-solutionAccepted');
+      expect(app.reports.submissions, isEmpty);
+      expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+      await _tapKey(tester, 'workflow-option-reviewRequested');
+      expect(find.text('¿Qué problema continúa?'), findsOneWidget);
+      expect(app.reports.submissions, isEmpty);
+      await _tapKey(tester, 'workflow-option-solutionAccepted');
+      expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+      expect(app.reports.incident.reporterApproved, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'Changing accounts cancels a resolution confirmation without resolving the case',
     (tester) async {
       final app = await _mount(tester, technician: true);
       await _tapKey(tester, 'detail-case');
       await _tapKey(tester, 'workflow-option-started');
+      expect(app.reports.incident.status, IncidentStatus.assigned);
+      await _tapKey(tester, 'workflow-save');
       await _tapKey(tester, 'report-progress');
+      expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+      await _tapKey(tester, 'workflow-option-resolved');
       await tester.ensureVisible(find.byKey(const ValueKey('workflow-reason')));
       await tester.enterText(
         find.byKey(const ValueKey('workflow-reason')),
@@ -55,6 +256,8 @@ void main() {
       await _tapText(tester, 'Abrir incidencia');
       expect(find.text('Clasificá la prioridad'), findsOneWidget);
       expect(find.text('Confirmar asignación'), findsNothing);
+      expect(find.byKey(const ValueKey('workflow-save')), findsNothing);
+      await _tapKey(tester, 'workflow-option-classified');
       await _tapKey(tester, 'workflow-save');
       expect(
         find.text('Seleccioná una categoría activa y una prioridad.'),
@@ -80,11 +283,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Asigná un técnico'), findsOneWidget);
       expect(find.text('Confirmar clasificación'), findsNothing);
+      await _tapKey(tester, 'workflow-option-assigned');
       tester.view.physicalSize = const Size(390, 844);
       await tester.pumpAndSettle();
       final confirm = find.byKey(const ValueKey('workflow-save'));
       final cancel = find.byKey(const ValueKey('workflow-option-cancelled'));
-      expect(tester.getCenter(cancel).dy, tester.getCenter(confirm).dy);
+      expect(
+        tester.getCenter(cancel).dy,
+        lessThan(tester.getCenter(confirm).dy),
+      );
+      expect(tester.getRect(cancel).left, greaterThanOrEqualTo(0));
+      expect(tester.getRect(cancel).right, lessThanOrEqualTo(390));
       await _choose<String>(tester, 'tech · tech@test.invalid');
       await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.assignedTechnicianId, 'tech');
@@ -98,8 +307,12 @@ void main() {
       app.auth.setUser('tech');
       await tester.pumpAndSettle();
       await _tapKey(tester, 'workflow-option-started');
+      expect(app.reports.incident.status, IncidentStatus.assigned);
+      await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.status, IncidentStatus.inProgress);
       await _tapKey(tester, 'report-progress');
+      expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+      await _tapKey(tester, 'workflow-option-resolved');
       await _tapKey(tester, 'workflow-save');
       expect(find.text('Escribí la solución realizada.'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const ValueKey('workflow-reason')));
@@ -130,10 +343,12 @@ void main() {
       expect(app.reports.incident.status, IncidentStatus.resolved);
       app.auth.setUser('admin');
       await tester.pumpAndSettle();
+      await _tapKey(tester, 'workflow-option-closed');
       await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.status, IncidentStatus.resolved);
       app.auth.setUser('owner');
       await tester.pumpAndSettle();
+      await _tapKey(tester, 'workflow-option-solutionAccepted');
       await _tapKey(tester, 'workflow-save');
       expect(app.reports.incident.status, IncidentStatus.closed);
       app.auth.setUser('admin');
@@ -151,10 +366,7 @@ void main() {
         app.reports.history.last.previousResolutionDescription,
         'Reemplacé la luminaria',
       );
-      expect(
-        find.text('Solución anterior: Reemplacé la luminaria'),
-        findsOneWidget,
-      );
+      expect(find.text('Solución anterior'), findsOneWidget);
       expect(app.reports.history.map((event) => event.actorUserId), [
         'admin',
         'admin',
@@ -172,6 +384,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _tapText(tester, 'Abrir incidencia');
+      await _tapKey(tester, 'workflow-option-classified');
       await _choose<IncidentPriority>(tester, 'ALTA');
       app.reports.failure = FirebaseException(
         plugin: 'cloud_firestore',
@@ -203,6 +416,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _tapText(tester, 'Abrir incidencia');
+      await _tapKey(tester, 'workflow-option-classified');
       await _choose<IncidentPriority>(tester, 'ALTA');
       final blocker = Completer<void>();
       app.reports.blocker = blocker;
@@ -278,6 +492,8 @@ void main() {
         .pushNamed('/incidents/case');
     await tester.pumpAndSettle();
     expect(find.text('Revisar la solución'), findsOneWidget);
+    expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+    await _tapKey(tester, 'workflow-option-reviewRequested');
     await _tapKey(tester, 'workflow-save');
     expect(find.text('Explicá qué problema continúa.'), findsOneWidget);
     await tester.enterText(
@@ -399,9 +615,9 @@ Future<void> _tapText(WidgetTester tester, String text) async {
 }
 
 Future<void> _choose<T>(WidgetTester tester, String text) async {
-  final finder = find.byWidgetPredicate(
-    (widget) => widget is DropdownButtonFormField<T>,
-  );
+  final finder = find
+      .byWidgetPredicate((widget) => widget is DropdownButtonFormField<T>)
+      .first;
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await tester.pumpAndSettle();

@@ -4,25 +4,26 @@ import 'package:provider/provider.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../../core/widgets/session_confirmation_dialog.dart';
 import '../../auth/controllers/session_controller.dart';
-import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
-import '../../users/repositories/user_repository.dart';
 import '../controllers/incident_workflow_controller.dart';
 import '../models/incident_history_action.dart';
 import '../models/incident_priority.dart';
 import '../models/incident_status.dart';
+import '../models/incident_workflow.dart';
 import '../presentation/incident_action_labels.dart';
 import '../presentation/incident_status_labels.dart';
-import '../repositories/incident_repository.dart';
+import 'workflow_action_option.dart';
 
-/// Owns an account-bound lifecycle form independently of progress and evidence.
+/// Displays a lifecycle form using the detail page's shared workflow controller.
 class IncidentWorkflowPanel extends StatelessWidget {
   final String incidentId;
   final bool blocked;
+  final bool administrativeActions;
   const IncidentWorkflowPanel({
     super.key,
     required this.incidentId,
     this.blocked = false,
+    this.administrativeActions = false,
   });
   @override
   Widget build(BuildContext context) {
@@ -31,25 +32,20 @@ class IncidentWorkflowPanel extends StatelessWidget {
     if (profile == null) {
       return const SizedBox.shrink();
     }
-    return ChangeNotifierProvider(
-      key: ValueKey('workflow:${profile.id}:${profile.role.name}:$incidentId'),
-      create: (_) => IncidentWorkflowController(
-        repository: context.read<IncidentRepository>(),
-        categoryRepository: context.read<CategoryRepository>(),
-        userRepository: context.read<UserRepository>(),
-        session: session,
-        uid: profile.id,
-        role: profile.role,
-        incidentId: incidentId,
-      ),
-      child: _WorkflowForm(blocked: blocked),
+    return _WorkflowForm(
+      blocked: blocked,
+      administrativeActions: administrativeActions,
     );
   }
 }
 
 class _WorkflowForm extends StatefulWidget {
   final bool blocked;
-  const _WorkflowForm({required this.blocked});
+  final bool administrativeActions;
+  const _WorkflowForm({
+    required this.blocked,
+    required this.administrativeActions,
+  });
   @override
   State<_WorkflowForm> createState() => _WorkflowFormState();
 }
@@ -57,30 +53,74 @@ class _WorkflowForm extends StatefulWidget {
 class _WorkflowFormState extends State<_WorkflowForm> {
   final _reason = TextEditingController();
   IncidentHistoryAction? _action;
+  IncidentStatus? _selectionStatus;
   String? _categoryId;
   String? _technicianId;
+  final _technicianQueue = <String>[];
+  bool _editingClassification = false;
   IncidentPriority? _priority;
   _AdministratorStep? _submittedStep;
   bool _confirmingResolution = false;
+  bool _awaitingDraftReset = false;
 
-  void _selectAction(IncidentHistoryAction? action) => setState(() {
-    _action = action;
-    _reason.clear();
-  });
+  void _selectAction(IncidentHistoryAction action) {
+    final status = context.read<IncidentWorkflowController>().incident?.status;
+    if (_action == action &&
+        _selectionStatus == status &&
+        context.read<IncidentWorkflowController>().selectedAction == action) {
+      return;
+    }
+    setState(() {
+      _action = action;
+      _selectionStatus = status;
+      _reason.clear();
+    });
+    context.read<IncidentWorkflowController>().selectAction(action);
+  }
 
   void _resetDraft() => setState(() {
     _reason.clear();
     _action = null;
+    _selectionStatus = null;
     _categoryId = null;
     _priority = null;
     _technicianId = null;
+    _technicianQueue.clear();
+    _editingClassification = false;
+    _awaitingDraftReset = false;
   });
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<IncidentWorkflowController>();
     if (!controller.active) return const SizedBox.shrink();
-    final actions = controller.actions;
+    if (_awaitingDraftReset && !controller.awaitingUpdate) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            _awaitingDraftReset &&
+            controller.active &&
+            !controller.awaitingUpdate) {
+          _resetDraft();
+        }
+      });
+    }
+    final allActions = controller.actions;
+    const destructive = [
+      IncidentHistoryAction.rejected,
+      IncidentHistoryAction.cancelled,
+    ];
+    final actions = allActions
+        .where(
+          (action) =>
+              controller.role != UserRole.administrator ||
+              widget.administrativeActions == destructive.contains(action),
+        )
+        .toList();
+    if (widget.administrativeActions &&
+        actions.isEmpty &&
+        controller.pending == null) {
+      return const SizedBox.shrink();
+    }
     if (controller.role == UserRole.reporter &&
         actions.isEmpty &&
         controller.loadingSources.isEmpty &&
@@ -90,12 +130,17 @@ class _WorkflowFormState extends State<_WorkflowForm> {
         controller.pending == null) {
       return const SizedBox.shrink();
     }
-    final administrator = controller.role == UserRole.administrator;
+    final administrator =
+        controller.role == UserRole.administrator &&
+        !widget.administrativeActions;
     final incident = controller.incident;
     final status = controller.pending?.expectedStatus ?? incident?.status;
     final step = administrator
         ? (controller.pending == null ? null : _submittedStep) ??
-              _AdministratorStep.forIncident(controller)
+              (_editingClassification &&
+                      allActions.contains(IncidentHistoryAction.classified)
+                  ? _AdministratorStep.classification
+                  : _AdministratorStep.forIncident(controller))
         : null;
     final preferredAction = switch (step) {
       _AdministratorStep.classification => IncidentHistoryAction.classified,
@@ -104,14 +149,22 @@ class _WorkflowFormState extends State<_WorkflowForm> {
       null => actions.firstOrNull,
     };
     final primary = actions.contains(preferredAction) ? preferredAction : null;
-    final action = controller.pending != null
+    final ownsPending =
+        controller.pending != null &&
+        (controller.role != UserRole.administrator ||
+            widget.administrativeActions ==
+                destructive.contains(controller.pending!.action));
+    final ownsFeedback =
+        controller.role != UserRole.administrator ||
+        widget.administrativeActions ==
+            destructive.contains(controller.selectedAction);
+    final action = ownsPending
         ? controller.pending!.action
-        : actions.contains(_action)
+        : actions.contains(_action) &&
+              _selectionStatus == status &&
+              controller.selectedAction == _action
         ? _action
-        : controller.role == UserRole.technician &&
-              status == IncidentStatus.assigned
-        ? null
-        : primary;
+        : null;
     final enabled =
         !_confirmingResolution &&
         !widget.blocked &&
@@ -138,7 +191,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
       IncidentHistoryAction.assignmentDeclined,
     ].contains(action);
     final buttons = <Widget>[
-      if (controller.pending != null)
+      if (ownsPending)
         FilledButton(
           key: const ValueKey('workflow-retry'),
           onPressed: controller.saving
@@ -150,7 +203,13 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                   final navigator = Navigator.of(context);
                   final route = ModalRoute.of(context);
                   final saved = await controller.retry();
-                  if (saved && administrator && mounted) _resetDraft();
+                  if (saved && mounted) {
+                    if (controller.awaitingUpdate) {
+                      setState(() => _awaitingDraftReset = true);
+                    } else {
+                      _resetDraft();
+                    }
+                  }
                   if (saved &&
                       wasDeclining &&
                       navigator.mounted &&
@@ -213,9 +272,18 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                     technicianId: action == IncidentHistoryAction.assigned
                         ? selectedTechnician
                         : null,
+                    technicianQueue: action == IncidentHistoryAction.assigned
+                        ? _technicianQueue
+                        : const [],
                     reason: needsReason ? _reason.text : null,
                   );
-                  if (saved && mounted) _resetDraft();
+                  if (saved && mounted) {
+                    if (controller.awaitingUpdate) {
+                      setState(() => _awaitingDraftReset = true);
+                    } else {
+                      _resetDraft();
+                    }
+                  }
                   if (saved &&
                       action == IncidentHistoryAction.assignmentDeclined &&
                       navigator.mounted &&
@@ -228,32 +296,31 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             _ when controller.saving => 'Guardando...',
             IncidentHistoryAction.classified => 'Confirmar clasificación',
             IncidentHistoryAction.assigned => 'Confirmar asignación',
-            _ => action.label,
+            IncidentHistoryAction.resolved => 'Confirmar resolución',
+            IncidentHistoryAction.assignmentDeclined => 'Confirmar rechazo',
+            _ => 'Confirmar: ${action.label}',
           }),
         ),
-      if (administrator && enabled) ...[
-        if (action != primary)
-          TextButton(
-            onPressed: () => _selectAction(null),
-            child: const Text('Volver a las opciones'),
-          )
-        else
-          for (final alternative in actions.where((item) => item != primary))
-            TextButton(
-              key: ValueKey('workflow-option-${alternative.name}'),
-              onPressed: () => _selectAction(alternative),
-              child: Text(
-                alternative == IncidentHistoryAction.classified
-                    ? 'Editar clasificación'
-                    : alternative.label,
-              ),
-            ),
-      ],
     ];
     final form = Column(
       key: ValueKey(step),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (step == _AdministratorStep.assignment &&
+            allActions.contains(IncidentHistoryAction.classified)) ...[
+          TextButton.icon(
+            key: const ValueKey('workflow-back-classification'),
+            onPressed: enabled
+                ? () {
+                    setState(() => _editingClassification = true);
+                    _selectAction(IncidentHistoryAction.classified);
+                  }
+                : null,
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Volver a clasificación'),
+          ),
+          const SizedBox(height: 8),
+        ],
         if (step != null && status != null) ...[
           Semantics(
             liveRegion: true,
@@ -273,34 +340,55 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             controller.pending == null &&
             controller.role != UserRole.reporter)
           const Text('No hay acciones disponibles para este estado.'),
-        if (!administrator) ...[
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              for (final value in actions)
-                OutlinedButton.icon(
-                  key: ValueKey('workflow-option-${value.name}'),
-                  onPressed: enabled
-                      ? () async {
-                          if (value == IncidentHistoryAction.started) {
-                            await controller.submit(value);
-                          } else {
-                            _selectAction(value);
-                          }
-                        }
-                      : null,
-                  icon: Icon(
-                    value == IncidentHistoryAction.assignmentDeclined ||
-                            value == IncidentHistoryAction.reviewRequested
-                        ? Icons.close
-                        : Icons.check_circle_outline,
-                  ),
-                  label: Text(value.label),
-                ),
-            ],
+        if (actions.isNotEmpty) ...[
+          Text(
+            'Elegí una opción',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Después completá los datos y confirmá con el botón de abajo.',
           ),
           const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth >= 520
+                  ? (constraints.maxWidth - 12) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final value in [
+                    ?primary,
+                    ...actions.where(
+                      (value) =>
+                          value != primary &&
+                          !(administrator &&
+                              step == _AdministratorStep.assignment &&
+                              value == IncidentHistoryAction.classified) &&
+                          !(administrator &&
+                              step == _AdministratorStep.classification &&
+                              value == IncidentHistoryAction.assigned),
+                    ),
+                  ])
+                    SizedBox(
+                      width: width,
+                      child: WorkflowActionOption(
+                        key: ValueKey('workflow-option-${value.name}'),
+                        action: value,
+                        label: value.label,
+                        selected: action == value,
+                        onSelected: enabled ? () => _selectAction(value) : null,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          if (action == null)
+            const Text('Seleccioná una opción para continuar.'),
         ],
         if (action != null) ...[
           if (action == IncidentHistoryAction.classified) ...[
@@ -349,7 +437,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
               key: ValueKey('workflow-technician-$selectedTechnician'),
               initialValue: selectedTechnician,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Técnico'),
+              decoration: const InputDecoration(labelText: 'Técnico principal'),
               items: [
                 for (final technician in controller.technicians)
                   DropdownMenuItem(
@@ -358,7 +446,87 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                   ),
               ],
               onChanged: enabled
-                  ? (value) => setState(() => _technicianId = value)
+                  ? (value) => setState(() {
+                      _technicianId = value;
+                      _technicianQueue.remove(value);
+                    })
+                  : null,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Suplentes en orden de atención',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Si el técnico rechaza, se asignará al siguiente activo. Podés añadir hasta cuatro suplentes.',
+            ),
+            const SizedBox(height: 12),
+            for (var index = 0; index < _technicianQueue.length; index++)
+              Material(
+                color: Colors.transparent,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(child: Text('${index + 2}')),
+                  title: Text(
+                    controller.technicians
+                            .where((user) => user.id == _technicianQueue[index])
+                            .firstOrNull
+                            ?.fullName ??
+                        'Técnico no disponible',
+                  ),
+                  trailing: Wrap(
+                    children: [
+                      IconButton(
+                        tooltip: 'Subir en la cola',
+                        onPressed: enabled && index > 0
+                            ? () => setState(() {
+                                final id = _technicianQueue.removeAt(index);
+                                _technicianQueue.insert(index - 1, id);
+                              })
+                            : null,
+                        icon: const Icon(Icons.arrow_upward),
+                      ),
+                      IconButton(
+                        tooltip: 'Quitar suplente',
+                        onPressed: enabled
+                            ? () => setState(
+                                () => _technicianQueue.removeAt(index),
+                              )
+                            : null,
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            DropdownButtonFormField<String>(
+              key: ValueKey(
+                'workflow-add-backup-${_technicianQueue.join(',')}-$selectedTechnician',
+              ),
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Añadir técnico suplente',
+              ),
+              items: [
+                for (final user in controller.technicians.where(
+                  (user) =>
+                      user.id != selectedTechnician &&
+                      !_technicianQueue.contains(user.id),
+                ))
+                  DropdownMenuItem(
+                    value: user.id,
+                    child: Text('${user.fullName} · ${user.email}'),
+                  ),
+              ],
+              onChanged:
+                  enabled &&
+                      selectedTechnician != null &&
+                      _technicianQueue.length <
+                          IncidentWorkflow.maxBackupTechnicians
+                  ? (id) {
+                      if (id != null) setState(() => _technicianQueue.add(id));
+                    }
                   : null,
             ),
             if (controller.technicians.isEmpty && controller.ready)
@@ -397,11 +565,11 @@ class _WorkflowFormState extends State<_WorkflowForm> {
               ),
             if (action == IncidentHistoryAction.assignmentDeclined)
               const Text(
-                'La incidencia volverá a administración para asignarla nuevamente. Tu motivo quedará en el historial.',
+                'Se asignará al siguiente suplente activo. Si no quedan suplentes, volverá a revisión administrativa. Tu motivo quedará en el historial.',
               ),
           ],
         ],
-        if (controller.saveError != null)
+        if (ownsFeedback && controller.saveError != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Semantics(
@@ -412,7 +580,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
               ),
             ),
           ),
-        if (controller.success != null)
+        if (ownsFeedback && controller.success != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Semantics(
@@ -421,13 +589,8 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             ),
           ),
         const SizedBox(height: 12),
-        if (administrator && buttons.isNotEmpty)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(spacing: 8, children: buttons),
-          )
-        else
-          ...buttons,
+        if (buttons.isNotEmpty)
+          Wrap(spacing: 12, runSpacing: 12, children: buttons),
       ],
     );
     return Padding(
@@ -436,14 +599,19 @@ class _WorkflowFormState extends State<_WorkflowForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(switch (controller.role) {
-              UserRole.administrator => 'Flujo de atención',
-              UserRole.reporter => 'Revisar la solución',
-              UserRole.technician =>
-                status == IncidentStatus.inProgress
-                    ? 'Resolver incidencia'
-                    : 'Atención y gestión',
-            }, style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              widget.administrativeActions
+                  ? 'Acciones del reporte'
+                  : switch (controller.role) {
+                      UserRole.administrator => 'Flujo de atención',
+                      UserRole.reporter => 'Revisar la solución',
+                      UserRole.technician =>
+                        status == IncidentStatus.inProgress
+                            ? 'Atención y resolución'
+                            : 'Atención y gestión',
+                    },
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 12),
             if (widget.blocked)
               const Text(

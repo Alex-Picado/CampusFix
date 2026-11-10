@@ -62,6 +62,18 @@ class _UserManagementViewState extends State<_UserManagementView> {
     });
   }
 
+  Future<void> _updateAvailability(UserProfile profile, bool active) async {
+    setState(() => _successMessage = null);
+    final saved = await context
+        .read<UserManagementController>()
+        .updateAvailability(userId: profile.id, isActive: active);
+    if (!mounted || !saved) return;
+    setState(
+      () => _successMessage =
+          '${profile.fullName} está ${active ? 'activo' : 'inactivo'} para nuevas asignaciones.',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<UserManagementController>();
@@ -87,7 +99,7 @@ class _UserManagementViewState extends State<_UserManagementView> {
         if (controller.isSaving) ...[
           const LinearProgressIndicator(key: ValueKey('users-saving')),
           const SizedBox(height: 8),
-          const Text('Guardando rol...'),
+          const Text('Guardando cambios...'),
           const SizedBox(height: 16),
         ],
         if (saveError != null) ...[
@@ -165,6 +177,8 @@ class _UserManagementViewState extends State<_UserManagementView> {
             isCurrentUser: profile.id == widget.currentUserId,
             isSaving: controller.isSaving,
             onRoleSelected: (role) => _updateRole(profile, role),
+            onAvailabilityChanged: (active) =>
+                _updateAvailability(profile, active),
           ),
         ],
       ],
@@ -178,6 +192,7 @@ class _UserRoleRow extends StatelessWidget {
   final bool isCurrentUser;
   final bool isSaving;
   final ValueChanged<UserRole?> onRoleSelected;
+  final ValueChanged<bool> onAvailabilityChanged;
 
   const _UserRoleRow({
     super.key,
@@ -185,6 +200,7 @@ class _UserRoleRow extends StatelessWidget {
     required this.isCurrentUser,
     required this.isSaving,
     required this.onRoleSelected,
+    required this.onAvailabilityChanged,
   });
 
   @override
@@ -200,6 +216,27 @@ class _UserRoleRow extends StatelessWidget {
         Text(profile.fullName, style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 4),
         Text(profile.email),
+        if (profile.role == UserRole.technician)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      profile.isActive ? 'Técnico activo' : 'Técnico inactivo',
+                    ),
+                  ),
+                  Switch.adaptive(
+                    key: ValueKey('user-active-${profile.id}'),
+                    value: profile.isActive,
+                    onChanged: isSaving ? null : onAvailabilityChanged,
+                  ),
+                ],
+              ),
+              const Text('Disponibilidad para nuevas asignaciones y relevos.'),
+            ],
+          ),
         if (isCurrentUser) ...[
           const SizedBox(height: 4),
           const Text('Tu cuenta'),

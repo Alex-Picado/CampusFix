@@ -6,6 +6,8 @@ import '../../../core/widgets/section_card.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../catalogs/repositories/category_repository.dart';
 import '../../users/models/user_role.dart';
+import '../../users/repositories/user_repository.dart';
+import '../controllers/incident_workflow_controller.dart';
 import '../controllers/incident_detail_controller.dart';
 import '../models/incident_history_action.dart';
 import '../models/incident_status.dart';
@@ -13,6 +15,7 @@ import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
 import '../repositories/evidence_repository.dart';
 import '../widgets/evidence_widgets.dart';
+import '../widgets/incident_detail_cards.dart';
 import '../widgets/incident_workflow_panel.dart';
 
 /// Protected detail, chronological comments/history and assigned-technician progress.
@@ -25,17 +28,32 @@ class IncidentDetailScreen extends StatelessWidget {
     final session = context.watch<SessionController>();
     final profile = session.profile;
     if (profile == null) return const SizedBox.shrink();
-    return ChangeNotifierProvider(
+    return MultiProvider(
       key: ValueKey('${profile.id}:${profile.role.name}:$incidentId'),
-      create: (context) => IncidentDetailController(
-        repository: context.read<IncidentRepository>(),
-        categoryRepository: context.read<CategoryRepository>(),
-        evidenceRepository: context.read<EvidenceRepository?>(),
-        session: session,
-        incidentId: incidentId,
-        uid: profile.id,
-        role: profile.role,
-      ),
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => IncidentDetailController(
+            repository: context.read<IncidentRepository>(),
+            categoryRepository: context.read<CategoryRepository>(),
+            evidenceRepository: context.read<EvidenceRepository?>(),
+            session: session,
+            incidentId: incidentId,
+            uid: profile.id,
+            role: profile.role,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => IncidentWorkflowController(
+            repository: context.read<IncidentRepository>(),
+            categoryRepository: context.read<CategoryRepository>(),
+            userRepository: context.read<UserRepository>(),
+            session: session,
+            incidentId: incidentId,
+            uid: profile.id,
+            role: profile.role,
+          ),
+        ),
+      ],
       child: const _DetailView(),
     );
   }
@@ -107,40 +125,125 @@ class _DetailViewState extends State<_DetailView> {
               description: incident.title,
             ),
             const SizedBox(height: 20),
+            if (profile.role == UserRole.administrator)
+              IncidentWorkflowPanel(
+                incidentId: incident.id,
+                administrativeActions: true,
+              ),
             SectionCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Chip(label: Text(incident.status.label)),
-                  const SizedBox(height: 12),
-                  SelectableText(incident.description),
-                  const SizedBox(height: 12),
-                  Text('Ubicación: ${incident.location}'),
-                  if (controller.categoryLoading)
-                    const Text('Categoría: Cargando...')
-                  else if (controller.categoryError != null) ...[
-                    Text('Categoría: ${controller.categoryError}'),
-                    TextButton(
-                      key: const ValueKey('category-retry'),
-                      onPressed: controller.retryCategory,
-                      child: const Text('Reintentar categoría'),
+                  Chip(
+                    avatar: Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                  ] else
-                    Text(
-                      'Categoría: ${controller.category!.name}'
-                      '${controller.category!.isActive ? '' : ' (inactiva)'}',
+                    backgroundColor: Theme.of(context)
+                        .colorScheme
+                        .primaryContainer,
+                    label: Text(incident.status.label),
+                  ),
+                  const SizedBox(height: 16),
+                  IncidentNarrative(
+                    title: 'Descripción del problema',
+                    description: incident.description,
+                    icon: Icons.report_problem_outlined,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Datos de la incidencia',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const Divider(height: 24),
+                  Wrap(
+                    spacing: 24,
+                    runSpacing: 8,
+                    children: [
+                      IncidentInfoField(
+                        label: 'Ubicación',
+                        value: incident.location,
+                        icon: Icons.location_on_outlined,
+                      ),
+                      if (controller.categoryLoading)
+                        const IncidentInfoField(
+                          label: 'Categoría',
+                          value: 'Cargando...',
+                          icon: Icons.category_outlined,
+                        )
+                      else if (controller.categoryError != null)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            IncidentInfoField(
+                              label: 'Categoría',
+                              value: controller.categoryError!,
+                              icon: Icons.category_outlined,
+                            ),
+                            TextButton(
+                              key: const ValueKey('category-retry'),
+                              onPressed: controller.retryCategory,
+                              child: const Text('Reintentar categoría'),
+                            ),
+                          ],
+                        )
+                      else
+                        IncidentInfoField(
+                          label: 'Categoría',
+                          value:
+                              '${controller.category!.name}${controller.category!.isActive ? '' : ' (inactiva)'}',
+                          icon: Icons.category_outlined,
+                        ),
+                      IncidentInfoField(
+                        label: 'Prioridad',
+                        value: incident.priority?.value ?? 'Sin clasificar',
+                        icon: Icons.flag_outlined,
+                      ),
+                      IncidentInfoField(
+                        label: 'Reportante',
+                        value: person(incident.createdByUserId),
+                        icon: Icons.person_outline,
+                      ),
+                      IncidentInfoField(
+                        label: 'Técnico asignado',
+                        value: incident.assignedTechnicianId == null
+                            ? 'Sin asignar'
+                            : person(incident.assignedTechnicianId!),
+                        icon: Icons.engineering_outlined,
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 28),
+                  Wrap(
+                    spacing: 24,
+                    runSpacing: 8,
+                    children: [
+                      IncidentInfoField(
+                        label: 'Creada',
+                        value: _date(incident.createdAt),
+                        icon: Icons.event_outlined,
+                      ),
+                      IncidentInfoField(
+                        label: 'Última actualización',
+                        value: _date(incident.updatedAt),
+                        icon: Icons.update,
+                      ),
+                    ],
+                  ),
+                  if (incident.resolutionDescription != null) ...[
+                    const SizedBox(height: 24),
+                    IncidentNarrative(
+                      key: const ValueKey('incident-resolution'),
+                      title: 'Solución del técnico',
+                      description: incident.resolutionDescription!,
+                      icon: Icons.task_alt,
+                      accent: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF81C784)
+                          : const Color(0xFF2E7D32),
                     ),
-                  Text(
-                    'Prioridad: ${incident.priority?.value ?? 'Sin clasificar'}',
-                  ),
-                  Text('Reportante: ${person(incident.createdByUserId)}'),
-                  Text(
-                    'Técnico asignado: ${incident.assignedTechnicianId == null ? 'Sin asignar' : person(incident.assignedTechnicianId!)}',
-                  ),
-                  Text('Creada: ${_date(incident.createdAt)}'),
-                  Text('Última actualización: ${_date(incident.updatedAt)}'),
-                  if (incident.resolutionDescription != null)
-                    Text('Solución: ${incident.resolutionDescription}'),
+                  ],
                   if (incident.status == IncidentStatus.resolved ||
                       incident.status == IncidentStatus.closed) ...[
                     const Divider(height: 28),
@@ -271,7 +374,10 @@ class _DetailViewState extends State<_DetailView> {
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       final children = [
-                        const _ProgressForm(),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: _ProgressForm(),
+                        ),
                         IncidentWorkflowPanel(
                           incidentId: incident.id,
                           blocked:
@@ -298,47 +404,31 @@ class _DetailViewState extends State<_DetailView> {
                   ),
           ),
         ],
-        _section(context, 'Historial', controller.loadingSections.contains('history'), [
-          if (controller.history.isEmpty)
-            const Text('No hay eventos registrados.'),
-          for (final event in controller.history)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${_action(event.action)} · ${_date(event.createdAt)}',
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  Text('Por: ${person(event.actorUserId)}'),
-                  if (event.fromStatus != null || event.toStatus != null)
-                    Text(
-                      '${event.fromStatus?.label ?? 'Inicio'} → ${event.toStatus?.label ?? 'Sin cambio'}',
-                    ),
-                  if (event.toTechnicianId != null)
-                    Text('Responsable: ${person(event.toTechnicianId!)}'),
-                  if (event.details?['categoryId'] != null)
-                    Text(
-                      'Categoría: ${event.details!['categoryId']} · Prioridad: ${event.details!['priority']}',
-                    ),
-                  if (event.fromTechnicianId != null &&
-                      event.fromTechnicianId != event.toTechnicianId)
-                    Text(
-                      'Responsable anterior: ${person(event.fromTechnicianId!)}',
-                    ),
-                  if (event.toTechnicianId == null &&
-                      event.fromTechnicianId != null)
-                    const Text('Responsable actual: sin asignar'),
-                  if (event.previousResolutionDescription != null)
-                    Text(
-                      'Solución anterior: ${event.previousResolutionDescription}',
-                    ),
-                  if (event.reason != null) Text(event.reason!),
-                ],
+        _section(
+          context,
+          'Historial',
+          controller.loadingSections.contains('history'),
+          [
+            if (controller.history.isEmpty)
+              const Text('No hay eventos registrados.'),
+            for (final event in controller.history)
+              IncidentHistoryCard(
+                key: ValueKey('history-event-${event.id}'),
+                event: event,
+                title:
+                    event.action == IncidentHistoryAction.assignmentDeclined &&
+                        event.toTechnicianId != null
+                    ? 'Asignación transferida al siguiente técnico'
+                    : _action(event.action),
+                timestamp: _date(event.createdAt),
+                person: person,
+                categoryName:
+                    event.details?['categoryId'] == controller.category?.id
+                    ? controller.category?.name
+                    : null,
               ),
-            ),
-        ]),
+          ],
+        ),
       ],
     );
   }
@@ -354,7 +444,11 @@ class _DetailViewState extends State<_DetailView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 12),
           if (loading) const LinearProgressIndicator() else ...children,
         ],

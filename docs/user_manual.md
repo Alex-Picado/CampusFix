@@ -75,8 +75,9 @@ location and latest change. The priority badge beside the state uses green for
 **BAJA**, amber for **MEDIA**, red for **ALTA** and gray for **Sin prioridad**.
 Open an assigned case and select
 **Iniciar atención**. If you cannot take or continue the case, select
-**Rechazar asignación** and explain why. The case returns to administration for
-reassignment; the incident remains open and the reason stays in its history.
+**Rechazar asignación** and explain why. Confirm the action to transfer the case
+to the next active backup selected by administration. If none remain, it returns
+to administrative review. The incident remains open and the reason stays in history.
 During attention, select **Reportar avance** to open the advance form on the left
 and the resolution form on the right (stacked on smaller screens). Enter a nonblank **Descripción del avance**
 and use **Guardar avance**. A local photograph is optional. To finish, enter
@@ -102,7 +103,10 @@ state and shows category, location and latest change. The priority badge sits
 beside the state: green for **BAJA**, amber for **MEDIA**, red for **ALTA** and
 gray for **Sin prioridad**. Open the case to see three steps. In **Clasificar**,
 confirm an active category and priority. The form advances to **Asignar**,
-where you select and confirm a technician. **Seguimiento** shows the current
+where you select the principal and optionally add up to four backup technicians
+in priority order. Move a backup up or remove it before confirming the assignment.
+**Volver a clasificación** returns to the first step. Cancellation and rejection
+are available separately under **Acciones del reporte**, next to the summary. **Seguimiento** shows the current
 state and available actions. Use **Aprobar cierre** after reviewing the registered
 solution. The case remains resolved until the reporter also accepts it.
 If the reporter requests another
@@ -133,3 +137,10 @@ not imply zero incidents, and unconfirmed writes do not prove rejection. If
 authorization changes, leave the old view and sign in with the appropriate account.
 Local photograph failures can require restarting the local launcher or selecting
 the original file. Setup and limitations are in [Integrated clients](integration_delivery.md).
+
+
+### Technician availability
+
+In **Usuarios**, each technician has an active/inactive switch. Inactive technicians
+are excluded from new assignments and automatic handovers. Existing assignments
+remain available to their technician until handled or explicitly declined.

@@ -77,9 +77,9 @@ solution, technician and priority. A new classification is required before
 assignment. The `REABIERTA` enum remains available for compatibility but is not
 emitted by this flow. Rejection and cancellation are terminal in this matrix.
 The assigned technician may decline before or during attention with a reason.
-This returns the case to `EN_REVISION`, clears the assignment and retains its
-classification, progress and history. Administration can assign another
-technician. The declining technician can read only their own decline event after
+An ordered backup queue transfers it to the first active backup in `ASIGNADA`.
+Inactive or demoted backups are skipped. With no eligible backup the case returns
+to `EN_REVISION`. Classification, progress and history are retained. The declining technician can read only their own decline event after
 losing access to the case, allowing the same command to be confirmed or retried.
 
 Lifecycle history retains the original eight fields and adds:
@@ -146,3 +146,37 @@ Verification sources:
 - [Live observation tests](../test/features/incidents/repositories/incident_observation_test.dart).
 - [Screen and session tests](../test/incident_management_screen_test.dart).
 - [Direct SDK security tests](../tool/firestore_tests/incident_workflow.rules.test.mjs).
+
+
+## Ordered backups and technician availability
+
+An administrator selects one principal and up to four distinct backup technicians
+in assignment order. The form supports removing and moving backups up the queue.
+Only active technicians appear in its selectors. Existing profiles default to
+active and incidents without `technicianQueue` have no backups.
+
+`UserProfile.isActive` controls new assignments and automatic handovers. It does
+not disable Authentication or invalidate work already assigned to the technician.
+The Users page updates it through an administrative transaction.
+
+`technicianAvailability/{uid}` holds only `role` and `isActive`, allowing routing
+without granting technicians access to another user's private profile. Assignment
+initializes these records. Role and availability updates synchronize them in the
+same transaction. Security rules reject an inconsistent mirror or a client delete.
+
+A decline consumes the inactive prefix and the next eligible ID from the incident's
+`technicianQueue`. The incident and its immutable `assignmentDeclined` event update
+atomically. The event records the previous and next assignees and the reason.
+An uncertain retry compares the frozen queue payload and cannot advance it twice.
+Concurrent availability changes trigger a Firestore transaction retry. Reopening
+clears the remaining queue. Existing assignment listeners notify the new assignee.
+
+Report cancellation and rejection are displayed next to the incident summary,
+separately from the classification/assignment flow. Both areas share one workflow
+controller and one selected action. During assignment, **Volver a clasificación**
+returns to the classification form, and successful classification returns to
+assignment after the confirmed snapshot arrives.
+
+Publish the updated Firestore rules together with the updated client before
+using these operations against the real project. The new directory and queue
+require no manual data migration or additional backend service.
