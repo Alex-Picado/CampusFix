@@ -57,15 +57,8 @@ class UserProfile {
       throw const FormatException('Invalid user profile data.');
     }
 
-    final UserRole role;
-
-    if (roleName == 'reporter') {
-      role = UserRole.reporter;
-    } else if (roleName == 'technician') {
-      role = UserRole.technician;
-    } else if (roleName == 'administrator') {
-      role = UserRole.administrator;
-    } else {
+    final role = UserRole.fromName(roleName);
+    if (role == null) {
       throw const FormatException('Unsupported user role.');
     }
 

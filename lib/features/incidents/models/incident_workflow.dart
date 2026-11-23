@@ -61,7 +61,7 @@ abstract final class IncidentWorkflow {
   ) {
     if (incident.reporterHidden) return const [];
     final status = incident.status;
-    if (role == UserRole.administrator) {
+    if (role.isAdministrative) {
       return [
         if ([
           IncidentStatus.reported,

@@ -56,7 +56,7 @@ class IncidentQueueController extends ChangeNotifier {
       session.status == SessionStatus.authenticated &&
       session.profile?.id == uid &&
       session.profile?.role == role &&
-      [UserRole.administrator, UserRole.technician].contains(role);
+      (role.isAdministrative || role == UserRole.technician);
 
   /// Restarts after errors or navigation, clearing obsolete private records.
   void start() {
@@ -66,7 +66,7 @@ class IncidentQueueController extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      final stream = role == UserRole.administrator
+      final stream = role.isAdministrative
           ? repository.watchAll()
           : repository.watchAssigned(userId: uid);
       final subscription = stream.listen(

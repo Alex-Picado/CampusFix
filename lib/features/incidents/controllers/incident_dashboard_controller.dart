@@ -7,7 +7,6 @@ import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
 import '../../catalogs/models/category.dart';
 import '../../catalogs/repositories/category_repository.dart';
-import '../../users/models/user_role.dart';
 import '../models/incident.dart';
 import '../models/incident_indicators.dart';
 import '../repositories/incident_repository.dart';
@@ -49,7 +48,7 @@ class IncidentDashboardController extends ChangeNotifier {
       !_invalidated &&
       session.status == SessionStatus.authenticated &&
       session.profile?.id == uid &&
-      session.profile?.role == UserRole.administrator;
+      session.profile?.role.isAdministrative == true;
 
   /// Retries the authorized global source without restarting the catalog query.
   void retryIncidents() {

@@ -10,6 +10,8 @@ extension UserRoleLabels on UserRole {
         return 'Técnico';
       case UserRole.administrator:
         return 'Administrador';
+      case UserRole.superAdministrator:
+        return 'Superadministrador';
     }
   }
 }

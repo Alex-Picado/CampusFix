@@ -87,7 +87,7 @@ class IncidentWorkflowController extends ChangeNotifier {
     readError = null;
     loadingSources.addAll([
       'incident',
-      if (role == UserRole.administrator) ...['categories', 'technicians'],
+      if (role.isAdministrative) ...['categories', 'technicians'],
     ]);
     notifyListeners();
     _watch(
@@ -99,7 +99,7 @@ class IncidentWorkflowController extends ChangeNotifier {
         incident = value;
       },
     );
-    if (role == UserRole.administrator) {
+    if (role.isAdministrative) {
       _watch(
         'categories',
         categoryRepository.watchActive,
@@ -178,7 +178,7 @@ class IncidentWorkflowController extends ChangeNotifier {
     if (!ready ||
         saving ||
         pending != null ||
-        (role == UserRole.administrator && awaitingUpdate) ||
+        (role.isAdministrative && awaitingUpdate) ||
         !actions.contains(action)) {
       return false;
     }

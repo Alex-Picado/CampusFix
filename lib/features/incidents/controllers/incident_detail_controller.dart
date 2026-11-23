@@ -130,7 +130,7 @@ class IncidentDetailController extends ChangeNotifier {
         return;
       }
       if (value.createdByUserId != uid &&
-          role != UserRole.administrator &&
+          !role.isAdministrative &&
           !(role == UserRole.technician && value.assignedTechnicianId == uid)) {
         _fail('No tenés permiso para consultar esta incidencia.');
         return;

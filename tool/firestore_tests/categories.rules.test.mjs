@@ -17,6 +17,7 @@ import {
   setLogLevel,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 
 const configuration = JSON.parse(
@@ -220,4 +221,37 @@ test('Only administrators can list profiles for technician filter labels', async
     await assertFails(getDocs(collection(contextFor(role).firestore(), 'users')));
   }
   await assertFails(getDocs(collection(environment.unauthenticatedContext().firestore(), 'users')));
+});
+
+test('Only superadministrators can appoint and remove administrators', async () => {
+  await environment.withSecurityRulesDisabled((context) =>
+    setDoc(doc(context.firestore(), 'users/superAdministrator-1'), {
+      fullName: 'Super administrator',
+      email: 'superAdministrator@campusfix.test',
+      role: 'superAdministrator',
+    }));
+
+  const admin = contextFor('administrator').firestore();
+  const superAdmin = contextFor('superAdministrator').firestore();
+  const setRole = (database, userId, role) => {
+    const batch = writeBatch(database);
+    batch.update(doc(database, 'users', userId), { role });
+    batch.set(doc(database, 'technicianAvailability', userId), { role, isActive: true });
+    return batch.commit();
+  };
+
+  await assertSucceeds(getDocs(collection(superAdmin, 'users')));
+  await assertSucceeds(updateDoc(doc(superAdmin, 'categories/lighting'), { isActive: false }));
+  await assertSucceeds(setRole(admin, 'reporter-1', 'technician'));
+  await assertFails(setRole(admin, 'reporter-1', 'administrator'));
+  await assertFails(setRole(admin, 'reporter-1', 'superAdministrator'));
+  await assertFails(setRole(admin, 'superAdministrator-1', 'reporter'));
+
+  await assertSucceeds(setRole(superAdmin, 'reporter-1', 'administrator'));
+  await assertFails(setRole(admin, 'reporter-1', 'reporter'));
+  await assertFails(setRole(superAdmin, 'reporter-1', 'superAdministrator'));
+  await assertFails(setRole(superAdmin, 'superAdministrator-1', 'administrator'));
+  await assertSucceeds(setRole(superAdmin, 'administrator-1', 'technician'));
+  await assertFails(setRole(admin, 'reporter-1', 'reporter'));
+  await assertSucceeds(setRole(superAdmin, 'reporter-1', 'reporter'));
 });

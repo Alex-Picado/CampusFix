@@ -7,7 +7,7 @@ import 'package:campusfix/features/users/models/user_profile.dart';
 import 'package:campusfix/features/users/models/user_role.dart';
 import 'package:campusfix/main.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 

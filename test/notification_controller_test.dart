@@ -97,7 +97,10 @@ void main() {
         );
         await Future<void>.delayed(Duration.zero);
         await Future<void>.delayed(Duration.zero);
-        expect(repository.watchedRole, role);
+        expect(
+          repository.watchedRole,
+          role.isAdministrative ? UserRole.administrator : role,
+        );
         expect(controller.unread, 1);
         await controller.markRead(controller.entries);
         expect(controller.unread, 0);
