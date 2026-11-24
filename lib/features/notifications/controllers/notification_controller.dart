@@ -77,7 +77,8 @@ class NotificationController extends ChangeNotifier {
       final source = switch (profile.role) {
         UserRole.reporter => repository.watchOwn(userId: profile.id),
         UserRole.technician => repository.watchAssigned(userId: profile.id),
-        UserRole.administrator => repository.watchAll(),
+        UserRole.administrator || UserRole.superAdministrator =>
+          repository.watchAll(),
       };
       _source = source.listen(
         (rows) {
@@ -86,7 +87,7 @@ class NotificationController extends ChangeNotifier {
             (row) => switch (profile.role) {
               UserRole.reporter => row.createdByUserId != profile.id,
               UserRole.technician => row.assignedTechnicianId != profile.id,
-              UserRole.administrator => false,
+              UserRole.administrator || UserRole.superAdministrator => false,
             },
           )) {
             _fail();

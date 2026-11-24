@@ -129,9 +129,9 @@ La escucha existente de `SessionController` recibe el perfil actualizado.
 
 ## Administración de usuarios
 
-`CampusShell` abre `UserManagementScreen` únicamente desde el menú del administrador.
-La pantalla crea un `UserManagementController` asociado al identificador de la
-cuenta actual. Ese controlador escucha `UserRepository.watchAll`, que convierte
+`CampusShell` abre `UserManagementScreen` para administradores y superadministradores.
+La pantalla crea un `UserManagementController` asociado al identificador y rol de
+la cuenta actual. Ese controlador escucha `UserRepository.watchAll`, que convierte
 los documentos en perfiles y los ordena por nombre sin distinguir mayúsculas.
 `UserService` mantiene la consulta de la colección `users`.
 
@@ -142,8 +142,9 @@ los cambios recibidos por la escucha; no mantiene una segunda copia editable.
 
 - Elegir un rol diferente inicia su guardado; una selección idéntica no escribe.
 - Todos los selectores se deshabilitan durante una escritura para evitar duplicados.
-- El selector de la cuenta actual está deshabilitado. El controlador también
-  rechaza quitarle el rol de administrador a esa misma cuenta.
+- El selector de la cuenta actual y el de cada superadministrador están
+  deshabilitados. Cada selector editable muestra únicamente los roles que puede
+  asignar la cuenta actual.
 - Los errores de consulta y escritura se muestran por separado. Un error de
   consulta retira la lista y ofrece Reintentar; un snapshot posterior no borra
   un error de escritura. Otra selección permite reintentar el guardado.
@@ -155,25 +156,28 @@ los cambios recibidos por la escucha; no mantiene una segunda copia editable.
 - El listado usa disposición horizontal en escritorio y apila los campos cuando
   el espacio disponible es menor de 600 píxeles lógicos.
 
-La protección de la cuenta administrativa actual evita errores desde esta
-interfaz. Las reglas actuales permiten a un administrador modificar su propio
-rol; no garantizan conservar al último administrador.
+| Permiso | Administrador | Superadministrador |
+| --- | --- | --- |
+| Gestionar incidencias, indicadores y categorías | Sí | Sí |
+| Cambiar entre reportante y técnico, y gestionar disponibilidad | Sí | Sí |
+| Nombrar o quitar administradores | No | Sí |
 
-### Preparación del primer administrador
+### Preparación de un superadministrador
 
-Este procedimiento lo realiza una persona con permisos administrativos sobre el
-proyecto Firebase `campus-fix-ucr`. Permite habilitar la primera cuenta, antes de
-que exista un administrador dentro de CampusFix.
+Una persona con permisos de escritura en Firestore asigna el rol
+`superAdministrator` desde la consola de Firebase. Las reglas de CampusFix
+solo permiten gestionar los otros tres roles desde la aplicación.
 
-1. Registrar la cuenta desde la aplicación para crear su identidad en Firebase
-   Authentication y su documento `users/{uid}` con rol `reporter`.
+1. Usar una cuenta existente o registrarla desde la aplicación para crear su
+   identidad en Firebase Authentication y su documento `users/{uid}`.
 2. Abrir Firebase Console, seleccionar Campus Fix UCR y entrar en Firestore,
    pestaña Datos, colección `users`.
 3. Identificar el documento de la cuenta por su correo. Su identificador coincide
    con el UID de esa cuenta en Authentication.
-4. Editar únicamente el campo `role`, de tipo string, para guardar el valor
-   exacto `administrator`.
-5. Volver a CampusFix y comprobar el rol Administrador y la opción Usuarios.
+4. Guardar el valor exacto `superAdministrator` en el campo `role`, de tipo
+   string. Si existe el documento `technicianAvailability/{uid}`, actualizar
+   también su campo `role` al mismo valor.
+5. Volver a CampusFix y comprobar el rol Superadministrador y la opción Usuarios.
    Si la vista no se actualiza, recargar la aplicación.
 6. Administrar los roles de las demás cuentas desde Usuarios.
 

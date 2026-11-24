@@ -8,15 +8,32 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Checks the current user's stored administrator role.
-    function isAdmin() {
+    // Uses stored roles for both levels of administrative access.
+    function hasRole(roles) {
       return isSignedIn()
         && exists(
           /databases/$(database)/documents/users/$(request.auth.uid)
         )
         && get(
           /databases/$(database)/documents/users/$(request.auth.uid)
-        ).data.role == 'administrator';
+        ).data.role in roles;
+    }
+
+    function isAdmin() {
+      return hasRole(['administrator', 'superAdministrator']);
+    }
+
+    function canManageRoles(previousRole, nextRole) {
+      return previousRole in ['reporter', 'technician', 'administrator']
+        && nextRole in ['reporter', 'technician', 'administrator']
+        && (
+          hasRole(['superAdministrator'])
+          || (
+            previousRole in ['reporter', 'technician']
+            && nextRole in ['reporter', 'technician']
+            && hasRole(['administrator'])
+          )
+        );
     }
 
     // Uses the stored role rather than a role supplied in an incident request.
@@ -383,7 +400,7 @@ service cloud.firestore {
         && data.email is string
         && data.email.size() > 0
         && data.role is string
-        && data.role in ['reporter', 'technician', 'administrator'];
+        && data.role in ['reporter', 'technician', 'administrator', 'superAdministrator'];
     }
 
     function availabilityMatchesUser(userId, data) {
@@ -421,7 +438,7 @@ service cloud.firestore {
         && request.resource.data.get('isActive', true) == true
         && request.resource.data.email == request.auth.token.email;
 
-      // Owners may edit their names; administrators may change roles.
+      // Name, role and availability changes have separate permissions.
       allow update: if isSignedIn()
         && isValidProfile()
         && (
@@ -432,9 +449,18 @@ service cloud.firestore {
           )
           ||
           (
-            isAdmin()
+            request.auth.uid != userId
             && request.resource.data.diff(resource.data)
-              .affectedKeys().hasOnly(['role', 'isActive'])
+              .affectedKeys().hasOnly(['role'])
+            && canManageRoles(resource.data.role, request.resource.data.role)
+            && availabilityMatchesUser(userId, request.resource.data)
+          )
+          ||
+          (
+            isAdmin()
+            && resource.data.role == 'technician'
+            && request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['isActive'])
             && availabilityMatchesUser(userId, request.resource.data)
           )
         );

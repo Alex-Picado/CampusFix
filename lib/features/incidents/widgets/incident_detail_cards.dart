@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../models/incident_history_action.dart';
 import '../models/incident_history_event.dart';

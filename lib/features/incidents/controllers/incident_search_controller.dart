@@ -77,7 +77,7 @@ class IncidentSearchController extends ChangeNotifier {
   bool get hasSnapshot => _hasSnapshot;
 
   /// Whether administrative filter controls belong to this active session.
-  bool get administrative => active && _role == UserRole.administrator;
+  bool get administrative => active && _role.isAdministrative;
 
   /// Whether the administrator's technician names are awaiting their first list.
   bool get techniciansLoading => _techniciansLoading;

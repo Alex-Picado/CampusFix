@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart' show ChangeNotifier;
 import '../../../core/errors/app_error_messages.dart';
 import '../../auth/controllers/session_controller.dart';
 import '../../auth/models/session_status.dart';
-import '../../users/models/user_role.dart';
 import '../models/category.dart';
 import '../repositories/category_repository.dart';
 
@@ -46,7 +45,7 @@ class CategoryManagementController extends ChangeNotifier {
       !_invalidated &&
       _session.status == SessionStatus.authenticated &&
       _session.profile?.id == _uid &&
-      _session.profile?.role == UserRole.administrator;
+      _session.profile?.role.isAdministrative == true;
 
   /// Latest immutable catalog, including inactive categories.
   List<Category> get categories => _categories;

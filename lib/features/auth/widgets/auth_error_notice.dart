@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Announces an already translated controller error without exposing exceptions.
 class AuthErrorNotice extends StatelessWidget {

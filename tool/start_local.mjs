@@ -8,6 +8,8 @@ const windows = process.platform === 'win32';
 const demo = process.argv.includes('--demo');
 const serve = process.argv.includes('--serve');
 const photos = !process.argv.includes('--no-photos');
+// A first start can download the emulator before Auth opens its port.
+const emulatorStartupTimeoutMs = 180_000;
 const children = [];
 const env = { ...process.env, ...(demo ? {
   LOCAL_EVIDENCE_EMULATORS: 'true', LOCAL_EVIDENCE_PROJECT_ID: 'demo-campusfix',
@@ -43,12 +45,17 @@ function portOpen(port, host = '127.0.0.1') { return new Promise((resolve) => {
   socket.once('connect', () => { socket.destroy(); resolve(true); });
   socket.once('error', () => resolve(false)); socket.once('timeout', () => { socket.destroy(); resolve(false); });
 }); }
-async function waitPort(port, host) {
-  for (let attempt = 0; attempt < 240 && !stopping; attempt++) {
+async function waitPort(port, host, { timeoutMs = 60_000, child } = {}) {
+  const deadline = performance.now() + timeoutMs;
+  while (!stopping && performance.now() < deadline) {
+    const exitStatus = child?.exitCode ?? child?.signalCode;
+    if (exitStatus != null) {
+      throw new Error(`Firebase emulators exited (${exitStatus}) before port ${port} opened. See the Firebase CLI output above.`);
+    }
     if (await portOpen(port, host)) return;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`Local listener on port ${port} did not start.`);
+  throw new Error(`Local listener on port ${port} did not start within ${timeoutMs / 1000} seconds.`);
 }
 
 try {
@@ -61,9 +68,13 @@ try {
   if (demo) {
     const java = spawnSync(process.execPath, ['tool/firestore_tests/verify_java.mjs'], { cwd: root, env, stdio: 'inherit', windowsHide: true });
     if (java.status !== 0) throw new Error('Java 21 is required for the demo emulators.');
-    start(process.execPath, ['tool/firestore_tests/node_modules/firebase-tools/lib/bin/firebase.js',
+    const emulators = start(process.execPath, ['tool/firestore_tests/node_modules/firebase-tools/lib/bin/firebase.js',
       'emulators:start', '--config', 'firebase.json', '--project', 'demo-campusfix', '--only', 'auth,firestore']);
-    await waitPort(9099); await waitPort(8085);
+    const startup = { timeoutMs: emulatorStartupTimeoutMs, child: emulators };
+    await Promise.all([
+      waitPort(9099, '127.0.0.1', startup),
+      waitPort(8085, '127.0.0.1', startup),
+    ]);
     await completed(start(process.execPath, ['services/local_evidence/src/seed_demo.mjs']));
   }
   if (photos) {

@@ -114,10 +114,8 @@ class IncidentService {
       _requireSession(uid);
       final existing = await tx.get(event);
       final profile = await tx.get(_firestore.collection('users').doc(uid));
-      final role = profile.data()?['role'];
-      if (role != 'administrator' &&
-          role != 'technician' &&
-          role != 'reporter') {
+      final role = UserRole.fromName(profile.data()?['role']);
+      if (role == null) {
         throw FirebaseException(
           plugin: 'cloud_firestore',
           code: 'permission-denied',
@@ -152,7 +150,7 @@ class IncidentService {
         id: incidentId,
         data: _normalizeDates(data, ['createdAt', 'updatedAt']),
       );
-      if (role == 'reporter' && incident.createdByUserId != uid) {
+      if (role == UserRole.reporter && incident.createdByUserId != uid) {
         throw FirebaseException(
           plugin: 'cloud_firestore',
           code: 'permission-denied',
@@ -173,7 +171,7 @@ class IncidentService {
       final changes = IncidentWorkflow.changes(
         incident,
         stableCommand,
-        UserRole.values.byName(role as String),
+        role,
         uid,
         unavailableTechnicianIds: unavailable,
       );

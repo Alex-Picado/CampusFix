@@ -14,6 +14,7 @@ import '../repositories/user_repository.dart';
 class UserManagementController extends ChangeNotifier {
   final UserRepository _userRepository;
   final String _currentUserId;
+  final UserRole _currentRole;
 
   StreamSubscription<List<UserProfile>>? _subscription;
   List<UserProfile> _users = const [];
@@ -30,12 +31,19 @@ class UserManagementController extends ChangeNotifier {
   UserManagementController({
     required this._userRepository,
     required this._currentUserId,
+    required this._currentRole,
   }) {
     start();
   }
 
   /// The latest unmodifiable list of observed profiles.
   List<UserProfile> get users => _users;
+
+  Iterable<UserRole> get assignableRoles =>
+      UserRole.values.where(_currentRole.canManageRole);
+
+  bool canEditRole(UserProfile profile) =>
+      profile.id != _currentUserId && _currentRole.canManageRole(profile.role);
 
   /// Whether the initial or retried query is loading.
   bool get isLoading => _isLoading;
@@ -115,7 +123,7 @@ class UserManagementController extends ChangeNotifier {
   /// Changes the role of the profile identified by userId.
   ///
   /// Returns false on failure, unavailable data, overlapping calls or disposal.
-  /// Prevents accidental removal of the current account's administrator role.
+  /// Checks the current account's authority over both the old and new roles.
   /// The observed stream supplies the updated list.
   Future<bool> updateRole({
     required String userId,
@@ -125,8 +133,11 @@ class UserManagementController extends ChangeNotifier {
       return false;
     }
 
-    if (userId == _currentUserId && role != UserRole.administrator) {
-      _saveErrorMessage = 'Tu cuenta debe conservar el rol de administrador.';
+    final profile = _users.where((user) => user.id == userId).firstOrNull;
+    if (profile == null ||
+        !canEditRole(profile) ||
+        !_currentRole.canManageRole(role)) {
+      _saveErrorMessage = 'No tenés permiso para cambiar ese rol.';
       notifyListeners();
       return false;
     }
@@ -162,7 +173,8 @@ class UserManagementController extends ChangeNotifier {
     required String userId,
     required bool isActive,
   }) async {
-    if (_disposed ||
+    if (!_currentRole.isAdministrative ||
+        _disposed ||
         _isLoading ||
         _isSaving ||
         _loadErrorMessage != null ||
