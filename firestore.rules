@@ -253,7 +253,25 @@ service cloud.firestore {
       let eventId = request.resource.data.lastWorkflowEventId;
       let eventPath = /databases/$(database)/documents/incidents/$(incidentId)/history/$(eventId);
       return eventId != 'created' && !exists(eventPath)
-        && validWorkflowChange(resource.data, request.resource.data, getAfter(eventPath).data);
+        && validWorkflowChange(resource.data, request.resource.data, getAfter(eventPath).data)
+        && (resource.data.status == request.resource.data.status
+          || hasNewEmailTask(incidentId, eventId));
+    }
+
+    function validNewEmailTask(data, incidentId, eventId) {
+      return data.keys().hasAll(['incidentId', 'eventId', 'deliveryState', 'attempts',
+          'createdAt', 'nextAttemptAt'])
+        && data.keys().hasOnly(['incidentId', 'eventId', 'deliveryState', 'attempts',
+          'createdAt', 'nextAttemptAt'])
+        && data.incidentId == incidentId && data.eventId == eventId
+        && data.deliveryState == 'pending' && data.attempts == 0
+        && data.createdAt == request.time && data.nextAttemptAt == request.time;
+    }
+
+    function hasNewEmailTask(incidentId, eventId) {
+      let path = /databases/$(database)/documents/incidents/$(incidentId)/emailOutbox/$(eventId);
+      return !exists(path) && existsAfter(path)
+        && validNewEmailTask(getAfter(path).data, incidentId, eventId);
     }
 
     function workflowReferencesUpdate(incidentId, eventId) {
@@ -534,6 +552,17 @@ service cloud.firestore {
           && validProgressHistory(getAfter(/databases/$(database)/documents/incidents/$(incidentId)/history/$(progressId)).data,
             request.resource.data.description);
         allow update, delete: if false;
+      }
+
+      match /emailOutbox/{eventId} {
+        allow read, update, delete: if false;
+        allow create: if isSignedIn() && isDocumentId(eventId)
+          && validNewEmailTask(request.resource.data, incidentId, eventId)
+          && !exists(/databases/$(database)/documents/incidents/$(incidentId)/history/$(eventId))
+          && getAfter(/databases/$(database)/documents/incidents/$(incidentId)/history/$(eventId)).data.actorUserId == request.auth.uid
+          && getAfter(/databases/$(database)/documents/incidents/$(incidentId)/history/$(eventId)).data.fromStatus
+            != getAfter(/databases/$(database)/documents/incidents/$(incidentId)/history/$(eventId)).data.toStatus
+          && getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.lastWorkflowEventId == eventId;
       }
 
       match /evidence/{evidenceId} {

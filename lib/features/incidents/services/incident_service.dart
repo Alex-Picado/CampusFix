@@ -110,6 +110,7 @@ class IncidentService {
     final uid = _requireSession();
     final parent = _firestore.collection('incidents').doc(incidentId);
     final event = parent.collection('history').doc(stableCommand.eventId);
+    final emailTask = parent.collection('emailOutbox').doc(stableCommand.eventId);
     await _firestore.runTransaction<void>((tx) async {
       _requireSession(uid);
       final existing = await tx.get(event);
@@ -240,6 +241,16 @@ class IncidentService {
             ? incident.resolutionDescription
             : null,
       });
+      if (changes['status'] != incident.status.value) {
+        tx.set(emailTask, {
+          'incidentId': incidentId,
+          'eventId': stableCommand.eventId,
+          'deliveryState': 'pending',
+          'attempts': 0,
+          'createdAt': timestamp,
+          'nextAttemptAt': timestamp,
+        });
+      }
     });
     _requireSession(uid);
     final confirmed = await event.get(const GetOptions(source: Source.server));

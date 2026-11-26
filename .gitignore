@@ -33,6 +33,8 @@ migrate_working_dir/
 .pub/
 /.fvm/
 **/node_modules/
+/backend/mailer/.env
+/backend/mailer/secrets/
 /build/
 /coverage/
 /local_storage/evidence/**/.upload-*/

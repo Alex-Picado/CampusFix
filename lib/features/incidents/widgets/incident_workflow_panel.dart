@@ -610,7 +610,8 @@ class _WorkflowFormState extends State<_WorkflowForm> {
               widget.administrativeActions
                   ? 'Acciones del reporte'
                   : switch (controller.role) {
-                      UserRole.administrator => 'Flujo de atención',
+                      UserRole.administrator || UserRole.superAdministrator =>
+                        'Flujo de atención',
                       UserRole.reporter => 'Revisar la solución',
                       UserRole.technician =>
                         status == IncidentStatus.inProgress

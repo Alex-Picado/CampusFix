@@ -256,6 +256,7 @@ class _CampusShellState extends State<CampusShell> {
     CampusDestination.profile => ProfileScreen(profile: widget.profile),
     CampusDestination.users => UserManagementScreen(
       currentUserId: widget.profile.id,
+      currentRole: widget.profile.role,
     ),
     CampusDestination.incidents => MyIncidentsScreen(
       userId: widget.profile.id,

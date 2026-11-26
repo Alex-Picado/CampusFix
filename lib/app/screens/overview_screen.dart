@@ -90,7 +90,8 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
         UserRole.technician => repository.watchAssigned(
           userId: widget.profile.id,
         ),
-        UserRole.administrator => repository.watchAll(),
+        UserRole.administrator || UserRole.superAdministrator =>
+          repository.watchAll(),
       };
     } catch (error) {
       return Stream.error(error);

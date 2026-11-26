@@ -69,6 +69,13 @@ async function attempt(uid, action, options = {}) {
   const batch = writeBatch(db);
   if (!options.eventOnly) batch.set(doc(db, 'incidents/case'), next);
   if (!options.incidentOnly) batch.set(doc(db, 'incidents/case/history', eventId), event);
+  if (!options.omitEmailTask && !options.eventOnly && !options.incidentOnly &&
+      old.status !== next.status) {
+    batch.set(doc(db, 'incidents/case/emailOutbox', eventId), {
+      incidentId: 'case', eventId, deliveryState: 'pending', attempts: 0,
+      createdAt: serverTimestamp(), nextAttemptAt: serverTimestamp(),
+    });
+  }
   for (const uid of options.routing ?? []) batch.set(doc(db, 'technicianAvailability', uid), { role: 'technician', isActive: true });
   if (options.extraEvent) batch.set(doc(db, 'incidents/case/history/orphan'), event);
   return batch.commit();
@@ -266,6 +273,18 @@ test('Incident-only event-only and extra orphan events are rejected without part
     assert.equal((await getDocs(collection(dbFor('admin'),'incidents/case/history'))).size,0);
   }
 });
+test('Every status change creates an unreadable client mail task', async () => {
+  await assertFails(attempt('admin', 'classified', {omitEmailTask: true}));
+  await assertSucceeds(attempt('admin', 'classified', {eventId: 'mail-task'}));
+  const taskPath = 'incidents/case/emailOutbox/mail-task';
+  const task = await inspect(async (db) => (await getDoc(doc(db, taskPath))).data());
+  assert.equal(task.deliveryState, 'pending');
+  await assertFails(getDoc(doc(dbFor('owner'), taskPath)));
+  await assertFails(updateDoc(doc(dbFor('admin'), taskPath), {deliveryState: 'sent'}));
+  await seed({status: 'REPORTADA'});
+  await assertFails(attempt('owner', 'cancelled', {omitEmailTask: true}));
+  await assertSucceeds(attempt('owner', 'cancelled', {eventId: 'owner-change'}));
+});
 test('Forged audit actors dates state assignments payloads and prior solutions are rejected', async () => {
   for (const changeEvent of [{actorUserId:'owner'},{createdAt:Timestamp.fromMillis(1)}, {fromStatus:'CERRADA'},
     {toStatus:'ASIGNADA'},{toTechnicianId:'tech'},{fromTechnicianId:'tech'},{arbitrary:true},
@@ -353,7 +372,9 @@ async function seedRouting(queue) {
 async function changeAvailability(uid, active, role = 'technician') {
   const db = dbFor('admin');
   const batch = writeBatch(db);
-  batch.update(doc(db, 'users', uid), { role, isActive: active });
+  // Role and availability changes are separate permissions in current rules.
+  batch.update(doc(db, 'users', uid), role === 'technician'
+    ? { role, isActive: active } : { role });
   batch.set(doc(db, 'technicianAvailability', uid), { role, isActive: active });
   return batch.commit();
 }

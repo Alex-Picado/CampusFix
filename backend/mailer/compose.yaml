@@ -1,0 +1,21 @@
+services:
+  mailer:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      FIREBASE_PROJECT_ID: campus-fix-ucr
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:?Set the verified sender address}
+      APP_BASE_URL: ${APP_BASE_URL:-https://campus-fix-ucr.web.app}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_service_account
+      SENDGRID_API_KEY_FILE: /run/secrets/sendgrid_api_key
+      PORT: "3000"
+    secrets:
+      - firebase_service_account
+      - sendgrid_api_key
+secrets:
+  firebase_service_account:
+    file: ./secrets/firebase_service_account.json
+  sendgrid_api_key:
+    file: ./secrets/sendgrid_api_key.txt

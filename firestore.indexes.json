@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "emailOutbox",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "deliveryState", "order": "ASCENDING" },
+        { "fieldPath": "nextAttemptAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "incidents",
       "queryScope": "COLLECTION",
       "fields": [

@@ -15,16 +15,22 @@ import '../repositories/user_repository.dart';
 /// losing that role or changing accounts disposes its controller and observation.
 class UserManagementScreen extends StatelessWidget {
   final String currentUserId;
+  final UserRole currentRole;
 
-  const UserManagementScreen({super.key, required this.currentUserId});
+  const UserManagementScreen({
+    super.key,
+    required this.currentUserId,
+    required this.currentRole,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<UserManagementController>(
-      key: ValueKey(currentUserId),
+      key: ValueKey('$currentUserId:${currentRole.name}'),
       create: (context) => UserManagementController(
         userRepository: context.read<UserRepository>(),
         currentUserId: currentUserId,
+        currentRole: currentRole,
       ),
       child: _UserManagementView(currentUserId: currentUserId),
     );
