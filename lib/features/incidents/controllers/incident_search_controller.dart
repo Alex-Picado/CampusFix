@@ -114,6 +114,10 @@ class IncidentSearchController extends ChangeNotifier {
         : '${profile.fullName} · ${profile.email}';
   }
 
+  /// Name displayed on an assigned incident without repeating the email.
+  String technicianName(String id) =>
+      _technicians[id]?.fullName ?? 'Técnico no disponible';
+
   /// Current immutable criteria; cleared when the owning session ends.
   IncidentSearch get criteria => _criteria;
 

@@ -105,6 +105,7 @@ enum CampusDestination {
       case CampusDestination.workspace:
         return role == UserRole.technician;
       case CampusDestination.management:
+        return role.isAdministrative;
       case CampusDestination.dashboard:
       case CampusDestination.categories:
       case CampusDestination.users:

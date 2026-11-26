@@ -9,11 +9,12 @@ import '../../users/models/user_role.dart';
 import '../../users/repositories/user_repository.dart';
 import '../controllers/incident_queue_controller.dart';
 import '../models/incident.dart';
-import '../models/incident_priority.dart';
 import '../models/incident_status.dart';
 import '../presentation/administrative_incident_stages.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
+import '../widgets/incident_administrative_filters.dart';
+import '../widgets/incident_management_list.dart';
 import '../widgets/incident_search_panel.dart';
 
 /// Displays the administrator's reports or the technician's own assignments.
@@ -26,7 +27,8 @@ class IncidentQueueScreen extends StatelessWidget {
     final session = context.watch<SessionController>();
     final profile = session.profile;
     if (profile == null ||
-        ![UserRole.administrator, UserRole.technician].contains(profile.role)) {
+        (!profile.role.isAdministrative &&
+            profile.role != UserRole.technician)) {
       return const SizedBox.shrink();
     }
     return ChangeNotifierProvider(
@@ -54,13 +56,14 @@ class _QueueView extends StatefulWidget {
 
 class _QueueViewState extends State<_QueueView> {
   int _selectedStage = 0;
-  int _selectedAdminStage = 0;
+  late Set<IncidentStatus> _selectedStatuses;
+  IncidentManagementOrder _order = IncidentManagementOrder.recent;
 
   @override
   void initState() {
     super.initState();
     _selectedStage = widget.initialStage.clamp(0, 4);
-    _selectedAdminStage = widget.initialStage.clamp(0, 6);
+    _selectedStatuses = administrativeStageStatuses(widget.initialStage);
   }
 
   @override
@@ -80,7 +83,9 @@ class _QueueViewState extends State<_QueueView> {
               : 'Clasificá, asigná y supervisá los reportes del campus.',
         ),
         const SizedBox(height: 20),
-        if (!controller.loading && controller.error == null) ...[
+        if (isTechnician &&
+            !controller.loading &&
+            controller.error == null) ...[
           IncidentSearchPanel(controller: controller.search),
           const SizedBox(height: 20),
         ],
@@ -112,66 +117,80 @@ class _QueueViewState extends State<_QueueView> {
     IncidentQueueController controller,
     List<Incident> results,
   ) {
-    final stages = [
-      ('Todas', 'Todos los reportes con los filtros actuales.', results),
-      ...administrativeIncidentStages(results),
-    ];
-    final selected = stages[_selectedAdminStage];
-    return DefaultTabController(
-      length: stages.length,
-      initialIndex: _selectedAdminStage,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            onTap: (index) => setState(() => _selectedAdminStage = index),
-            tabs: [
-              for (var index = 0; index < stages.length; index++)
-                Tab(
-                  key: ValueKey('management-tab-$index'),
-                  text: '${stages[index].$1} (${stages[index].$3.length})',
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(selected.$2, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 16),
-          if (results.isEmpty)
-            SectionCard(
-              child: Text(
-                controller.search.criteria.hasCriteria
-                    ? 'No hay incidencias que coincidan con la búsqueda.'
-                    : 'No hay incidencias disponibles.',
-              ),
+    final search = controller.search;
+    final counts = <IncidentStatus, int>{};
+    for (final incident in results) {
+      counts.update(incident.status, (count) => count + 1, ifAbsent: () => 1);
+    }
+    final matching =
+        results
+            .where(
+              (incident) =>
+                  _selectedStatuses.isEmpty ||
+                  _selectedStatuses.contains(incident.status),
             )
-          else if (selected.$3.isEmpty)
-            const SectionCard(child: Text('No hay incidencias en esta etapa.'))
-          else
-            Align(
-              alignment: Alignment.topLeft,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(),
-                child: Column(
-                  key: ValueKey('management-stage-$_selectedAdminStage'),
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final incident in selected.$3)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _administratorCard(
-                          context,
-                          controller,
-                          incident,
-                        ),
-                      ),
-                  ],
+            .toList()
+          ..sort(_order.compare);
+    final filtered =
+        search.criteria.hasCriteria || _selectedStatuses.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        IncidentAdministrativeFilters(
+          controller: search,
+          counts: counts,
+          selectedStatuses: _selectedStatuses,
+          onSelectStatuses: (statuses) =>
+              setState(() => _selectedStatuses = statuses),
+          order: _order,
+          onOrder: (order) => setState(() => _order = order),
+        ),
+        const SizedBox(height: 8),
+        IncidentSearchSummary(
+          count: matching.length,
+          total: search.total,
+          clearLabel: 'Limpiar filtros',
+          onClear: filtered
+              ? () {
+                  setState(() => _selectedStatuses = const {});
+                  search.reset();
+                }
+              : null,
+        ),
+        const SizedBox(height: 8),
+        if (matching.isEmpty)
+          SectionCard(
+            child: Column(
+              children: [
+                Icon(
+                  Icons.search_off_outlined,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-              ),
+                const SizedBox(height: 8),
+                Text(
+                  search.total > 0
+                      ? 'No hay incidencias que coincidan con la búsqueda.'
+                      : 'No hay incidencias disponibles.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if (search.total > 0) ...[
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Probá con otra búsqueda o cambiá los filtros.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
             ),
-        ],
-      ),
+          )
+        else
+          IncidentManagementList(
+            incidents: matching,
+            search: search,
+            onOpen: (incident) => _openDetail(context, controller, incident),
+          ),
+      ],
     );
   }
 
@@ -310,7 +329,7 @@ class _QueueViewState extends State<_QueueView> {
         Text('Ubicación: ${incident.location}'),
         const SizedBox(height: 4),
         Text(
-          'Último cambio: ${_date(incident.updatedAt)}',
+          'Último cambio: ${formatIncidentQueueDate(incident.updatedAt)}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
@@ -334,7 +353,10 @@ class _QueueViewState extends State<_QueueView> {
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
       runSpacing: 4,
-      children: [status, _priorityBadge(context, incident)],
+      children: [
+        status,
+        IncidentPriorityBadge(incident: incident),
+      ],
     );
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -365,69 +387,6 @@ class _QueueViewState extends State<_QueueView> {
     );
   }
 
-  Widget _priorityBadge(BuildContext context, Incident incident) {
-    final priority = incident.priority;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final color = switch ((priority, dark)) {
-      (IncidentPriority.low, true) => const Color(0xFF81C784),
-      (IncidentPriority.medium, true) => const Color(0xFFFFCC80),
-      (IncidentPriority.high, true) => const Color(0xFFEF9A9A),
-      (null, true) => const Color(0xFFB3BAC5),
-      (IncidentPriority.low, false) => const Color(0xFF2E7D32),
-      (IncidentPriority.medium, false) => const Color(0xFF9A6700),
-      (IncidentPriority.high, false) => const Color(0xFFC62828),
-      (null, false) => const Color(0xFF667085),
-    };
-    return Chip(
-      key: ValueKey('priority-${incident.id}'),
-      avatar: CircleAvatar(radius: 5, backgroundColor: color),
-      label: Text(
-        priority == null ? 'Sin prioridad' : 'Prioridad ${priority.value}',
-      ),
-      backgroundColor: color.withValues(alpha: 0.10),
-    );
-  }
-
-  Widget _administratorCard(
-    BuildContext context,
-    IncidentQueueController controller,
-    Incident incident,
-  ) => SectionCard(
-    key: ValueKey('incident-${incident.id}'),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _cardHeader(context, incident),
-        const SizedBox(height: 8),
-        Text(
-          incident.description,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 8),
-        Text(incident.status.administratorGuidance),
-        const Divider(height: 24),
-        Text(
-          'Categoría: ${controller.search.categoryLabel(incident.categoryId)}',
-        ),
-        const SizedBox(height: 4),
-        Text('Ubicación: ${incident.location}'),
-        const SizedBox(height: 4),
-        Text(
-          'Último cambio: ${_date(incident.updatedAt)}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton(
-          key: ValueKey('detail-${incident.id}'),
-          onPressed: () => _openDetail(context, controller, incident),
-          child: const Text('Abrir incidencia'),
-        ),
-      ],
-    ),
-  );
-
   Future<void> _openDetail(
     BuildContext context,
     IncidentQueueController controller,
@@ -437,12 +396,5 @@ class _QueueViewState extends State<_QueueView> {
     await Navigator.of(context)
         .pushNamed('/incidents/${Uri.encodeComponent(incident.id)}');
     if (controller.active) controller.start();
-  }
-
-  String _date(DateTime value) {
-    final local = value.toLocal();
-    String two(int number) => number.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} '
-        '${two(local.hour)}:${two(local.minute)}';
   }
 }

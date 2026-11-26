@@ -100,6 +100,8 @@ class _CampusShellState extends State<CampusShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final useDrawer = constraints.maxWidth < 900;
+        final compactHeader = constraints.maxWidth < 500;
+        final pagePadding = compactHeader ? 16.0 : 24.0;
         final showCreateReportButton =
             session.status == SessionStatus.authenticated &&
             session.profile?.id == widget.profile.id &&
@@ -151,27 +153,36 @@ class _CampusShellState extends State<CampusShell> {
                 ),
                 profile: widget.profile,
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Center(
-                  child: Text(
-                    widget.profile.role.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+              if (compactHeader)
+                IconButton(
+                  key: const ValueKey('session-sign-out'),
+                  tooltip: 'Salir',
+                  onPressed: signOut,
+                  icon: const Icon(Icons.logout),
+                )
+              else ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Center(
+                    child: Text(
+                      widget.profile.role.label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: TextButton.icon(
-                  key: const ValueKey('session-sign-out'),
-                  onPressed: signOut,
-                  icon: const Icon(Icons.logout, size: 18),
-                  label: const Text('Salir'),
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: TextButton.icon(
+                    key: const ValueKey('session-sign-out'),
+                    onPressed: signOut,
+                    icon: const Icon(Icons.logout, size: 18),
+                    label: const Text('Salir'),
+                  ),
                 ),
-              ),
+              ],
             ],
             bottom: const PreferredSize(
               preferredSize: Size.fromHeight(1),
@@ -228,10 +239,10 @@ class _CampusShellState extends State<CampusShell> {
                   child: SingleChildScrollView(
                     key: ValueKey(_selected),
                     padding: EdgeInsets.fromLTRB(
-                      24,
-                      24,
-                      24,
-                      showCreateReportButton ? 100 : 24,
+                      pagePadding,
+                      pagePadding,
+                      pagePadding,
+                      showCreateReportButton ? 100 : pagePadding,
                     ),
                     child: SizedBox(width: double.infinity, child: _page()),
                   ),

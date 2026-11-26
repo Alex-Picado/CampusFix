@@ -118,17 +118,24 @@ void main() {
           tester.getTopLeft(find.byKey(const ValueKey('overview-page'))).dx,
           originalLeft,
         );
-        final prefix = role == UserRole.administrator
+        final prefix = role.isAdministrative
             ? 'admin-home'
             : role == UserRole.technician
             ? 'technician-home'
             : 'home';
         await _tap(tester, '$prefix-count-2');
-        final tab = find.byType(TabBar);
-        expect(
-          DefaultTabController.of(tester.element(tab)).index,
-          role == UserRole.administrator ? 3 : 2,
-        );
+        if (role.isAdministrative) {
+          expect(
+            find.descendant(
+              of: find.byKey(const ValueKey('incident-filter-status')),
+              matching: find.text('En atención'),
+            ),
+            findsOneWidget,
+          );
+        } else {
+          final tab = find.byType(TabBar);
+          expect(DefaultTabController.of(tester.element(tab)).index, 2);
+        }
         expect(find.byKey(const ValueKey('notification-bell')), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
@@ -221,10 +228,12 @@ void main() {
       expect(find.byKey(const ValueKey('home-create-incident')), findsNothing);
       await _tap(tester, 'admin-home-management');
       expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
-      expect(find.text('Todas (6)'), findsOneWidget);
-      expect(find.text('Revisión solicitada (1)'), findsOneWidget);
+      expect(find.byKey(const ValueKey('management-view-all')), findsOneWidget);
+      expect(find.text('Resultados: 6 de 6'), findsOneWidget);
       expect(find.byKey(const ValueKey('incident-admin-1')), findsOneWidget);
-      await _tap(tester, 'management-tab-5');
+      await _tap(tester, 'nav-overview');
+      await _tap(tester, 'admin-home-count-4');
+      expect(find.text('Resultados: 1 de 6'), findsOneWidget);
       expect(find.byKey(const ValueKey('incident-admin-5')), findsOneWidget);
       expect(find.byKey(const ValueKey('incident-admin-1')), findsNothing);
       expect(find.textContaining('Revisá el motivo'), findsOneWidget);
@@ -251,7 +260,7 @@ void main() {
     await _tap(tester, 'admin-home-retry');
     expect(find.byKey(const ValueKey('admin-home-count-5')), findsOneWidget);
     await _tap(tester, 'admin-home-management');
-    await _tap(tester, 'management-tab-6');
+    await _tap(tester, 'management-view-finished');
     expect(find.text('No hay incidencias disponibles.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

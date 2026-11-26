@@ -90,8 +90,8 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
         UserRole.technician => repository.watchAssigned(
           userId: widget.profile.id,
         ),
-        UserRole.administrator || UserRole.superAdministrator =>
-          repository.watchAll(),
+        UserRole.administrator ||
+        UserRole.superAdministrator => repository.watchAll(),
       };
     } catch (error) {
       return Stream.error(error);
@@ -115,7 +115,7 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
     }
 
     final isReporter = widget.profile.role == UserRole.reporter;
-    final isAdministrator = widget.profile.role == UserRole.administrator;
+    final isAdministrator = widget.profile.role.isAdministrative;
     final name = widget.profile.fullName.trim().split(' ').first;
     return Column(
       key: const ValueKey('overview-page'),
@@ -254,7 +254,7 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
         Text(
           widget.profile.role == UserRole.reporter
               ? 'No pudimos cargar tus incidencias.'
-              : widget.profile.role == UserRole.administrator
+              : widget.profile.role.isAdministrative
               ? 'No pudimos cargar las incidencias del campus.'
               : 'No pudimos cargar tus asignaciones.',
           style: Theme.of(context).textTheme.titleMedium,
@@ -266,7 +266,7 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
           key: ValueKey(
             widget.profile.role == UserRole.reporter
                 ? 'home-retry'
-                : widget.profile.role == UserRole.administrator
+                : widget.profile.role.isAdministrative
                 ? 'admin-home-retry'
                 : 'technician-home-retry',
           ),
@@ -368,7 +368,7 @@ class _PersonalOverviewState extends State<_PersonalOverview> {
             .length,
       ),
     ];
-    final isAdministrator = widget.profile.role == UserRole.administrator;
+    final isAdministrator = widget.profile.role.isAdministrative;
     final administratorIcons = [
       Icons.schedule_outlined,
       Icons.assignment_ind_outlined,
@@ -584,7 +584,7 @@ class _RecentReport extends StatelessWidget {
         Text(
           role == UserRole.reporter
               ? report.status.reporterGuidance
-              : role == UserRole.administrator
+              : role.isAdministrative
               ? report.status.administratorGuidance
               : 'Ubicación: ${report.location}',
           style: TextStyle(

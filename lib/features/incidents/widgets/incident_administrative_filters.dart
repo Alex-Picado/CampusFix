@@ -1,150 +1,294 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/widgets/section_card.dart';
 import '../controllers/incident_search_controller.dart';
 import '../models/incident_filters.dart';
 import '../models/incident_status.dart';
+import '../presentation/administrative_incident_stages.dart';
 import '../presentation/incident_status_labels.dart';
+import 'incident_search_panel.dart';
 
-/// Presents administrator-only state, priority and responsible-person criteria.
+/// Quick views and filters for the administrator's live incident list.
 class IncidentAdministrativeFilters extends StatelessWidget {
-  /// Session-bound search state; its owning queue manages all subscriptions.
   final IncidentSearchController controller;
+  final Map<IncidentStatus, int> counts;
+  final Set<IncidentStatus> selectedStatuses;
+  final ValueChanged<Set<IncidentStatus>> onSelectStatuses;
+  final IncidentManagementOrder order;
+  final ValueChanged<IncidentManagementOrder> onOrder;
 
-  /// Creates presentation controls with no independent database or filter logic.
-  const IncidentAdministrativeFilters({super.key, required this.controller});
+  const IncidentAdministrativeFilters({
+    super.key,
+    required this.controller,
+    required this.counts,
+    required this.selectedStatuses,
+    required this.onSelectStatuses,
+    required this.order,
+    required this.onOrder,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (!controller.administrative) return const SizedBox.shrink();
     final filters = controller.criteria.filters;
     final technicianValue = filters.technicianId != null
         ? 'uid:${filters.technicianId}'
         : filters.unassignedOnly
         ? 'none'
         : '';
-    final status = DropdownButtonFormField<IncidentStatus>(
-      key: ValueKey('incident-filter-status-${filters.status?.value ?? 'all'}'),
-      initialValue: filters.status,
-      isExpanded: true,
-      hint: const Text('Todos los estados'),
-      decoration: const InputDecoration(labelText: 'Estado'),
-      items: [
-        const DropdownMenuItem(value: null, child: Text('Todos los estados')),
-        for (final value in IncidentStatus.values)
-          DropdownMenuItem(value: value, child: Text(value.label)),
-      ],
-      onChanged: controller.selectStatus,
-    );
-    final priority = DropdownButtonFormField<IncidentPriorityFilter>(
-      key: ValueKey('incident-filter-priority-${filters.priority.name}'),
-      initialValue: filters.priority,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Prioridad'),
-      items: [
-        for (final value in IncidentPriorityFilter.values)
-          DropdownMenuItem(value: value, child: Text(_priorityLabel(value))),
-      ],
-      onChanged: (value) {
-        if (value != null) controller.selectPriority(value);
-      },
-    );
-    final technician = DropdownButtonFormField<String>(
-      key: ValueKey('incident-filter-technician-$technicianValue'),
-      initialValue: technicianValue,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Técnico responsable'),
-      items: [
-        const DropdownMenuItem(value: '', child: Text('Todos los técnicos')),
-        const DropdownMenuItem(value: 'none', child: Text('Sin asignar')),
-        for (final id in controller.technicianIds)
-          DropdownMenuItem(
-            value: 'uid:$id',
-            child: Text(
-              controller.technicianLabel(id),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-      ],
-      onChanged: (value) {
-        if (value == null) return;
-        if (value == 'none') {
-          controller.selectTechnician(null, unassignedOnly: true);
-        } else {
-          controller.selectTechnician(
-            value.isEmpty ? null : value.substring(4),
-          );
-        }
-      },
-    );
-    return Column(
-      key: const ValueKey('incident-administrative-filters'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Filtros administrativos',
-          style: Theme.of(context).textTheme.titleSmall,
+    final sort = SizedBox(
+      key: const ValueKey('management-sort'),
+      child: DropdownButtonFormField<IncidentManagementOrder>(
+        key: ValueKey(order),
+        initialValue: order,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Ordenar',
+          prefixIcon: Icon(Icons.sort),
         ),
-        const SizedBox(height: 12),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth >= 900) {
-              return Row(
-                children: [
-                  Expanded(child: status),
-                  const SizedBox(width: 16),
-                  Expanded(child: priority),
-                  const SizedBox(width: 16),
-                  Expanded(child: technician),
-                ],
-              );
-            }
-            if (constraints.maxWidth >= 560) {
-              return Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: status),
-                      const SizedBox(width: 16),
-                      Expanded(child: priority),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  technician,
-                ],
-              );
-            }
-            return Column(
-              children: [
-                status,
-                const SizedBox(height: 16),
-                priority,
-                const SizedBox(height: 16),
-                technician,
-              ],
-            );
-          },
-        ),
-        if (controller.techniciansLoading)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text('Cargando técnicos...'),
-          ),
-        if (controller.technicianError != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            'No se pudieron cargar los técnicos. ${controller.technicianError}',
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              key: const ValueKey('incident-filter-retry-technicians'),
-              onPressed: controller.retryTechnicians,
-              child: const Text('Reintentar técnicos'),
+        items: [
+          for (final value in IncidentManagementOrder.values)
+            DropdownMenuItem(
+              value: value,
+              child: Text(value.label, overflow: TextOverflow.ellipsis),
             ),
-          ),
         ],
-      ],
+        onChanged: (value) {
+          if (value != null) onOrder(value);
+        },
+      ),
     );
+    final quickViews = _quickViews();
+    final fields = [
+      _statusField(context),
+      IncidentCategoryFilter(controller: controller),
+      DropdownButtonFormField<IncidentPriorityFilter>(
+        key: ValueKey('incident-filter-priority-${filters.priority.name}'),
+        initialValue: filters.priority,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Prioridad'),
+        items: [
+          for (final value in IncidentPriorityFilter.values)
+            DropdownMenuItem(
+              value: value,
+              child: Text(
+                _priorityLabel(value),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        onChanged: (value) {
+          if (value != null) controller.selectPriority(value);
+        },
+      ),
+      DropdownButtonFormField<String>(
+        key: ValueKey('incident-filter-technician-$technicianValue'),
+        initialValue: technicianValue,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Técnico responsable'),
+        items: [
+          const DropdownMenuItem(value: '', child: Text('Todos los técnicos')),
+          const DropdownMenuItem(value: 'none', child: Text('Sin asignar')),
+          for (final id in controller.technicianIds)
+            DropdownMenuItem(
+              value: 'uid:$id',
+              child: Text(
+                controller.technicianLabel(id),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        onChanged: (value) {
+          if (value == null) return;
+          if (value == 'none') {
+            controller.selectTechnician(null, unassignedOnly: true);
+          } else {
+            controller.selectTechnician(
+              value.isEmpty ? null : value.substring(4),
+            );
+          }
+        },
+      ),
+    ];
+    final query = IncidentQueryField(controller: controller);
+    const gap = 12.0;
+    return SectionCard(
+      key: const ValueKey('incident-administrative-filters'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final columns = width >= 780
+              ? 4
+              : width >= 360
+              ? 2
+              : 1;
+          final fieldWidth = (width - (columns - 1) * gap) / columns;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (width >= 970)
+                Row(
+                  children: [
+                    Expanded(child: quickViews),
+                    const SizedBox(width: gap),
+                    SizedBox(width: 280, child: sort),
+                  ],
+                )
+              else ...[
+                quickViews,
+                const SizedBox(height: gap),
+                SizedBox(width: width < 550 ? width : 280, child: sort),
+              ],
+              const SizedBox(height: gap),
+              if (width >= 1100)
+                Row(
+                  children: [
+                    Expanded(flex: 2, child: query),
+                    for (final field in fields) ...[
+                      const SizedBox(width: gap),
+                      Expanded(child: field),
+                    ],
+                  ],
+                )
+              else ...[
+                query,
+                const SizedBox(height: gap),
+                Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final field in fields)
+                      SizedBox(width: fieldWidth, child: field),
+                  ],
+                ),
+              ],
+              if (controller.techniciansLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text('Cargando técnicos...'),
+                ),
+              if (controller.technicianError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'No se pudieron cargar los técnicos. ${controller.technicianError}',
+                ),
+                TextButton(
+                  key: const ValueKey('incident-filter-retry-technicians'),
+                  onPressed: controller.retryTechnicians,
+                  child: const Text('Reintentar técnicos'),
+                ),
+              ],
+              IncidentCategoryFeedback(controller: controller),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _quickViews() => Wrap(
+    spacing: 8,
+    runSpacing: 4,
+    children: [
+      for (final view in IncidentManagementView.values)
+        ChoiceChip(
+          key: ValueKey('management-view-${view.id}'),
+          label: Text('${view.label} (${_viewCount(view)})'),
+          selected:
+              view.statuses.length == selectedStatuses.length &&
+              selectedStatuses.containsAll(view.statuses),
+          onSelected: (_) => onSelectStatuses(view.statuses),
+        ),
+    ],
+  );
+
+  int _viewCount(IncidentManagementView view) => counts.entries
+      .where(
+        (entry) => view.statuses.isEmpty || view.statuses.contains(entry.key),
+      )
+      .fold(0, (sum, entry) => sum + entry.value);
+
+  Widget _statusField(BuildContext context) {
+    final label = switch (selectedStatuses.length) {
+      0 => 'Todos los estados',
+      1 => selectedStatuses.single.label,
+      _ => '${selectedStatuses.length} estados seleccionados',
+    };
+    return OutlinedButton(
+      key: const ValueKey('incident-filter-status'),
+      style: OutlinedButton.styleFrom(
+        alignment: Alignment.centerLeft,
+        minimumSize: const Size(0, 52),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      onPressed: () => _chooseStatuses(context),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Estado', style: Theme.of(context).textTheme.labelSmall),
+                Text(label, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_drop_down),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _chooseStatuses(BuildContext context) async {
+    final draft = selectedStatuses.toSet();
+    final selected = await showDialog<Set<IncidentStatus>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Filtrar por estado'),
+          scrollable: true,
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final status in IncidentStatus.values)
+                  CheckboxListTile(
+                    key: ValueKey('management-status-${status.value}'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    value: draft.contains(status),
+                    onChanged: (checked) => setState(() {
+                      if (checked == true) {
+                        draft.add(status);
+                      } else {
+                        draft.remove(status);
+                      }
+                    }),
+                    title: Text(status.label),
+                    secondary: Text('${counts[status] ?? 0}'),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              key: const ValueKey('management-status-clear'),
+              onPressed: draft.isEmpty ? null : () => setState(draft.clear),
+              child: const Text('Quitar selección'),
+            ),
+            FilledButton(
+              key: const ValueKey('management-status-apply'),
+              onPressed: () => Navigator.of(context).pop(Set.of(draft)),
+              child: const Text('Aplicar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (context.mounted && controller.administrative && selected != null) {
+      onSelectStatuses(selected);
+    }
   }
 
   String _priorityLabel(IncidentPriorityFilter value) => switch (value) {

@@ -51,12 +51,9 @@ void main() {
         final app = await _mount(tester, role: role);
         expect(
           find.byKey(const ValueKey('incident-administrative-filters')),
-          role == UserRole.administrator ? findsOneWidget : findsNothing,
+          role.isAdministrative ? findsOneWidget : findsNothing,
         );
-        expect(
-          app.users.activeAllUsersWatches,
-          role == UserRole.administrator ? 1 : 0,
-        );
+        expect(app.users.activeAllUsersWatches, role.isAdministrative ? 1 : 0);
         expect(app.reports.activeListWatches, 1);
         final initialQueryCalls = app.reports.queryCalls;
         if (role == UserRole.technician) {
@@ -64,7 +61,7 @@ void main() {
         }
         expect(
           find.byKey(const ValueKey('incident-foreign')),
-          role == UserRole.administrator ? findsOneWidget : findsNothing,
+          role.isAdministrative ? findsOneWidget : findsNothing,
         );
         await _enter(tester, '#12');
         expect(find.byKey(const ValueKey('incident-light')), findsOneWidget);
@@ -83,7 +80,7 @@ void main() {
         expect(app.reports.queryCalls, initialQueryCalls);
         expect(
           app.reports.lastScope,
-          role == UserRole.administrator
+          role.isAdministrative
               ? 'all'
               : role == UserRole.technician
               ? 'assigned:tech'
@@ -92,12 +89,8 @@ void main() {
         await _tap(tester, 'incident-search-clear');
         expect(find.byKey(const ValueKey('incident-light')), findsOneWidget);
         expect(find.byKey(const ValueKey('incident-network')), findsOneWidget);
-        expect(
-          find.text(
-            'Resultados: ${role == UserRole.administrator ? 3 : 2} de ${role == UserRole.administrator ? 3 : 2}',
-          ),
-          findsOneWidget,
-        );
+        final count = role.isAdministrative ? 3 : 2;
+        expect(find.text('Resultados: $count de $count'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
@@ -275,7 +268,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _filterFixtures(tester, app.reports);
-      await _selectFilter(tester, 'status', 'En atención');
+      await _selectStatus(tester, IncidentStatus.inProgress);
       expect(find.text('Resultados: 2 de 5'), findsOneWidget);
       await _selectFilter(tester, 'priority', 'Alta');
       await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
@@ -297,20 +290,94 @@ void main() {
   );
 
   testWidgets(
+    'Management quick views and multiple statuses filter the same live list',
+    (tester) async {
+      final app = await _mount(tester);
+      await _filterFixtures(tester, app.reports);
+      await _tap(tester, 'management-view-action');
+      expect(find.text('Resultados: 2 de 5'), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-unassigned')), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-low')), findsOneWidget);
+      await _tap(tester, 'management-view-in-progress');
+      expect(find.text('Resultados: 3 de 5'), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-low')), findsNothing);
+      await _tap(tester, 'incident-filter-status');
+      await _tap(tester, 'management-status-clear');
+      await _tap(tester, 'management-status-${IncidentStatus.assigned.value}');
+      await _tap(tester, 'management-status-${IncidentStatus.resolved.value}');
+      await _tap(tester, 'management-status-apply');
+      expect(find.text('Resultados: 2 de 5'), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-network')), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-low')), findsOneWidget);
+      expect(find.byKey(const ValueKey('incident-light')), findsNothing);
+      await _tap(tester, 'management-view-all');
+      expect(find.text('Resultados: 5 de 5'), findsOneWidget);
+      expect(app.reports.queryCalls, 2);
+    },
+  );
+
+  testWidgets('Management sorts by update, priority and sequence', (
+    tester,
+  ) async {
+    final app = await _mount(tester);
+    await _filterFixtures(tester, app.reports);
+    app.reports.rows['unassigned'] = app.reports.rows['unassigned']!.copyWith(
+      updatedAt: DateTime.utc(2026, 2),
+    );
+    app.reports.rows['low'] = app.reports.rows['low']!.copyWith(
+      updatedAt: DateTime.utc(2026, 1, 2),
+    );
+    app.reports.changes.add(null);
+    await tester.pumpAndSettle();
+
+    void expectBefore(String first, String second) {
+      final firstCard = find.byKey(ValueKey('incident-$first'));
+      final secondCard = find.byKey(ValueKey('incident-$second'));
+      expect(
+        tester.getTopLeft(firstCard).dy,
+        lessThan(tester.getTopLeft(secondCard).dy),
+      );
+    }
+
+    expectBefore('unassigned', 'low');
+    await _chooseSort(tester, 'Más antiguas');
+    expectBefore('low', 'unassigned');
+    await _chooseSort(tester, 'Prioridad alta primero');
+    expectBefore('light', 'low');
+    expectBefore('low', 'unassigned');
+    await _chooseSort(tester, 'Consecutivo mayor a menor');
+    expectBefore('network', 'light');
+    await _chooseSort(tester, 'Consecutivo menor a mayor');
+    expectBefore('light', 'network');
+    expect(app.reports.queryCalls, 2);
+  });
+
+  testWidgets('Management filters and actions fit a phone', (tester) async {
+    final app = await _mount(tester, size: const Size(360, 780));
+    await _filterFixtures(tester, app.reports);
+    await _tap(tester, 'management-view-finished');
+    expect(find.text('Resultados: 0 de 5'), findsOneWidget);
+    await _selectStatus(tester, IncidentStatus.inProgress);
+    await _tap(tester, 'detail-light');
+    expect(find.byKey(const ValueKey('incident-detail-page')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
     'Unclassified and unassigned choices remain distinct from all records',
     (tester) async {
       final app = await _mount(tester);
       await _filterFixtures(tester, app.reports);
       await _selectFilter(tester, 'technician', 'Sin asignar');
       await _selectFilter(tester, 'priority', 'Sin prioridad');
-      await _selectFilter(tester, 'status', 'Reportada');
+      await _selectStatus(tester, IncidentStatus.reported);
       expect(find.text('Resultados: 1 de 5'), findsOneWidget);
       expect(find.byKey(const ValueKey('incident-unassigned')), findsOneWidget);
       await _selectFilter(tester, 'priority', 'Alta');
       expect(find.text('Resultados: 0 de 5'), findsOneWidget);
       await _selectFilter(tester, 'priority', 'Todas las prioridades');
       expect(find.text('Resultados: 1 de 5'), findsOneWidget);
-      await _selectFilter(tester, 'status', 'Todos los estados');
+      await _selectStatus(tester, null);
       expect(find.text('Resultados: 1 de 5'), findsOneWidget);
     },
   );
@@ -320,7 +387,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _filterFixtures(tester, app.reports);
-      await _selectFilter(tester, 'status', 'En atención');
+      await _selectStatus(tester, IncidentStatus.inProgress);
       await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
       app.reports.rows['light'] = app.reports.rows['light']!.copyWith(
         status: IncidentStatus.resolved,
@@ -338,7 +405,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Daniel técnico · tech@campusfix.test'), findsOneWidget);
-      await _selectFilter(tester, 'status', 'Solución registrada');
+      await _selectStatus(tester, IncidentStatus.resolved);
       expect(find.text('Resultados: 2 de 5'), findsOneWidget);
       expect(app.reports.queryCalls, 2);
     },
@@ -349,7 +416,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _filterFixtures(tester, app.reports);
-      await _selectFilter(tester, 'status', 'En atención');
+      await _selectStatus(tester, IncidentStatus.inProgress);
       await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
       app.users.failUserList(_offline());
       await tester.pumpAndSettle();
@@ -375,7 +442,7 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _filterFixtures(tester, app.reports);
-      await _selectFilter(tester, 'status', 'En atención');
+      await _selectStatus(tester, IncidentStatus.inProgress);
       await _selectFilter(tester, 'priority', 'Alta');
       await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
       await _tap(tester, 'detail-light');
@@ -411,7 +478,7 @@ void main() {
         await _filterFixtures(tester, app.reports);
         await _enter(tester, 'iluminacion');
         await _chooseCategory(tester, 'Iluminación');
-        await _selectFilter(tester, 'status', 'En atención');
+        await _selectStatus(tester, IncidentStatus.inProgress);
         await _selectFilter(tester, 'priority', 'Alta');
         await _selectFilter(tester, 'technician', 'tech · tech@campusfix.test');
         expect(find.text('Resultados: 1 de 5'), findsOneWidget);
@@ -542,6 +609,26 @@ Future<void> _selectFilter(
   await tester.pumpAndSettle();
 }
 
+Future<void> _selectStatus(WidgetTester tester, IncidentStatus? status) async {
+  await _tap(tester, 'incident-filter-status');
+  final clear = tester.widget<TextButton>(
+    find.byKey(const ValueKey('management-status-clear')),
+  );
+  if (clear.onPressed != null) {
+    await _tap(tester, 'management-status-clear');
+  }
+  if (status != null) {
+    await _tap(tester, 'management-status-${status.value}');
+  }
+  await _tap(tester, 'management-status-apply');
+}
+
+Future<void> _chooseSort(WidgetTester tester, String label) async {
+  await _tap(tester, 'management-sort');
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _filterFixtures(WidgetTester tester, _Reports reports) async {
   reports.rows['light'] = reports.rows['light']!.copyWith(
     status: IncidentStatus.inProgress,
@@ -606,16 +693,17 @@ _mount(
   WidgetTester tester, {
   UserRole role = UserRole.administrator,
   bool tablet = false,
+  Size? size,
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = tablet
-      ? const Size(768, 1024)
-      : const Size(1440, 1100);
+  tester.view.physicalSize =
+      size ?? (tablet ? const Size(768, 1024) : const Size(1440, 1100));
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   final users = TestUserRepository();
   for (final entry in {
     'admin': UserRole.administrator,
+    'super-admin': UserRole.superAdministrator,
     'reporter': UserRole.reporter,
     'tech': UserRole.technician,
   }.entries) {
@@ -626,11 +714,12 @@ _mount(
       role: entry.value,
     );
   }
-  final uid = role == UserRole.administrator
-      ? 'admin'
-      : role == UserRole.technician
-      ? 'tech'
-      : 'reporter';
+  final uid = switch (role) {
+    UserRole.administrator => 'admin',
+    UserRole.superAdministrator => 'super-admin',
+    UserRole.technician => 'tech',
+    UserRole.reporter => 'reporter',
+  };
   final auth = TestAuthRepository(users: users, currentUserId: uid);
   final reports = _Reports()
     ..rows.addAll({
@@ -676,13 +765,17 @@ _mount(
     ),
   );
   await tester.pumpAndSettle();
-  if (tablet) {
-    await tester.tap(find.byTooltip('Abrir menú'));
+  if (tablet || size != null) {
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is IconButton && widget.tooltip == 'Abrir menú',
+      ),
+    );
     await tester.pumpAndSettle();
   }
   await _tap(
     tester,
-    role == UserRole.administrator
+    role.isAdministrative
         ? 'nav-management'
         : role == UserRole.technician
         ? 'nav-workspace'

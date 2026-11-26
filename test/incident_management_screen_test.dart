@@ -752,11 +752,12 @@ _mount(
   addTearDown(tester.view.resetDevicePixelRatio);
   final users = TestUserRepository();
   for (final role in UserRole.values) {
-    final id = role == UserRole.administrator
-        ? 'admin'
-        : role == UserRole.technician
-        ? 'tech'
-        : 'owner';
+    final id = switch (role) {
+      UserRole.administrator => 'admin',
+      UserRole.superAdministrator => 'super-admin',
+      UserRole.technician => 'tech',
+      UserRole.reporter => 'owner',
+    };
     users.profiles[id] = UserProfile(
       id: id,
       fullName: id,

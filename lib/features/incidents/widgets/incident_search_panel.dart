@@ -2,14 +2,11 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/widgets/section_card.dart';
 import '../controllers/incident_search_controller.dart';
-import 'incident_administrative_filters.dart';
 
-/// Reusable Spanish search controls for authorized incident lists on any role.
+/// Search controls for personal incident lists.
 class IncidentSearchPanel extends StatelessWidget {
-  /// Controller owned by the enclosing list, never by this presentation widget.
   final IncidentSearchController controller;
 
-  /// Presents sequence/text and category criteria without database or business logic.
   const IncidentSearchPanel({super.key, required this.controller});
 
   @override
@@ -26,41 +23,9 @@ class IncidentSearchPanel extends StatelessWidget {
               const SizedBox(height: 16),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final query = TextFormField(
-                    key: ValueKey(
-                      'incident-search-query-${controller.editorVersion}',
-                    ),
-                    initialValue: controller.criteria.query,
-                    onChanged: controller.setQuery,
-                    decoration: const InputDecoration(
-                      labelText: 'Consecutivo o texto',
-                      hintText: 'Ej.: #12, iluminación o edificio A',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                  );
-                  final category = DropdownButtonFormField<String>(
-                    key: ValueKey(
-                      'incident-search-category-${controller.criteria.categoryId ?? 'all'}',
-                    ),
-                    initialValue: controller.criteria.categoryId ?? '',
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Categoría'),
-                    items: [
-                      const DropdownMenuItem(
-                        value: '',
-                        child: Text('Todas las categorías'),
-                      ),
-                      for (final id in controller.categoryIds)
-                        DropdownMenuItem(
-                          value: id,
-                          child: Text(
-                            controller.categoryLabel(id),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: (id) =>
-                        controller.selectCategory(id == '' ? null : id),
+                  final query = IncidentQueryField(controller: controller);
+                  final category = IncidentCategoryFilter(
+                    controller: controller,
                   );
                   if (constraints.maxWidth < 650) {
                     return Column(
@@ -76,48 +41,119 @@ class IncidentSearchPanel extends StatelessWidget {
                   );
                 },
               ),
-              if (controller.administrative) ...[
-                const SizedBox(height: 16),
-                IncidentAdministrativeFilters(controller: controller),
-              ],
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 16,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    'Resultados: ${controller.results.length} de ${controller.total}',
-                    key: const ValueKey('incident-search-count'),
-                  ),
-                  TextButton.icon(
-                    key: const ValueKey('incident-search-clear'),
-                    onPressed: controller.criteria.hasCriteria
-                        ? controller.reset
-                        : null,
-                    icon: const Icon(Icons.clear),
-                    label: Text(
-                      controller.administrative
-                          ? 'Limpiar filtros'
-                          : 'Limpiar búsqueda',
-                    ),
-                  ),
-                ],
+              IncidentSearchSummary(
+                count: controller.results.length,
+                total: controller.total,
+                clearLabel: 'Limpiar búsqueda',
+                onClear: controller.criteria.hasCriteria
+                    ? controller.reset
+                    : null,
               ),
-              if (controller.categoriesLoading)
-                const Text('Cargando categorías...'),
-              if (controller.hasCategoryErrors) ...[
-                const Text('No se pudieron cargar algunas categorías.'),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    key: const ValueKey('incident-search-retry-categories'),
-                    onPressed: controller.retryCategories,
-                    child: const Text('Reintentar categorías'),
-                  ),
-                ),
-              ],
+              IncidentCategoryFeedback(controller: controller),
             ],
           ),
         );
+}
+
+class IncidentQueryField extends StatelessWidget {
+  final IncidentSearchController controller;
+
+  const IncidentQueryField({super.key, required this.controller});
+
+  @override
+  Widget build(BuildContext context) => TextFormField(
+    key: ValueKey('incident-search-query-${controller.editorVersion}'),
+    initialValue: controller.criteria.query,
+    onChanged: controller.setQuery,
+    decoration: const InputDecoration(
+      labelText: 'Consecutivo o texto',
+      hintText: 'Ej.: #12, iluminación o edificio A',
+      prefixIcon: Icon(Icons.search),
+    ),
+  );
+}
+
+class IncidentCategoryFilter extends StatelessWidget {
+  final IncidentSearchController controller;
+
+  const IncidentCategoryFilter({super.key, required this.controller});
+
+  @override
+  Widget build(BuildContext context) => DropdownButtonFormField<String>(
+    key: ValueKey(
+      'incident-search-category-${controller.criteria.categoryId ?? 'all'}',
+    ),
+    initialValue: controller.criteria.categoryId ?? '',
+    isExpanded: true,
+    decoration: const InputDecoration(labelText: 'Categoría'),
+    items: [
+      const DropdownMenuItem(value: '', child: Text('Todas las categorías')),
+      for (final id in controller.categoryIds)
+        DropdownMenuItem(
+          value: id,
+          child: Text(
+            controller.categoryLabel(id),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+    ],
+    onChanged: (id) => controller.selectCategory(id == '' ? null : id),
+  );
+}
+
+class IncidentSearchSummary extends StatelessWidget {
+  final int count;
+  final int total;
+  final String clearLabel;
+  final VoidCallback? onClear;
+
+  const IncidentSearchSummary({
+    super.key,
+    required this.count,
+    required this.total,
+    required this.clearLabel,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 16,
+    runSpacing: 4,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      Text(
+        'Resultados: $count de $total',
+        key: const ValueKey('incident-search-count'),
+      ),
+      TextButton.icon(
+        key: const ValueKey('incident-search-clear'),
+        onPressed: onClear,
+        icon: const Icon(Icons.clear),
+        label: Text(clearLabel),
+      ),
+    ],
+  );
+}
+
+class IncidentCategoryFeedback extends StatelessWidget {
+  final IncidentSearchController controller;
+
+  const IncidentCategoryFeedback({super.key, required this.controller});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (controller.categoriesLoading) const Text('Cargando categorías...'),
+      if (controller.hasCategoryErrors) ...[
+        const Text('No se pudieron cargar algunas categorías.'),
+        TextButton(
+          key: const ValueKey('incident-search-retry-categories'),
+          onPressed: controller.retryCategories,
+          child: const Text('Reintentar categorías'),
+        ),
+      ],
+    ],
+  );
 }
