@@ -66,22 +66,6 @@ client.
 
 ## Functional scope and acceptance cases
 
-To capture evidence during a guided walkthrough, connect an Android phone with
-USB debugging enabled, accept its connection prompt, and run this from a normal
-PowerShell terminal in the repository:
-
-```powershell
-powershell -NoProfile -File .\tool\record_android_demo.ps1 -VideoSeconds 45
-```
-
-Sign in with the appropriate test account before each clip. Perform the actions
-shown in the terminal and enter what actually happened while the result is on
-screen. The script saves clips, screenshots and a CSV under `build/demo-evidence/`.
-Use `-VideoSeconds 0` for screenshots only. Device captures are guided manual
-tests. To run the existing automated local Firestore rule suite and log its
-output separately, use `-Mode Rules` after installing the test dependencies and
-selecting Java 21 as described in [Toolchain](toolchain.md).
-
 Record the device, Android and One UI versions, app version and commit, initial
 conditions, steps, actual result and evidence for each execution. The entries
 below are acceptance criteria. Actual results require device execution.
