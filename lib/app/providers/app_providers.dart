@@ -7,6 +7,7 @@ import '../../features/auth/repositories/auth_repository.dart';
 import '../../features/catalogs/repositories/category_repository.dart';
 import '../../features/incidents/repositories/incident_repository.dart';
 import '../../features/incidents/repositories/evidence_repository.dart';
+import '../../features/incidents/services/incident_draft_store.dart';
 import '../../features/users/repositories/user_repository.dart';
 
 /// Shares repositories and owns the application's authentication controllers.
@@ -19,6 +20,7 @@ class AppProviders extends StatelessWidget {
   final CategoryRepository categoryRepository;
   final IncidentRepository incidentRepository;
   final EvidenceRepository? evidenceRepository;
+  final IncidentDraftStore? draftStore;
   final Widget child;
 
   const AppProviders({
@@ -28,6 +30,7 @@ class AppProviders extends StatelessWidget {
     required this.categoryRepository,
     required this.incidentRepository,
     this.evidenceRepository,
+    this.draftStore,
     required this.child,
   });
 
@@ -40,6 +43,7 @@ class AppProviders extends StatelessWidget {
         Provider<CategoryRepository>.value(value: categoryRepository),
         Provider<IncidentRepository>.value(value: incidentRepository),
         Provider<EvidenceRepository?>.value(value: evidenceRepository),
+        Provider<IncidentDraftStore?>.value(value: draftStore),
         ChangeNotifierProvider(
           create: (context) =>
               AuthController(authRepository: context.read<AuthRepository>()),

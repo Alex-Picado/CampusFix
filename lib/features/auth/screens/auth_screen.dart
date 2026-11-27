@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/auth_controller.dart';
+import '../repositories/auth_repository.dart';
 import '../widgets/auth_error_notice.dart';
 import '../widgets/auth_page.dart';
 import '../widgets/auth_submit_button.dart';
@@ -196,7 +197,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ],
               const SizedBox(height: 20),
-              if (!_recovering) ...[
+              if (!_recovering &&
+                  context.read<AuthRepository>().supportsSessionRetention) ...[
                 Material(
                   color: Colors.transparent,
                   child: CheckboxListTile(

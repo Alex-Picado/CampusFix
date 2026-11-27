@@ -169,6 +169,9 @@ class TestUserRepository implements UserRepository {
 
 /// Simulates account events and failures while using the real UI controllers.
 class TestAuthRepository implements AuthRepository {
+  @override
+  bool get supportsSessionRetention => true;
+
   final TestUserRepository users;
   final _changes = StreamController<String?>.broadcast(sync: true);
   String? currentUserId;

@@ -11,6 +11,7 @@ import '../../users/models/user_role.dart';
 import '../controllers/incident_report_controller.dart';
 import '../repositories/incident_repository.dart';
 import '../repositories/evidence_repository.dart';
+import '../services/incident_draft_store.dart';
 import '../widgets/evidence_widgets.dart';
 
 /// Owns a report controller while the original reporter's form is mounted.
@@ -41,6 +42,7 @@ class IncidentReportScreen extends StatelessWidget {
         categoryRepository: context.read<CategoryRepository>(),
         sessionController: session,
         userId: userId,
+        draftStore: context.read<IncidentDraftStore?>(),
       ),
       child: _ReportForm(onBack: onBack, onReported: onReported),
     );
@@ -160,6 +162,12 @@ class _ReportFormState extends State<_ReportForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (controller.isLoadingDraft) ...[
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 8),
+                  const Text('Recuperando borrador…'),
+                  const SizedBox(height: 16),
+                ],
                 _textField('title', 'Título', _title),
                 const SizedBox(height: 20),
                 _textField(
@@ -202,6 +210,17 @@ class _ReportFormState extends State<_ReportForm> {
                   const SizedBox(height: 16),
                   _feedback(submitError, error: true),
                 ],
+                if (controller.draftError case final message?) ...[
+                  const SizedBox(height: 16),
+                  _feedback(message, error: true),
+                ] else if (controller.draftSaved &&
+                    controller.canEditDraft) ...[
+                  const SizedBox(height: 16),
+                  Semantics(
+                    liveRegion: true,
+                    child: const Text('Borrador guardado en este dispositivo.'),
+                  ),
+                ],
                 if (controller.hasUnconfirmedSubmission &&
                     !controller.isSubmitting) ...[
                   const SizedBox(height: 16),
@@ -211,47 +230,74 @@ class _ReportFormState extends State<_ReportForm> {
                   ),
                 ],
                 const SizedBox(height: 24),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.icon(
-                      key: const ValueKey('report-submit'),
-                      onPressed: controller.canSubmit ? _submit : null,
-                      icon: controller.isSubmitting
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send_outlined),
-                      label: Text(
-                        controller.isSubmitting
-                            ? 'Guardando...'
-                            : controller.hasUnconfirmedSubmission
-                            ? 'Reintentar guardado'
-                            : 'Guardar incidencia',
-                      ),
-                    ),
-                    if (controller.hasUnconfirmedSubmission &&
-                        !controller.isSubmitting)
-                      OutlinedButton(
-                        key: const ValueKey('report-edit'),
-                        onPressed: controller.canResumeEditing
-                            ? controller.resumeEditing
-                            : null,
-                        child: Text(
-                          controller.isReviewing
-                              ? 'Comprobando...'
-                              : 'Editar datos',
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final actions = <Widget>[
+                      FilledButton.icon(
+                        key: const ValueKey('report-submit'),
+                        onPressed: controller.canSubmit ? _submit : null,
+                        icon: controller.isSubmitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.send_outlined),
+                        label: Text(
+                          controller.isSubmitting
+                              ? 'Guardando...'
+                              : controller.hasUnconfirmedSubmission
+                              ? 'Reintentar guardado'
+                              : 'Guardar incidencia',
                         ),
                       ),
-                    TextButton(
-                      key: const ValueKey('report-back'),
-                      onPressed: widget.onBack,
-                      child: const Text('Volver'),
-                    ),
-                  ],
+                      if (controller.supportsDraftStorage)
+                        OutlinedButton.icon(
+                          key: const ValueKey('report-save-draft'),
+                          onPressed: controller.canEditDraft
+                              ? controller.saveDraft
+                              : null,
+                          icon: const Icon(Icons.save_outlined),
+                          label: Text(
+                            controller.isSavingDraft
+                                ? 'Guardando borrador…'
+                                : 'Guardar borrador',
+                          ),
+                        ),
+                      if (controller.hasUnconfirmedSubmission &&
+                          !controller.isSubmitting)
+                        OutlinedButton(
+                          key: const ValueKey('report-edit'),
+                          onPressed: controller.canResumeEditing
+                              ? controller.resumeEditing
+                              : null,
+                          child: Text(
+                            controller.isReviewing
+                                ? 'Comprobando...'
+                                : 'Editar datos',
+                          ),
+                        ),
+                      TextButton(
+                        key: const ValueKey('report-back'),
+                        onPressed:
+                            controller.supportsDraftStorage && controller.isBusy
+                            ? null
+                            : widget.onBack,
+                        child: const Text('Volver'),
+                      ),
+                    ];
+                    if (controller.supportsDraftStorage &&
+                        constraints.maxWidth < 440) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: 12,
+                        children: actions,
+                      );
+                    }
+                    return Wrap(spacing: 12, runSpacing: 12, children: actions);
+                  },
                 ),
               ],
             ),
@@ -274,6 +320,11 @@ class _ReportFormState extends State<_ReportForm> {
       readOnly: !_controller.canEditDraft,
       minLines: lines,
       maxLines: lines == 1 ? 1 : 8,
+      textInputAction: lines > 1
+          ? TextInputAction.newline
+          : name == 'location'
+          ? TextInputAction.done
+          : TextInputAction.next,
       textCapitalization: TextCapitalization.sentences,
       decoration: InputDecoration(
         labelText: label,
@@ -309,7 +360,7 @@ class _ReportFormState extends State<_ReportForm> {
               child: DropdownButton<String>(
                 key: const ValueKey('report-category'),
                 isExpanded: true,
-                isDense: true,
+                isDense: !controller.supportsDraftStorage,
                 value: controller.draft.categoryId,
                 hint: const Text('Seleccioná una categoría'),
                 items: [

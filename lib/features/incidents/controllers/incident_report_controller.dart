@@ -11,6 +11,7 @@ import '../../users/models/user_role.dart';
 import '../models/incident.dart';
 import '../models/incident_draft.dart';
 import '../repositories/incident_repository.dart';
+import '../services/incident_draft_store.dart';
 
 /// Manages one reporter's draft, category observation and confirmed submission.
 ///
@@ -21,6 +22,7 @@ class IncidentReportController extends ChangeNotifier {
   final CategoryRepository _categoryRepository;
   final SessionController _sessionController;
   final String _userId;
+  final IncidentDraftStore? _draftStore;
 
   StreamSubscription<List<Category>>? _categorySubscription;
   StreamIterator<Incident?>? _reviewIterator;
@@ -36,6 +38,10 @@ class IncidentReportController extends ChangeNotifier {
   bool _isLoadingCategories = false;
   bool _isSubmitting = false;
   bool _isReviewing = false;
+  bool _isLoadingDraft = false;
+  bool _isSavingDraft = false;
+  bool _draftSaved = false;
+  String? _draftError;
   bool _isActive = false;
   bool _disposed = false;
   int _watchVersion = 0;
@@ -47,11 +53,13 @@ class IncidentReportController extends ChangeNotifier {
     required this._categoryRepository,
     required this._sessionController,
     required this._userId,
+    this._draftStore,
   }) {
     _isActive = _matchesSession();
     if (_isActive) {
       _sessionController.addListener(_handleSession);
       startCategories();
+      if (_draftStore != null) _restoreDraft();
     }
   }
 
@@ -89,7 +97,66 @@ class IncidentReportController extends ChangeNotifier {
   bool get isReviewing => _isReviewing;
 
   /// Whether an operation currently locks submission and draft actions.
-  bool get isBusy => _isSubmitting || _isReviewing;
+  bool get isBusy =>
+      _isSubmitting || _isReviewing || _isLoadingDraft || _isSavingDraft;
+
+  bool get supportsDraftStorage => _draftStore != null;
+  bool get isLoadingDraft => _isLoadingDraft;
+  bool get isSavingDraft => _isSavingDraft;
+  bool get draftSaved => _draftSaved;
+  String? get draftError => _draftError;
+
+  Future<void> _restoreDraft() async {
+    final version = _scopeVersion;
+    _isLoadingDraft = true;
+    try {
+      final saved = await _draftStore!.read(_userId);
+      if (!_canUseScope(version) || saved == null) return;
+      _draft = saved.draft;
+      _submissionId = saved.submissionId;
+      _pendingSubmission = saved.pending ? saved.draft : null;
+      _draftSaved = true;
+      if (!_isLoadingCategories && _loadErrorMessage == null) {
+        _reconcileCategory();
+      }
+    } catch (_) {
+      if (_canUseScope(version)) {
+        _draftError = 'No se pudo recuperar el borrador del dispositivo.';
+      }
+    } finally {
+      if (_canUseScope(version)) {
+        _isLoadingDraft = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> saveDraft() async {
+    final store = _draftStore;
+    if (store == null || !canEditDraft || !_matchesSession()) return;
+    final version = _scopeVersion;
+    _isSavingDraft = true;
+    _draftError = null;
+    notifyListeners();
+    try {
+      await store.write(
+        _userId,
+        _draft,
+        submissionId: _submissionId,
+        pending: false,
+      );
+      if (_canUseScope(version)) _draftSaved = true;
+    } catch (_) {
+      if (_canUseScope(version)) {
+        _draftError = 'No se pudo guardar el borrador en el dispositivo.';
+      }
+    } finally {
+      if (_canUseScope(version)) {
+        _isSavingDraft = false;
+        notifyListeners();
+      }
+    }
+  }
 
   /// Whether an attempted write still requires confirmation or reconciliation.
   bool get hasUnconfirmedSubmission =>
@@ -217,6 +284,8 @@ class IncidentReportController extends ChangeNotifier {
           .name;
     }
     _fieldErrors = Map.unmodifiable(errors);
+    _draftSaved = false;
+    _draftError = null;
     notifyListeners();
   }
 
@@ -266,6 +335,24 @@ class IncidentReportController extends ChangeNotifier {
       _submissionId ??= _incidentRepository.newIncidentId();
       _pendingSubmission ??= _draft.normalized();
       final submitted = _pendingSubmission!;
+      final store = _draftStore;
+      if (store != null) {
+        try {
+          await store.write(
+            _userId,
+            submitted,
+            submissionId: _submissionId,
+            pending: true,
+          );
+        } catch (_) {
+          if (_canUseScope(version)) {
+            _submitErrorMessage =
+                'No se pudo guardar el envío en el dispositivo. Reintentá.';
+          }
+          return null;
+        }
+        if (!_canUseScope(version)) return null;
+      }
       final result = await _incidentRepository.create(
         incidentId: _submissionId!,
         title: submitted.title,
@@ -275,6 +362,7 @@ class IncidentReportController extends ChangeNotifier {
       );
       if (!_canUseScope(version)) return null;
       _acceptIncident(result);
+      if (store != null) await store.clear(_userId).catchError((Object _) {});
       return result;
     } catch (error) {
       if (_canUseScope(version)) {
@@ -315,10 +403,21 @@ class IncidentReportController extends ChangeNotifier {
         );
       }
       final result = iterator.current;
+      final store = _draftStore;
       if (result != null) {
         _acceptIncident(result);
+        if (store != null) await store.clear(_userId).catchError((Object _) {});
         return false;
       }
+      if (store != null) {
+        await store.write(
+          _userId,
+          _draft,
+          submissionId: _submissionId,
+          pending: false,
+        );
+      }
+      if (!_canUseScope(version)) return false;
       _pendingSubmission = null;
       _fieldErrors = const {};
       _reconcileCategory();
@@ -432,6 +531,10 @@ class IncidentReportController extends ChangeNotifier {
     _isLoadingCategories = false;
     _isSubmitting = false;
     _isReviewing = false;
+    _isLoadingDraft = false;
+    _isSavingDraft = false;
+    _draftSaved = false;
+    _draftError = null;
   }
 
   /// Cancels observations and clears private state; late writes are ignored.

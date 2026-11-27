@@ -42,6 +42,8 @@ protected by Firestore rules.
 
 ## Documentation
 
+- [Android evaluation build and verification](docs/android_evaluation.md).
+
 - [Arranque para colaboradores con las mismas versiones de producción](docs/colaboradores.md).
 
 - [Mejoras de experiencia, notificaciones y cierre por conformidad](docs/experience_update.md).

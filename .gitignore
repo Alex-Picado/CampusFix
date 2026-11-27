@@ -49,6 +49,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/firebase.evaluation.local.json
 
 # Widget Preview related
 .widget_preview/

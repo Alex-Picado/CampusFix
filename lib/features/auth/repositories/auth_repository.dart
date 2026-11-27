@@ -21,6 +21,9 @@ class AuthRepository {
     this._pageLifecycle,
   });
 
+  /// Whether this client offers the browser session retention policy.
+  bool get supportsSessionRetention => _sessionRetention != null;
+
   /// Signs in an existing user with [email] and [password].
   ///
   /// Completes when authentication succeeds.

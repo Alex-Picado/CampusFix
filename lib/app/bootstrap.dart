@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:material_ui/material_ui.dart';
 
 import '../features/auth/repositories/auth_repository.dart';
@@ -11,6 +13,7 @@ import '../features/catalogs/services/category_service.dart';
 import '../features/incidents/repositories/evidence_repository.dart';
 import '../features/incidents/repositories/incident_repository.dart';
 import '../features/incidents/services/incident_service.dart';
+import '../features/incidents/services/incident_draft_store.dart';
 import '../features/incidents/services/local_evidence_service.dart';
 import '../features/users/repositories/user_repository.dart';
 import '../features/users/services/user_service.dart';
@@ -35,15 +38,21 @@ Widget createCampusApplication({
     authRepository: AuthRepository(
       authService: authService,
       userRepository: users,
-      sessionRetention: SessionRetention(store: createSessionRetentionStore()),
-      pageLifecycle: createSessionPageLifecycle(),
+      sessionRetention: kIsWeb
+          ? SessionRetention(store: createSessionRetentionStore())
+          : null,
+      pageLifecycle: kIsWeb ? createSessionPageLifecycle() : null,
     ),
     userRepository: users,
     categoryRepository: CategoryRepository(
       categoryService: CategoryService(firestore: firestore),
     ),
     incidentRepository: IncidentRepository(incidentService: incidents),
-    evidenceRepository: const bool.fromEnvironment('ENABLE_LOCAL_PHOTOS')
+    draftStore: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? IncidentDraftStore(projectId: auth.app.options.projectId)
+        : null,
+    evidenceRepository:
+        kIsWeb && const bool.fromEnvironment('ENABLE_LOCAL_PHOTOS')
         ? EvidenceRepository(
             incidents: incidents,
             files: LocalEvidenceService(auth: auth),

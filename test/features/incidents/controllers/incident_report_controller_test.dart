@@ -10,7 +10,9 @@ import 'package:campusfix/features/catalogs/models/category.dart';
 import 'package:campusfix/features/catalogs/repositories/category_repository.dart';
 import 'package:campusfix/features/incidents/controllers/incident_report_controller.dart';
 import 'package:campusfix/features/incidents/models/incident.dart';
+import 'package:campusfix/features/incidents/models/incident_draft.dart';
 import 'package:campusfix/features/incidents/repositories/incident_repository.dart';
+import 'package:campusfix/features/incidents/services/incident_draft_store.dart';
 import 'package:campusfix/features/users/models/user_profile.dart';
 import 'package:campusfix/features/users/models/user_role.dart';
 
@@ -39,6 +41,45 @@ void main() {
   });
 
   tearDown(() => harness.dispose());
+
+  test('Restores a saved mobile draft when the form is opened again', () async {
+    final store = _DraftStore();
+    final original = _ReportHarness(draftStore: store);
+    addTearDown(original.dispose);
+    await original.readyDraft();
+    await original.controller.saveDraft();
+    expect(original.controller.draftSaved, isTrue);
+    original.disposeController();
+    final restored = _ReportHarness(draftStore: store);
+    addTearDown(restored.dispose);
+    await restored.categories.emit([_lighting]);
+    expect(restored.controller.draft.title, '  Broken light  ');
+    expect(restored.controller.draft.categoryId, _lighting.id);
+    expect(restored.controller.draft.location, '  Building A  ');
+    expect(restored.controller.hasUnconfirmedSubmission, isFalse);
+  });
+
+  test(
+    'Reopening a failed mobile submission retries the original ID',
+    () async {
+      final store = _DraftStore();
+      final original = _ReportHarness(draftStore: store);
+      addTearDown(original.dispose);
+      await original.failedSubmission();
+      final submitted = original.incidents.submissions.single;
+      original.disposeController();
+
+      final restored = _ReportHarness(draftStore: store);
+      addTearDown(restored.dispose);
+      await restored.categories.emit([_lighting]);
+      expect(restored.controller.hasUnconfirmedSubmission, isTrue);
+      expect(restored.controller.canEditDraft, isFalse);
+      expect((await restored.controller.submit())?.id, submitted.id);
+      expect(restored.incidents.allocations, 0);
+      expect(restored.incidents.submissions.single.values, submitted.values);
+      expect(await store.read('reporter-1'), isNull);
+    },
+  );
 
   test(
     'Preserves editable input while loading and distinguishes empty data',
@@ -551,13 +592,14 @@ class _ReportHarness {
   late final IncidentReportController controller;
   bool _controllerDisposed = false;
 
-  _ReportHarness({UserProfile? profile}) {
+  _ReportHarness({UserProfile? profile, IncidentDraftStore? draftStore}) {
     session = _TestSession(profile ?? _profile());
     controller = IncidentReportController(
       incidentRepository: incidents,
       categoryRepository: categories,
       sessionController: session,
       userId: 'reporter-1',
+      draftStore: draftStore,
     );
   }
 
@@ -588,6 +630,31 @@ class _ReportHarness {
     session.dispose();
     await categories.close();
     await incidents.close();
+  }
+}
+
+class _DraftStore extends Fake implements IncidentDraftStore {
+  final _drafts =
+      <String, ({IncidentDraft draft, String? submissionId, bool pending})>{};
+
+  @override
+  Future<({IncidentDraft draft, String? submissionId, bool pending})?> read(
+    String uid,
+  ) async => _drafts[uid];
+
+  @override
+  Future<void> write(
+    String uid,
+    IncidentDraft draft, {
+    required String? submissionId,
+    required bool pending,
+  }) async {
+    _drafts[uid] = (draft: draft, submissionId: submissionId, pending: pending);
+  }
+
+  @override
+  Future<void> clear(String uid) async {
+    _drafts.remove(uid);
   }
 }
 

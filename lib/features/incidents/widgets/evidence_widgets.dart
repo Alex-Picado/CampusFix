@@ -8,16 +8,19 @@ import '../../auth/controllers/session_controller.dart';
 import '../controllers/evidence_upload_controller.dart';
 import '../models/incident_evidence.dart';
 import '../repositories/evidence_repository.dart';
+import '../services/incident_draft_store.dart';
 
 /// Explains the public client's photo limitation without attempting local I/O.
 class PhotoAvailabilityNotice extends StatelessWidget {
   const PhotoAvailabilityNotice({super.key});
 
   @override
-  Widget build(BuildContext context) => const SectionCard(
+  Widget build(BuildContext context) => SectionCard(
     child: Text(
-      'Las fotografías están disponibles en la versión local. '
-      'En esta versión podés reportar incidencias y registrar avances sin fotos.',
+      context.read<IncidentDraftStore?>() != null
+          ? 'En la versión Android podés reportar incidencias y registrar avances sin fotos.'
+          : 'Las fotografías están disponibles en la versión local. '
+                'En esta versión podés reportar incidencias y registrar avances sin fotos.',
     ),
   );
 }

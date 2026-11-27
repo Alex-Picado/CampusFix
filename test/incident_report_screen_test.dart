@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:campusfix/app/providers/app_providers.dart';
 import 'package:campusfix/features/catalogs/models/category.dart';
 import 'package:campusfix/features/incidents/models/incident.dart';
+import 'package:campusfix/features/incidents/models/incident_draft.dart';
 import 'package:campusfix/features/incidents/models/incident_status.dart';
+import 'package:campusfix/features/incidents/services/incident_draft_store.dart';
 import 'package:campusfix/features/users/models/user_profile.dart';
 import 'package:campusfix/features/users/models/user_role.dart';
 import 'package:campusfix/main.dart';
@@ -18,6 +20,31 @@ FirebaseException _unavailable() =>
     FirebaseException(plugin: 'cloud_firestore', code: 'unavailable');
 
 void main() {
+  testWidgets('Android report actions fit a narrow viewport with a keyboard', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      size: const Size(412, 915),
+      draftStore: _EmptyDraftStore(),
+    );
+    await tester.tap(find.byTooltip('Abrir menú'));
+    await tester.pumpAndSettle();
+    await _openReport(tester);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.35;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 330);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    addTearDown(tester.view.resetViewInsets);
+    await _enter(tester, 'location', 'Building A');
+    final submit = find.byKey(const ValueKey('report-submit'));
+    final save = find.byKey(const ValueKey('report-save-draft'));
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(save).bottom, lessThanOrEqualTo(585));
+    expect(tester.getSize(submit).width, tester.getSize(save).width);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Photo-disabled client explains the limitation before report submission',
     (tester) async {
@@ -670,7 +697,11 @@ Future<
     TestReportIncidents incidents,
   })
 >
-_mount(WidgetTester tester, {Size size = const Size(1280, 900)}) async {
+_mount(
+  WidgetTester tester, {
+  Size size = const Size(1280, 900),
+  IncidentDraftStore? draftStore,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -693,6 +724,7 @@ _mount(WidgetTester tester, {Size size = const Size(1280, 900)}) async {
       userRepository: users,
       categoryRepository: categories,
       incidentRepository: incidents,
+      draftStore: draftStore,
       child: const MyApp(),
     ),
   );
@@ -703,4 +735,11 @@ _mount(WidgetTester tester, {Size size = const Size(1280, 900)}) async {
     categories: categories,
     incidents: incidents,
   );
+}
+
+class _EmptyDraftStore extends Fake implements IncidentDraftStore {
+  @override
+  Future<({IncidentDraft draft, String? submissionId, bool pending})?> read(
+    String uid,
+  ) async => null;
 }
