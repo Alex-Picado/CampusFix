@@ -6,7 +6,7 @@ import '../models/incident.dart';
 import '../models/incident_status.dart';
 import '../presentation/incident_status_labels.dart';
 import 'incident_detail_cards.dart';
-import 'incident_management_list.dart';
+import 'incident_queue_list.dart';
 
 /// The incident record and its supporting details for administrators.
 class AdministrativeIncidentSummary extends StatelessWidget {

@@ -479,14 +479,32 @@ void main() {
     expect(find.byKey(const ValueKey('home-create-incident')), findsNothing);
     await _tap(tester, 'technician-home-view-workspace');
     expect(find.byKey(const ValueKey('incident-queue')), findsOneWidget);
-    expect(find.text('Asignadas (1)'), findsOneWidget);
-    expect(find.text('En atención (1)'), findsOneWidget);
-    expect(find.text('Solucionadas (1)'), findsOneWidget);
-    expect(find.text('En revisión (1)'), findsOneWidget);
-    expect(find.text('Finalizadas (1)'), findsOneWidget);
+    void expectStage(int index, String label, int count) {
+      final stage = find.byKey(ValueKey('workspace-tab-$index'));
+      expect(
+        find.descendant(of: stage, matching: find.text(label)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: stage, matching: find.text('$count')),
+        findsOneWidget,
+      );
+    }
+
+    expectStage(0, 'Asignadas', 1);
+    expectStage(1, 'En atención', 1);
+    expectStage(2, 'Solucionadas', 1);
+    expectStage(3, 'En revisión', 1);
+    expectStage(4, 'Finalizadas', 1);
     expect(find.byKey(const ValueKey('incident-assigned')), findsOneWidget);
     expect(find.byKey(const ValueKey('incident-working')), findsNothing);
-    expect(find.text('Ubicación: Biblioteca'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('incident-assigned')),
+        matching: find.text('Biblioteca'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Prioridad ALTA'), findsOneWidget);
     expect(
       find.descendant(
@@ -512,8 +530,8 @@ void main() {
             : row,
     ]);
     await tester.pumpAndSettle();
-    expect(find.text('En atención (0)'), findsOneWidget);
-    expect(find.text('Solucionadas (2)'), findsOneWidget);
+    expectStage(1, 'En atención', 0);
+    expectStage(2, 'Solucionadas', 2);
     expect(find.byKey(const ValueKey('incident-working')), findsNothing);
     await _tap(tester, 'workspace-tab-2');
     expect(find.byKey(const ValueKey('incident-working')), findsOneWidget);
@@ -527,7 +545,7 @@ void main() {
     final app = await _mountApp(
       tester,
       role: UserRole.technician,
-      size: const Size(390, 844),
+      size: const Size(360, 844),
     );
     app.incidents.ownChanges.addError(
       FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
@@ -540,8 +558,11 @@ void main() {
       find.byKey(const ValueKey('technician-home-count-4')),
       findsOneWidget,
     );
-    await _tap(tester, 'technician-home-view-workspace');
-    await _tap(tester, 'workspace-tab-4');
+    await _tap(tester, 'technician-home-count-4');
+    expect(
+      find.byKey(const ValueKey('workspace-tab-4')).hitTestable(),
+      findsOneWidget,
+    );
     expect(find.text('No hay incidencias disponibles.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

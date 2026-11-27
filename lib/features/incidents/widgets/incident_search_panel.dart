@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/widgets/section_card.dart';
 import '../controllers/incident_search_controller.dart';
+import '../presentation/incident_list_order.dart';
 
 /// Search controls for personal incident lists.
 class IncidentSearchPanel extends StatelessWidget {
@@ -76,31 +77,111 @@ class IncidentQueryField extends StatelessWidget {
 
 class IncidentCategoryFilter extends StatelessWidget {
   final IncidentSearchController controller;
+  final bool compact;
 
-  const IncidentCategoryFilter({super.key, required this.controller});
+  const IncidentCategoryFilter({
+    super.key,
+    required this.controller,
+    this.compact = false,
+  });
 
   @override
-  Widget build(BuildContext context) => DropdownButtonFormField<String>(
-    key: ValueKey(
-      'incident-search-category-${controller.criteria.categoryId ?? 'all'}',
-    ),
-    initialValue: controller.criteria.categoryId ?? '',
-    isExpanded: true,
-    decoration: const InputDecoration(labelText: 'Categoría'),
-    items: [
-      const DropdownMenuItem(value: '', child: Text('Todas las categorías')),
-      for (final id in controller.categoryIds)
-        DropdownMenuItem(
-          value: id,
-          child: Text(
-            controller.categoryLabel(id),
-            overflow: TextOverflow.ellipsis,
+  Widget build(BuildContext context) {
+    final ids = controller.categoryIds;
+    return DropdownButtonFormField<String>(
+      key: ValueKey(
+        'incident-search-category-${controller.criteria.categoryId ?? 'all'}',
+      ),
+      initialValue: controller.criteria.categoryId ?? '',
+      isExpanded: true,
+      decoration: _queueFilterDecoration('Categoría', compact: compact),
+      selectedItemBuilder: compact
+          ? (context) => [
+              const Text('Todas'),
+              for (final id in ids)
+                Text(
+                  controller.categoryLabel(id),
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ]
+          : null,
+      items: [
+        const DropdownMenuItem(value: '', child: Text('Todas las categorías')),
+        for (final id in ids)
+          DropdownMenuItem(
+            value: id,
+            child: Text(
+              controller.categoryLabel(id),
+              maxLines: compact ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
-    ],
-    onChanged: (id) => controller.selectCategory(id == '' ? null : id),
-  );
+      ],
+      onChanged: (id) => controller.selectCategory(id == '' ? null : id),
+    );
+  }
 }
+
+/// Selects the presentation order of the incidents already loaded.
+class IncidentSortField extends StatelessWidget {
+  final IncidentListOrder order;
+  final List<IncidentListOrder> options;
+  final ValueChanged<IncidentListOrder> onChanged;
+  final bool compact;
+
+  const IncidentSortField({
+    super.key,
+    required this.order,
+    this.options = IncidentListOrder.values,
+    required this.onChanged,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) =>
+      DropdownButtonFormField<IncidentListOrder>(
+        key: ValueKey(order),
+        initialValue: order,
+        isExpanded: true,
+        decoration: _queueFilterDecoration(
+          'Ordenar',
+          compact: compact,
+          icon: Icons.sort,
+        ),
+        items: [
+          for (final value in options)
+            DropdownMenuItem(
+              value: value,
+              child: Text(
+                compact ? _shortLabel(value) : value.label,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        onChanged: (value) {
+          if (value != null) onChanged(value);
+        },
+      );
+
+  String _shortLabel(IncidentListOrder order) => switch (order) {
+    IncidentListOrder.priority => 'Prioridad alta',
+    IncidentListOrder.descendingNumber => 'Mayor consecutivo',
+    IncidentListOrder.ascendingNumber => 'Menor consecutivo',
+    _ => order.label,
+  };
+}
+
+InputDecoration _queueFilterDecoration(
+  String label, {
+  required bool compact,
+  IconData? icon,
+}) => InputDecoration(
+  labelText: label,
+  contentPadding: compact
+      ? const EdgeInsets.symmetric(horizontal: 10, vertical: 12)
+      : null,
+  prefixIcon: compact || icon == null ? null : Icon(icon),
+);
 
 class IncidentSearchSummary extends StatelessWidget {
   final int count;

@@ -6,18 +6,26 @@ import '../models/incident_priority.dart';
 import '../models/incident_status.dart';
 import '../presentation/incident_status_labels.dart';
 
-/// Compact administrative results for reviewing and opening incidents.
-class IncidentManagementList extends StatelessWidget {
+/// Compact results for reviewing or working on authorized incidents.
+class IncidentQueueList extends StatelessWidget {
   final List<Incident> incidents;
   final IncidentSearchController search;
   final ValueChanged<Incident> onOpen;
+  final bool _showResponsibleTechnician;
 
-  const IncidentManagementList({
+  const IncidentQueueList.administration({
     super.key,
     required this.incidents,
     required this.search,
     required this.onOpen,
-  });
+  }) : _showResponsibleTechnician = true;
+
+  const IncidentQueueList.technician({
+    super.key,
+    required this.incidents,
+    required this.search,
+    required this.onOpen,
+  }) : _showResponsibleTechnician = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,14 +48,16 @@ class IncidentManagementList extends StatelessWidget {
             children: [
               for (final (index, incident) in incidents.indexed) ...[
                 if (index > 0) const Divider(height: 1),
-                _IncidentManagementRow(
+                _IncidentQueueRow(
                   key: ValueKey('incident-${incident.id}'),
                   incident: incident,
                   category: search.categoryLabel(incident.categoryId),
-                  technician: switch (incident.assignedTechnicianId) {
-                    final String id => search.technicianName(id),
-                    null => 'Sin asignar',
-                  },
+                  technician: _showResponsibleTechnician
+                      ? switch (incident.assignedTechnicianId) {
+                          final String id => search.technicianName(id),
+                          null => 'Sin asignar',
+                        }
+                      : null,
                   onOpen: () => onOpen(incident),
                 ),
               ],
@@ -59,13 +69,13 @@ class IncidentManagementList extends StatelessWidget {
   }
 }
 
-class _IncidentManagementRow extends StatelessWidget {
+class _IncidentQueueRow extends StatelessWidget {
   final Incident incident;
   final String category;
-  final String technician;
+  final String? technician;
   final VoidCallback onOpen;
 
-  const _IncidentManagementRow({
+  const _IncidentQueueRow({
     super.key,
     required this.incident,
     required this.category,
@@ -79,13 +89,30 @@ class _IncidentManagementRow extends StatelessWidget {
     final text = theme.textTheme;
     final colors = theme.colorScheme;
     final status = incident.status;
-    final accent = _statusColor(status, theme.brightness);
-    final guidance = switch (status) {
-      IncidentStatus.reported ||
-      IncidentStatus.underReview ||
-      IncidentStatus.resolved ||
-      IncidentStatus.reviewRequested ||
-      IncidentStatus.reopened => status.administratorGuidance,
+    final technician = this.technician;
+    final technicianView = technician == null;
+    final statusColor = _statusColor(status, theme.brightness);
+    final railColor = technicianView
+        ? _priorityColor(incident.priority, theme.brightness)
+        : statusColor;
+    final guidance = switch ((technicianView, status)) {
+      (
+        true,
+        IncidentStatus.closed ||
+            IncidentStatus.rejected ||
+            IncidentStatus.cancelled,
+      ) =>
+        null,
+      (true, _) => status.technicianGuidance,
+      (
+        false,
+        IncidentStatus.reported ||
+            IncidentStatus.underReview ||
+            IncidentStatus.resolved ||
+            IncidentStatus.reviewRequested ||
+            IncidentStatus.reopened,
+      ) =>
+        status.administratorGuidance,
       _ => null,
     };
 
@@ -124,11 +151,12 @@ class _IncidentManagementRow extends StatelessWidget {
               label: 'Ubicación',
               value: incident.location,
             ),
-            _IncidentRowDetail(
-              icon: Icons.person_outline,
-              label: 'Técnico responsable',
-              value: technician,
-            ),
+            if (technician != null)
+              _IncidentRowDetail(
+                icon: Icons.person_outline,
+                label: 'Técnico responsable',
+                value: technician,
+              ),
             _IncidentRowDetail(
               icon: Icons.schedule,
               label: 'Último cambio',
@@ -141,16 +169,16 @@ class _IncidentManagementRow extends StatelessWidget {
           _IncidentRowDetail(
             icon: Icons.outlined_flag,
             value: guidance,
-            color: accent,
+            color: statusColor,
           ),
         ],
       ],
     );
 
     final statusBadge = Chip(
-      side: BorderSide(color: accent.withValues(alpha: 0.52)),
-      backgroundColor: accent.withValues(alpha: 0.12),
-      labelStyle: text.labelMedium?.copyWith(color: accent),
+      side: BorderSide(color: statusColor.withValues(alpha: 0.52)),
+      backgroundColor: statusColor.withValues(alpha: 0.12),
+      labelStyle: text.labelMedium?.copyWith(color: statusColor),
       label: Text(status.label),
       shape: const StadiumBorder(),
     );
@@ -162,14 +190,14 @@ class _IncidentManagementRow extends StatelessWidget {
           top: 0,
           bottom: 0,
           width: 4,
-          child: ColoredBox(color: accent),
+          child: ColoredBox(color: railColor),
         ),
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 14, 12),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 650;
-              final open = OutlinedButton(
+              final openButton = OutlinedButton(
                 key: ValueKey('detail-${incident.id}'),
                 onPressed: onOpen,
                 style: OutlinedButton.styleFrom(
@@ -178,6 +206,12 @@ class _IncidentManagementRow extends StatelessWidget {
                 ),
                 child: const Text('Abrir incidencia'),
               );
+              final open = technicianView
+                  ? Semantics(
+                      label: 'Incidencia #${incident.sequenceNumber}',
+                      child: openButton,
+                    )
+                  : openButton;
 
               if (compact) {
                 return Column(
@@ -300,17 +334,7 @@ class IncidentPriorityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final priority = incident.priority;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final color = switch ((priority, dark)) {
-      (IncidentPriority.low, true) => const Color(0xFF81C784),
-      (IncidentPriority.medium, true) => const Color(0xFFFFCC80),
-      (IncidentPriority.high, true) => const Color(0xFFEF9A9A),
-      (null, true) => const Color(0xFFB3BAC5),
-      (IncidentPriority.low, false) => const Color(0xFF2E7D32),
-      (IncidentPriority.medium, false) => const Color(0xFF9A6700),
-      (IncidentPriority.high, false) => const Color(0xFFC62828),
-      (null, false) => const Color(0xFF667085),
-    };
+    final color = _priorityColor(priority, Theme.of(context).brightness);
     return Chip(
       key: ValueKey('priority-${incident.id}'),
       avatar: CircleAvatar(radius: 5, backgroundColor: color),
@@ -320,6 +344,20 @@ class IncidentPriorityBadge extends StatelessWidget {
       backgroundColor: color.withValues(alpha: 0.10),
     );
   }
+}
+
+Color _priorityColor(IncidentPriority? priority, Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  return switch ((priority, dark)) {
+    (IncidentPriority.low, true) => const Color(0xFF81C784),
+    (IncidentPriority.medium, true) => const Color(0xFFFFCC80),
+    (IncidentPriority.high, true) => const Color(0xFFEF9A9A),
+    (null, true) => const Color(0xFFB3BAC5),
+    (IncidentPriority.low, false) => const Color(0xFF2E7D32),
+    (IncidentPriority.medium, false) => const Color(0xFF9A6700),
+    (IncidentPriority.high, false) => const Color(0xFFC62828),
+    (null, false) => const Color(0xFF667085),
+  };
 }
 
 /// Formats the local date and time shown in incident queues.

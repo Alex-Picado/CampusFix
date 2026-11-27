@@ -5,6 +5,7 @@ import '../controllers/incident_search_controller.dart';
 import '../models/incident_filters.dart';
 import '../models/incident_status.dart';
 import '../presentation/administrative_incident_stages.dart';
+import '../presentation/incident_list_order.dart';
 import '../presentation/incident_status_labels.dart';
 import 'incident_search_panel.dart';
 
@@ -14,8 +15,8 @@ class IncidentAdministrativeFilters extends StatelessWidget {
   final Map<IncidentStatus, int> counts;
   final Set<IncidentStatus> selectedStatuses;
   final ValueChanged<Set<IncidentStatus>> onSelectStatuses;
-  final IncidentManagementOrder order;
-  final ValueChanged<IncidentManagementOrder> onOrder;
+  final IncidentListOrder order;
+  final ValueChanged<IncidentListOrder> onOrder;
 
   const IncidentAdministrativeFilters({
     super.key,
@@ -35,27 +36,10 @@ class IncidentAdministrativeFilters extends StatelessWidget {
         : filters.unassignedOnly
         ? 'none'
         : '';
-    final sort = SizedBox(
+    final sort = IncidentSortField(
       key: const ValueKey('management-sort'),
-      child: DropdownButtonFormField<IncidentManagementOrder>(
-        key: ValueKey(order),
-        initialValue: order,
-        isExpanded: true,
-        decoration: const InputDecoration(
-          labelText: 'Ordenar',
-          prefixIcon: Icon(Icons.sort),
-        ),
-        items: [
-          for (final value in IncidentManagementOrder.values)
-            DropdownMenuItem(
-              value: value,
-              child: Text(value.label, overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        onChanged: (value) {
-          if (value != null) onOrder(value);
-        },
-      ),
+      order: order,
+      onChanged: onOrder,
     );
     final quickViews = _quickViews();
     final fields = [

@@ -263,6 +263,122 @@ void main() {
     },
   );
 
+  testWidgets('Technician sorts assigned work in the same authorized list', (
+    tester,
+  ) async {
+    final app = await _mount(tester, role: UserRole.technician);
+    final reports = app.reports;
+    reports.rows['light'] = reports.rows['light']!.copyWith(
+      status: IncidentStatus.assigned,
+      priority: IncidentPriority.low,
+      updatedAt: DateTime.utc(2026, 1, 3),
+    );
+    reports.rows['network'] = reports.rows['network']!.copyWith(
+      status: IncidentStatus.assigned,
+      priority: IncidentPriority.high,
+      updatedAt: DateTime.utc(2026, 1, 1),
+    );
+    reports.rows['urgent'] = _incident(
+      'urgent',
+      30,
+      status: IncidentStatus.assigned,
+      priority: IncidentPriority.high,
+    ).copyWith(updatedAt: DateTime.utc(2026, 1, 2));
+    reports.rows['no-priority'] = _incident(
+      'no-priority',
+      20,
+      status: IncidentStatus.assigned,
+    ).copyWith(updatedAt: DateTime.utc(2026, 1, 4));
+    reports.changes.add(null);
+    await tester.pumpAndSettle();
+    final queryCalls = reports.queryCalls;
+
+    void expectBefore(String first, String second) {
+      expect(
+        tester.getTopLeft(find.byKey(ValueKey('incident-$first'))).dy,
+        lessThan(
+          tester.getTopLeft(find.byKey(ValueKey('incident-$second'))).dy,
+        ),
+      );
+    }
+
+    expectBefore('urgent', 'network');
+    expectBefore('network', 'light');
+    expectBefore('light', 'no-priority');
+    await _chooseSort(tester, 'Más recientes', key: 'workspace-sort');
+    expectBefore('no-priority', 'light');
+    await _chooseSort(tester, 'Más antiguas', key: 'workspace-sort');
+    expectBefore('network', 'urgent');
+    await _chooseSort(
+      tester,
+      'Consecutivo mayor a menor',
+      key: 'workspace-sort',
+    );
+    expectBefore('network', 'urgent');
+    expectBefore('urgent', 'no-priority');
+    expectBefore('no-priority', 'light');
+
+    await _chooseCategory(tester, 'Iluminación');
+    expect(find.text('Resultados: 3 de 4'), findsOneWidget);
+    expect(find.byKey(const ValueKey('incident-network')), findsNothing);
+    expectBefore('urgent', 'light');
+    await _tap(tester, 'incident-search-clear');
+    expect(find.text('Resultados: 4 de 4'), findsOneWidget);
+    expect(find.text('Consecutivo mayor a menor'), findsOneWidget);
+    expectBefore('network', 'light');
+    expect(reports.queryCalls, queryCalls);
+    expect(reports.lastScope, 'assigned:tech');
+    expect(app.users.activeAllUsersWatches, 0);
+  });
+
+  for (final size in [
+    const Size(360, 780),
+    const Size(384, 824),
+    const Size(412, 915),
+  ]) {
+    testWidgets(
+      'Technician stages and actions fit a ${size.width.toInt()} px phone',
+      (tester) async {
+        final app = await _mount(tester, role: UserRole.technician, size: size);
+        app.reports.rows['light'] = app.reports.rows['light']!.copyWith(
+          status: IncidentStatus.assigned,
+        );
+        app.reports.rows['network'] = app.reports.rows['network']!.copyWith(
+          status: IncidentStatus.closed,
+        );
+        app.reports.changes.add(null);
+        await tester.pumpAndSettle();
+
+        for (var index = 0; index < 5; index++) {
+          final stage = find.byKey(ValueKey('workspace-tab-$index'));
+          final rect = tester.getRect(stage);
+          expect(rect.left, greaterThanOrEqualTo(0));
+          expect(rect.right, lessThanOrEqualTo(size.width));
+          expect(rect.height, greaterThanOrEqualTo(48));
+          expect(stage.hitTestable(), findsOneWidget);
+        }
+        await _tap(tester, 'workspace-tab-4');
+        expect(find.byKey(const ValueKey('workspace-stage-4')), findsOneWidget);
+        expect(find.byKey(const ValueKey('incident-light')), findsNothing);
+        await _enter(tester, 'biblioteca');
+        await _chooseCategory(tester, 'Redes (inactiva)');
+        expect(find.text('Resultados: 1 de 2'), findsOneWidget);
+        expect(find.byKey(const ValueKey('incident-network')), findsOneWidget);
+        await _tap(tester, 'incident-search-clear');
+        expect(find.text('Resultados: 2 de 2'), findsOneWidget);
+        expect(find.byKey(const ValueKey('workspace-stage-4')), findsOneWidget);
+        final open = find.byKey(const ValueKey('detail-network'));
+        expect(tester.getSize(open).height, greaterThanOrEqualTo(48));
+        await _tap(tester, 'detail-network');
+        expect(
+          find.byKey(const ValueKey('incident-detail-page')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'Administrative filters combine with text and category and clear together',
     (tester) async {
@@ -623,8 +739,12 @@ Future<void> _selectStatus(WidgetTester tester, IncidentStatus? status) async {
   await _tap(tester, 'management-status-apply');
 }
 
-Future<void> _chooseSort(WidgetTester tester, String label) async {
-  await _tap(tester, 'management-sort');
+Future<void> _chooseSort(
+  WidgetTester tester,
+  String label, {
+  String key = 'management-sort',
+}) async {
+  await _tap(tester, key);
   await tester.tap(find.text(label).last);
   await tester.pumpAndSettle();
 }
