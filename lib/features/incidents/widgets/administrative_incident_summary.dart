@@ -1,9 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../app/theme/campus_palette.dart';
 import '../../../core/widgets/section_card.dart';
 import '../controllers/incident_detail_controller.dart';
 import '../models/incident.dart';
-import '../models/incident_status.dart';
 import '../presentation/incident_status_labels.dart';
 import 'incident_detail_cards.dart';
 import 'incident_queue_list.dart';
@@ -27,15 +27,9 @@ class AdministrativeIncidentSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final incident = controller.incident!;
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final solution = incident.resolutionDescription;
-    final statusColor = switch (incident.status) {
-      IncidentStatus.resolved || IncidentStatus.closed => _successColor(theme),
-      IncidentStatus.rejected || IncidentStatus.cancelled => colors.error,
-      IncidentStatus.inProgress => colors.tertiary,
-      _ => colors.primary,
-    };
-
+    final statusColor = incidentStatusColor(incident.status, theme.brightness);
+    final solutionColor = CampusPalette.statusResolved(theme.brightness);
     final description = IncidentNarrative(
       title: 'Descripción del problema',
       description: incident.description,
@@ -48,7 +42,7 @@ class AdministrativeIncidentSummary extends StatelessWidget {
             title: 'Solución del técnico',
             description: solution,
             icon: Icons.task_alt,
-            accent: _successColor(theme),
+            accent: solutionColor,
           );
 
     return SectionCard(
@@ -255,9 +249,8 @@ class IncidentClosureApprovals extends StatelessWidget {
       ('Administración', incident.adminApproved),
     ];
     final accepted = approvals.where((approval) => approval.$2).length;
-    final pendingColor = theme.brightness == Brightness.dark
-        ? const Color(0xFFFFC078)
-        : const Color(0xFF865300);
+    final pendingColor = CampusPalette.statusReview(theme.brightness);
+    final acceptedColor = CampusPalette.statusResolved(theme.brightness);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -302,7 +295,7 @@ class IncidentClosureApprovals extends StatelessWidget {
                     Icon(
                       approved ? Icons.task_alt : Icons.schedule,
                       size: 18,
-                      color: approved ? _successColor(theme) : pendingColor,
+                      color: approved ? acceptedColor : pendingColor,
                     ),
                     const SizedBox(width: 8),
                     Flexible(child: Text(role)),
@@ -311,7 +304,7 @@ class IncidentClosureApprovals extends StatelessWidget {
                 Text(
                   approved ? 'De acuerdo' : 'Pendiente',
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: approved ? _successColor(theme) : pendingColor,
+                    color: approved ? acceptedColor : pendingColor,
                   ),
                 ),
               ],
@@ -326,7 +319,3 @@ class IncidentClosureApprovals extends StatelessWidget {
     );
   }
 }
-
-Color _successColor(ThemeData theme) => theme.brightness == Brightness.dark
-    ? const Color(0xFF81C784)
-    : const Color(0xFF2E7D32);

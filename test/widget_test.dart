@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:campusfix/app/navigation/campus_destination.dart';
 import 'package:campusfix/app/providers/app_providers.dart';
+import 'package:campusfix/app/theme/campus_palette.dart';
+import 'package:campusfix/app/theme/campus_theme.dart';
 import 'package:campusfix/features/incidents/models/incident.dart';
 import 'package:campusfix/features/incidents/models/incident_priority.dart';
 import 'package:campusfix/features/incidents/models/incident_status.dart';
@@ -18,6 +20,30 @@ import 'support/test_repositories.dart';
 import 'support/report_repositories.dart';
 
 void main() {
+  test('UCR text and interactive color pairs meet AA contrast', () {
+    double contrast(Color first, Color second) {
+      final a = first.computeLuminance();
+      final b = second.computeLuminance();
+      return a >= b ? (a + 0.05) / (b + 0.05) : (b + 0.05) / (a + 0.05);
+    }
+
+    for (final theme in [CampusTheme.light, CampusTheme.dark]) {
+      final colors = theme.colorScheme;
+      for (final (foreground, background) in [
+        (colors.onPrimary, colors.primary),
+        (colors.onSurface, colors.surface),
+        (colors.onSurfaceVariant, theme.scaffoldBackgroundColor),
+        (colors.onPrimaryContainer, colors.primaryContainer),
+        (colors.onSecondaryContainer, colors.secondaryContainer),
+        (colors.onError, colors.error),
+        (CampusPalette.white, CampusPalette.navy),
+        (CampusPalette.navy, CampusPalette.cyan),
+      ]) {
+        expect(contrast(foreground, background), greaterThanOrEqualTo(4.5));
+      }
+    }
+  });
+
   testWidgets(
     'Recordarme is optional, submitted at login and reset after signing out',
     (tester) async {
@@ -132,6 +158,15 @@ void main() {
             ),
             findsOneWidget,
           );
+        } else if (role == UserRole.reporter) {
+          final selectedStage = find.ancestor(
+            of: find.byKey(const ValueKey('incidents-tab-2')),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Semantics && widget.properties.selected == true,
+            ),
+          );
+          expect(selectedStage, findsOneWidget);
         } else {
           final tab = find.byType(TabBar);
           expect(DefaultTabController.of(tester.element(tab)).index, 2);
@@ -143,7 +178,7 @@ void main() {
   }
 
   testWidgets(
-    'Appearance follows the system and remembers an explicit choice',
+    'Appearance defaults to UCR light and remembers an explicit choice',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       addTearDown(() => SharedPreferences.setMockInitialValues({}));
@@ -158,14 +193,21 @@ void main() {
       );
       Brightness pageBrightness(String key) =>
           Theme.of(tester.element(find.byKey(ValueKey(key)))).brightness;
-      expect(pageBrightness('overview-page'), Brightness.dark);
-
-      dispatcher.platformBrightnessTestValue = Brightness.light;
-      await tester.pumpAndSettle();
       expect(pageBrightness('overview-page'), Brightness.light);
+
       await tester.tap(find.byTooltip('Abrir menú'));
       await tester.pumpAndSettle();
       await _tap(tester, 'nav-profile');
+      await _tap(tester, 'appearance-mode');
+      await tester.tap(
+        find.widgetWithText(MenuItemButton, 'Sistema').hitTestable(),
+      );
+      await tester.pumpAndSettle();
+      expect(pageBrightness('profile-page'), Brightness.dark);
+
+      dispatcher.platformBrightnessTestValue = Brightness.light;
+      await tester.pumpAndSettle();
+      expect(pageBrightness('profile-page'), Brightness.light);
       await _tap(tester, 'appearance-mode');
       await tester.tap(
         find.widgetWithText(MenuItemButton, 'Oscuro').hitTestable(),
@@ -517,7 +559,7 @@ void main() {
       tester
           .widget<Chip>(find.byKey(const ValueKey('priority-assigned')))
           .backgroundColor,
-      const Color(0xFFC62828).withValues(alpha: 0.10),
+      CampusPalette.danger.withValues(alpha: 0.10),
     );
     await _tap(tester, 'workspace-tab-1');
     expect(find.byKey(const ValueKey('incident-working')), findsOneWidget);

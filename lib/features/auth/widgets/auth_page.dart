@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../app/theme/campus_palette.dart';
 import '../../../core/widgets/page_heading.dart';
 
 /// Shared, responsive UCR identity for sign-in, registration and recovery.
@@ -17,9 +18,9 @@ class AuthPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return Scaffold(
-      backgroundColor: dark ? const Color(0xFF071A28) : const Color(0xFFEEF5FA),
       body: SafeArea(
         child: Column(
           children: [
@@ -31,13 +32,11 @@ class AuthPage extends StatelessWidget {
                   final form = Container(
                     padding: EdgeInsets.all(wide ? 40 : 24),
                     decoration: BoxDecoration(
-                      color: dark ? const Color(0xFF102B3D) : Colors.white,
+                      color: theme.brightness == Brightness.dark
+                          ? colors.surfaceContainerLow
+                          : colors.surface,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: dark
-                            ? const Color(0xFF26475D)
-                            : const Color(0xFFD8E5EE),
-                      ),
+                      border: Border.all(color: theme.dividerColor),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -48,24 +47,21 @@ class AuthPage extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: dark
-                                    ? const Color(0xFF173E56)
-                                    : const Color(0xFFE4F7FD),
+                                color: colors.primaryContainer,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
                                 Icons.school_outlined,
-                                color: dark
-                                    ? const Color(0xFF8ED8F8)
-                                    : const Color(0xFF02477B),
+                                color: colors.onPrimaryContainer,
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 'CampusFix',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.w700),
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],
@@ -80,12 +76,9 @@ class AuthPage extends StatelessWidget {
                         Text(
                           'Un campus mejor empieza con vos.',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -120,12 +113,12 @@ class AuthPage extends StatelessWidget {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
+                                      form,
+                                      const SizedBox(height: 20),
                                       const _CampusIdentity(
-                                        height: 340,
+                                        height: 300,
                                         compact: true,
                                       ),
-                                      const SizedBox(height: 20),
-                                      form,
                                     ],
                                   ),
                           ),
@@ -145,46 +138,27 @@ class AuthPage extends StatelessWidget {
 
 class _UniversityHeader extends StatelessWidget {
   const _UniversityHeader();
+
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0C344E),
-        border: Border(top: BorderSide(color: Color(0xFF00C0F3), width: 5)),
+      alignment: AlignmentDirectional.centerStart,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 16 : 24,
+        vertical: compact ? 8 : 12,
       ),
-      child: Row(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Image.asset(
-              dark
-                  ? 'assets/images/ucr-logo-dark.png'
-                  : 'assets/images/ucr-logo.png',
-              width: 160,
-              height: 80,
-              fit: BoxFit.contain,
-              semanticLabel: 'Logo de la Universidad de Costa Rica',
-            ),
-          ),
-          const Spacer(),
-          if (MediaQuery.sizeOf(context).width >= 800) ...[
-            const SizedBox(width: 16),
-            const Text(
-              'GESTIÓN DE INCIDENCIAS DEL CAMPUS',
-              style: TextStyle(
-                color: Color(0xFF8ED8F8),
-                letterSpacing: 1.3,
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ],
+      decoration: const BoxDecoration(
+        color: CampusPalette.navy,
+        border: Border(top: BorderSide(color: CampusPalette.cyan, width: 4)),
+      ),
+      child: Image.asset(
+        'assets/images/ucr-logo-dark.png',
+        width: compact ? 146 : 160,
+        height: compact ? 72 : 80,
+        fit: BoxFit.contain,
+        semanticLabel: 'Universidad de Costa Rica',
       ),
     );
   }
@@ -209,18 +183,19 @@ class _CampusIdentity extends StatelessWidget {
             semanticLabel:
                 'Edificio de nuestra sede de la Universidad de Costa Rica',
             errorBuilder: (_, _, _) =>
-                const ColoredBox(color: Color(0xFF02477B)),
+                const ColoredBox(color: CampusPalette.blue),
           ),
-          const DecoratedBox(
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: [0, 0.4, 1],
+                stops: const [0, 0.35, 0.64, 1],
                 colors: [
-                  Color(0x300C344E),
-                  Color(0x550C344E),
-                  Color(0xFA0C344E),
+                  CampusPalette.navy.withValues(alpha: 0.18),
+                  CampusPalette.navy.withValues(alpha: 0.68),
+                  CampusPalette.navy.withValues(alpha: 0.88),
+                  CampusPalette.navy,
                 ],
               ),
             ),
@@ -236,13 +211,13 @@ class _CampusIdentity extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xDD0C344E),
+                    color: CampusPalette.navy,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: const Text(
                     'NUESTRO CAMPUS · NUESTRA COMUNIDAD',
                     style: TextStyle(
-                      color: Color(0xFF8ED8F8),
+                      color: CampusPalette.sky,
                       fontSize: 10,
                       letterSpacing: 1.1,
                       fontWeight: FontWeight.w700,
@@ -256,7 +231,7 @@ class _CampusIdentity extends StatelessWidget {
                     fontSize: compact ? 32 : 46,
                     height: 1.08,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: CampusPalette.white,
                     letterSpacing: -1,
                   ),
                 ),
@@ -268,7 +243,7 @@ class _CampusIdentity extends StatelessWidget {
                   style: TextStyle(
                     fontSize: compact ? 14 : 18,
                     height: 1.5,
-                    color: const Color(0xFFE2F3FA),
+                    color: CampusPalette.white,
                   ),
                 ),
                 if (!compact) ...[
@@ -285,7 +260,10 @@ class _CampusIdentity extends StatelessWidget {
                   const SizedBox(height: 40),
                   const Text(
                     'Nuestra sede · Universidad de Costa Rica',
-                    style: TextStyle(color: Color(0xFFBAD2ED), fontSize: 12),
+                    style: TextStyle(
+                      color: CampusPalette.paleBlue,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ],
@@ -305,9 +283,12 @@ class _Feature extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(icon, color: const Color(0xFF00C0F3), size: 20),
+      Icon(icon, color: CampusPalette.cyan, size: 20),
       const SizedBox(width: 8),
-      Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+      Text(
+        label,
+        style: const TextStyle(color: CampusPalette.white, fontSize: 13),
+      ),
     ],
   );
 }

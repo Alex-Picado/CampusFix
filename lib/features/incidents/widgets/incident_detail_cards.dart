@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../app/theme/campus_palette.dart';
 import '../models/incident_history_action.dart';
 import '../models/incident_history_event.dart';
 import '../presentation/incident_status_labels.dart';
@@ -133,19 +134,17 @@ class IncidentHistoryCard extends StatelessWidget {
       IncidentHistoryAction.solutionAccepted ||
       IncidentHistoryAction.closed => (
         Icons.task_alt,
-        theme.brightness == Brightness.dark
-            ? const Color(0xFF81C784)
-            : const Color(0xFF2E7D32),
+        CampusPalette.statusResolved(theme.brightness),
       ),
       IncidentHistoryAction.assignmentDeclined ||
       IncidentHistoryAction.rejected ||
       IncidentHistoryAction.cancelled => (
         Icons.info_outline,
-        theme.colorScheme.error,
+        CampusPalette.statusCritical(theme.brightness),
       ),
       IncidentHistoryAction.progressAdded || IncidentHistoryAction.started => (
         Icons.handyman_outlined,
-        theme.colorScheme.tertiary,
+        CampusPalette.statusInProgress(theme.brightness),
       ),
       _ => (Icons.history, theme.colorScheme.primary),
     };

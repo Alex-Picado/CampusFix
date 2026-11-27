@@ -22,8 +22,9 @@ class CampusNavigation extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = collapsed || constraints.maxWidth < 220;
+        final colors = Theme.of(context).colorScheme;
         return Material(
-          color: Theme.of(context).colorScheme.surface,
+          color: colors.surface,
           child: ListView(
             padding: const EdgeInsets.all(8),
             children: [
@@ -51,9 +52,8 @@ class CampusNavigation extends StatelessWidget {
                       : ListTile(
                           key: ValueKey('nav-${destination.name}'),
                           selected: selected == destination,
-                          selectedTileColor: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer,
+                          selectedTileColor: colors.primaryContainer,
+                          selectedColor: colors.onPrimaryContainer,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),

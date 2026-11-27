@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:campusfix/app/providers/app_providers.dart';
+import 'package:campusfix/app/theme/campus_palette.dart';
 import 'package:campusfix/features/catalogs/models/category.dart' as catalogs;
 import 'package:campusfix/features/incidents/models/incident.dart';
 import 'package:campusfix/features/incidents/models/incident_priority.dart';
@@ -101,11 +102,11 @@ void main() {
     (tester) async {
       final app = await _mount(tester);
       await _filterFixtures(tester, app.reports);
-      const colors = {
-        'light': Color(0xFFC62828),
-        'network': Color(0xFF9A6700),
-        'low': Color(0xFF2E7D32),
-        'unassigned': Color(0xFF667085),
+      final colors = {
+        'light': CampusPalette.statusCritical(Brightness.light),
+        'network': CampusPalette.statusReview(Brightness.light),
+        'low': CampusPalette.statusResolved(Brightness.light),
+        'unassigned': CampusPalette.statusNeutral(Brightness.light),
       };
       for (final entry in colors.entries) {
         final card = find.byKey(ValueKey('incident-${entry.key}'));
@@ -262,6 +263,64 @@ void main() {
       expect(app.reports.activeListWatches, 0);
     },
   );
+
+  for (final size in [const Size(384, 824), const Size(412, 915)]) {
+    testWidgets(
+      'Reporter can review a solution on a ${size.width.toInt()} px phone',
+      (tester) async {
+        final app = await _mount(tester, role: UserRole.reporter, size: size);
+        app.reports.rows['light'] = app.reports.rows['light']!.copyWith(
+          status: IncidentStatus.resolved,
+          technicianApproved: true,
+          resolutionDescription: 'Se cambió la luminaria.',
+        );
+        app.reports.rows['network'] = app.reports.rows['network']!.copyWith(
+          status: IncidentStatus.resolved,
+          technicianApproved: true,
+          reporterApproved: true,
+          resolutionDescription: 'Se cambió el cable.',
+          updatedAt: DateTime.utc(2026, 1, 2),
+        );
+        app.reports.changes.add(null);
+        await tester.pumpAndSettle();
+        final watches = app.reports.queryCalls;
+        for (var index = 0; index < 5; index++) {
+          final stage = find.byKey(ValueKey('incidents-tab-$index'));
+          expect(tester.getRect(stage).right, lessThanOrEqualTo(size.width));
+        }
+        await _enter(tester, 'biblioteca');
+        await _tap(tester, 'reporter-review-solutions');
+        expect(find.byKey(const ValueKey('incidents-stage-3')), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('reporter-solutions-banner')),
+          findsNothing,
+        );
+        expect(find.byKey(const ValueKey('incident-light')), findsOneWidget);
+        expect(find.byKey(const ValueKey('incident-network')), findsOneWidget);
+
+        await _chooseSort(tester, 'Antiguas', key: 'reporter-sort');
+        expect(
+          tester.getTopLeft(find.byKey(const ValueKey('incident-light'))).dy,
+          lessThan(
+            tester
+                .getTopLeft(find.byKey(const ValueKey('incident-network')))
+                .dy,
+          ),
+        );
+        expect(app.reports.queryCalls, watches);
+        await _tap(tester, 'detail-light');
+        expect(
+          find.byKey(const ValueKey('incident-detail-page')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('workflow-option-solutionAccepted')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('Technician sorts assigned work in the same authorized list', (
     tester,

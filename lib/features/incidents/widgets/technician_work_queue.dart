@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../app/theme/campus_palette.dart';
 import '../../../core/widgets/section_card.dart';
 import '../controllers/incident_search_controller.dart';
 import '../models/incident.dart';
@@ -10,26 +11,16 @@ import 'incident_search_panel.dart';
 
 /// The stages in the technician queue, in the same order as the home shortcuts.
 enum TechnicianWorkStage {
-  assigned(
-    'Asignadas',
-    'Incidencias que podés comenzar a atender.',
-    {IncidentStatus.assigned},
-    light: Color(0xFF245DA8),
-    dark: Color(0xFF96C3FF),
-  ),
-  working(
-    'En atención',
-    'Incidencias en las que estás trabajando.',
-    {IncidentStatus.inProgress},
-    light: Color(0xFF6745A5),
-    dark: Color(0xFFC4ABFF),
-  ),
+  assigned('Asignadas', 'Incidencias que podés comenzar a atender.', {
+    IncidentStatus.assigned,
+  }),
+  working('En atención', 'Incidencias en las que estás trabajando.', {
+    IncidentStatus.inProgress,
+  }),
   solved(
     'Solucionadas',
     'Registraste una solución y administración revisará el cierre.',
     {IncidentStatus.resolved},
-    light: Color(0xFF146843),
-    dark: Color(0xFF70DCA9),
   ),
   review(
     'En revisión',
@@ -40,30 +31,26 @@ enum TechnicianWorkStage {
       IncidentStatus.reviewRequested,
       IncidentStatus.reopened,
     },
-    light: Color(0xFF8B5600),
-    dark: Color(0xFFFFBA68),
   ),
-  finished(
-    'Finalizadas',
-    'Incidencias cerradas, rechazadas o canceladas.',
-    {IncidentStatus.closed, IncidentStatus.rejected, IncidentStatus.cancelled},
-    light: Color(0xFF586477),
-    dark: Color(0xFFAFB8C7),
-  );
+  finished('Finalizadas', 'Incidencias cerradas, rechazadas o canceladas.', {
+    IncidentStatus.closed,
+    IncidentStatus.rejected,
+    IncidentStatus.cancelled,
+  });
 
   final String label;
   final String description;
   final Set<IncidentStatus> statuses;
-  final Color light;
-  final Color dark;
 
-  const TechnicianWorkStage(
-    this.label,
-    this.description,
-    this.statuses, {
-    required this.light,
-    required this.dark,
-  });
+  const TechnicianWorkStage(this.label, this.description, this.statuses);
+
+  Color accent(Brightness brightness) => switch (this) {
+    assigned => CampusPalette.statusAssigned(brightness),
+    working => CampusPalette.statusInProgress(brightness),
+    solved => CampusPalette.statusResolved(brightness),
+    review => CampusPalette.statusReview(brightness),
+    finished => CampusPalette.statusNeutral(brightness),
+  };
 }
 
 /// Presents the technician's authorized assignments without issuing queries.
@@ -352,9 +339,7 @@ class TechnicianWorkQueue extends StatelessWidget {
   }) {
     final theme = Theme.of(context);
     final active = stage == selected;
-    final accent = theme.brightness == Brightness.dark
-        ? stage.dark
-        : stage.light;
+    final accent = stage.accent(theme.brightness);
     final foreground = theme.colorScheme.onSurface;
     return Semantics(
       label: '${stage.label}, $count incidencias',

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../app/theme/campus_palette.dart';
 import '../models/incident_history_action.dart';
 
 /// Selects a workflow form without submitting its operation.
@@ -29,12 +30,15 @@ class WorkflowActionOption extends StatelessWidget {
       IncidentHistoryAction.assignmentDeclined ||
       IncidentHistoryAction.rejected ||
       IncidentHistoryAction.cancelled ||
-      IncidentHistoryAction.reviewRequested => colors.error,
+      IncidentHistoryAction.reviewRequested => CampusPalette.statusCritical(
+        theme.brightness,
+      ),
       IncidentHistoryAction.started ||
       IncidentHistoryAction.resolved ||
       IncidentHistoryAction.solutionAccepted ||
-      IncidentHistoryAction.closed =>
-        dark ? const Color(0xFF81C784) : const Color(0xFF2E7D32),
+      IncidentHistoryAction.closed => CampusPalette.statusResolved(
+        theme.brightness,
+      ),
       _ => colors.primary,
     };
     final foreground = onSelected == null

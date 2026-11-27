@@ -13,7 +13,7 @@ class AppearanceController extends ChangeNotifier {
     _restore();
   }
 
-  ThemeMode get mode => _selectedMode ?? ThemeMode.system;
+  ThemeMode get mode => _selectedMode ?? ThemeMode.light;
 
   static Future<SharedPreferences?> _openPreferences() async {
     try {
@@ -29,7 +29,8 @@ class AppearanceController extends ChangeNotifier {
     _selectedMode = switch (stored) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
-      _ => ThemeMode.system,
+      'system' => ThemeMode.system,
+      _ => ThemeMode.light,
     };
     notifyListeners();
   }

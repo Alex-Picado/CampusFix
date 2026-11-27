@@ -68,6 +68,16 @@ flutter:
     - assets/images/campus-ucr.png
     - assets/images/ucr-logo.png
     - assets/images/ucr-logo-dark.png
+    - assets/fonts/OFL-Trueno.txt
+  fonts:
+    - family: Trueno
+      fonts:
+        - asset: assets/fonts/Trueno-Regular.otf
+          weight: 400
+        - asset: assets/fonts/Trueno-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/Trueno-Bold.otf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -42,14 +42,19 @@ class IncidentAdministrativeFilters extends StatelessWidget {
       onChanged: onOrder,
     );
     final quickViews = _quickViews();
+    final dropdownTextStyle = Theme.of(context).textTheme.bodyMedium;
     final fields = [
       _statusField(context),
-      IncidentCategoryFilter(controller: controller),
+      IncidentCategoryFilter(controller: controller, compact: true),
       DropdownButtonFormField<IncidentPriorityFilter>(
         key: ValueKey('incident-filter-priority-${filters.priority.name}'),
         initialValue: filters.priority,
         isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Prioridad'),
+        style: dropdownTextStyle,
+        decoration: const InputDecoration(
+          labelText: 'Prioridad',
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        ),
         items: [
           for (final value in IncidentPriorityFilter.values)
             DropdownMenuItem(
@@ -68,7 +73,11 @@ class IncidentAdministrativeFilters extends StatelessWidget {
         key: ValueKey('incident-filter-technician-$technicianValue'),
         initialValue: technicianValue,
         isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Técnico responsable'),
+        style: dropdownTextStyle,
+        decoration: const InputDecoration(
+          labelText: 'Técnico responsable',
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        ),
         items: [
           const DropdownMenuItem(value: '', child: Text('Todos los técnicos')),
           const DropdownMenuItem(value: 'none', child: Text('Sin asignar')),
@@ -126,10 +135,10 @@ class IncidentAdministrativeFilters extends StatelessWidget {
               if (width >= 1100)
                 Row(
                   children: [
-                    Expanded(flex: 2, child: query),
+                    Expanded(flex: 3, child: query),
                     for (final field in fields) ...[
                       const SizedBox(width: gap),
-                      Expanded(child: field),
+                      Expanded(flex: 2, child: field),
                     ],
                   ],
                 )

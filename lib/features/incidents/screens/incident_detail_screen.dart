@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/theme/campus_palette.dart';
 import '../../../core/widgets/page_heading.dart';
 import '../../../core/widgets/section_card.dart';
 import '../../auth/controllers/session_controller.dart';
@@ -251,9 +252,9 @@ class _DetailViewState extends State<_DetailView> {
                       title: 'Solución del técnico',
                       description: incident.resolutionDescription!,
                       icon: Icons.task_alt,
-                      accent: Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xFF81C784)
-                          : const Color(0xFF2E7D32),
+                      accent: CampusPalette.statusResolved(
+                        Theme.of(context).brightness,
+                      ),
                     ),
                   ],
                   if (incident.status == IncidentStatus.resolved ||

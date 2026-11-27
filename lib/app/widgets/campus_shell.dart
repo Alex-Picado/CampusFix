@@ -15,6 +15,7 @@ import '../../features/users/screens/profile_screen.dart';
 import '../../features/users/screens/user_management_screen.dart';
 import '../navigation/campus_destination.dart';
 import '../screens/overview_screen.dart';
+import '../theme/campus_palette.dart';
 import 'campus_navigation.dart';
 import '../../features/notifications/widgets/notification_bell.dart';
 
@@ -166,9 +167,9 @@ class _CampusShellState extends State<CampusShell> {
                   child: Center(
                     child: Text(
                       widget.profile.role.label,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: CampusPalette.paleBlue,
                       ),
                     ),
                   ),
@@ -178,16 +179,16 @@ class _CampusShellState extends State<CampusShell> {
                   child: TextButton.icon(
                     key: const ValueKey('session-sign-out'),
                     onPressed: signOut,
+                    style: TextButton.styleFrom(
+                      foregroundColor: CampusPalette.white,
+                      disabledForegroundColor: CampusPalette.paleBlue,
+                    ),
                     icon: const Icon(Icons.logout, size: 18),
                     label: const Text('Salir'),
                   ),
                 ),
               ],
             ],
-            bottom: const PreferredSize(
-              preferredSize: Size.fromHeight(1),
-              child: Divider(height: 1),
-            ),
           ),
           drawer: drawer,
           floatingActionButton: showCreateReportButton

@@ -4,57 +4,89 @@ import '../../../core/widgets/section_card.dart';
 import '../controllers/incident_search_controller.dart';
 import '../presentation/incident_list_order.dart';
 
-/// Search controls for personal incident lists.
+/// Search and local ordering for the reporter's list.
 class IncidentSearchPanel extends StatelessWidget {
   final IncidentSearchController controller;
+  final IncidentListOrder order;
+  final ValueChanged<IncidentListOrder> onOrderChanged;
 
-  const IncidentSearchPanel({super.key, required this.controller});
+  const IncidentSearchPanel({
+    super.key,
+    required this.controller,
+    required this.order,
+    required this.onOrderChanged,
+  });
 
   @override
-  Widget build(BuildContext context) => !controller.hasSnapshot
-      ? const SizedBox.shrink()
-      : SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Buscar incidencias',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 16),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final query = IncidentQueryField(controller: controller);
-                  final category = IncidentCategoryFilter(
-                    controller: controller,
-                  );
-                  if (constraints.maxWidth < 650) {
-                    return Column(
-                      children: [query, const SizedBox(height: 16), category],
-                    );
-                  }
-                  return Row(
-                    children: [
-                      Expanded(child: query),
-                      const SizedBox(width: 16),
-                      SizedBox(width: 280, child: category),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              IncidentSearchSummary(
-                count: controller.results.length,
-                total: controller.total,
-                clearLabel: 'Limpiar búsqueda',
-                onClear: controller.criteria.hasCriteria
-                    ? controller.reset
-                    : null,
-              ),
-              IncidentCategoryFeedback(controller: controller),
-            ],
+  Widget build(BuildContext context) {
+    if (!controller.hasSnapshot) return const SizedBox.shrink();
+    final phone = MediaQuery.sizeOf(context).width < 500;
+    return SectionCard(
+      padding: EdgeInsets.all(phone ? 12 : 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 12.0;
+              final width = constraints.maxWidth;
+              final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+              final fullRow = width >= 760 * textScale;
+              final compact = width < 430;
+              final pairFits = width >= 304 * textScale;
+              final category = IncidentCategoryFilter(
+                controller: controller,
+                compact: compact && pairFits,
+              );
+              final sort = IncidentSortField(
+                key: const ValueKey('reporter-sort'),
+                order: order,
+                options: const [
+                  IncidentListOrder.recent,
+                  IncidentListOrder.oldest,
+                ],
+                onChanged: onOrderChanged,
+                compact: compact && pairFits,
+              );
+              final query = IncidentQueryField(controller: controller);
+              if (fullRow) {
+                return Row(
+                  children: [
+                    Expanded(child: query),
+                    const SizedBox(width: gap),
+                    SizedBox(width: 240 * textScale, child: category),
+                    const SizedBox(width: gap),
+                    SizedBox(width: 200 * textScale, child: sort),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  query,
+                  const SizedBox(height: gap),
+                  if (pairFits)
+                    Row(
+                      children: [
+                        Expanded(child: category),
+                        const SizedBox(width: gap),
+                        Expanded(child: sort),
+                      ],
+                    )
+                  else ...[
+                    category,
+                    const SizedBox(height: gap),
+                    sort,
+                  ],
+                ],
+              );
+            },
           ),
-        );
+          IncidentCategoryFeedback(controller: controller),
+        ],
+      ),
+    );
+  }
 }
 
 class IncidentQueryField extends StatelessWidget {
@@ -164,10 +196,11 @@ class IncidentSortField extends StatelessWidget {
       );
 
   String _shortLabel(IncidentListOrder order) => switch (order) {
+    IncidentListOrder.recent => 'Recientes',
+    IncidentListOrder.oldest => 'Antiguas',
     IncidentListOrder.priority => 'Prioridad alta',
     IncidentListOrder.descendingNumber => 'Mayor consecutivo',
     IncidentListOrder.ascendingNumber => 'Menor consecutivo',
-    _ => order.label,
   };
 }
 

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../app/theme/campus_palette.dart';
 import '../controllers/incident_search_controller.dart';
 import '../models/incident.dart';
 import '../models/incident_priority.dart';
@@ -91,7 +92,7 @@ class _IncidentQueueRow extends StatelessWidget {
     final status = incident.status;
     final technician = this.technician;
     final technicianView = technician == null;
-    final statusColor = _statusColor(status, theme.brightness);
+    final statusColor = incidentStatusColor(status, theme.brightness);
     final railColor = technicianView
         ? _priorityColor(incident.priority, theme.brightness)
         : statusColor;
@@ -264,28 +265,22 @@ class _IncidentQueueRow extends StatelessWidget {
       ],
     );
   }
+}
 
-  Color _statusColor(IncidentStatus status, Brightness brightness) {
-    final dark = brightness == Brightness.dark;
-    return switch (status) {
-      IncidentStatus.reported ||
-      IncidentStatus.closed ||
+/// Palette accent used to identify the incident's stored state.
+Color incidentStatusColor(IncidentStatus status, Brightness brightness) =>
+    switch (status) {
+      IncidentStatus.reported => CampusPalette.statusNeutral(brightness),
       IncidentStatus.rejected ||
-      IncidentStatus.cancelled =>
-        dark ? const Color(0xFFAFB8C7) : const Color(0xFF586477),
+      IncidentStatus.cancelled => CampusPalette.statusCritical(brightness),
       IncidentStatus.underReview ||
       IncidentStatus.reviewRequested ||
-      IncidentStatus.reopened =>
-        dark ? const Color(0xFFFFBA68) : const Color(0xFF8B5600),
-      IncidentStatus.assigned =>
-        dark ? const Color(0xFF96C3FF) : const Color(0xFF245DA8),
-      IncidentStatus.inProgress =>
-        dark ? const Color(0xFFC4ABFF) : const Color(0xFF6745A5),
-      IncidentStatus.resolved =>
-        dark ? const Color(0xFF70DCA9) : const Color(0xFF146843),
+      IncidentStatus.reopened => CampusPalette.statusReview(brightness),
+      IncidentStatus.assigned => CampusPalette.statusAssigned(brightness),
+      IncidentStatus.inProgress => CampusPalette.statusInProgress(brightness),
+      IncidentStatus.resolved ||
+      IncidentStatus.closed => CampusPalette.statusResolved(brightness),
     };
-  }
-}
 
 class _IncidentRowDetail extends StatelessWidget {
   final IconData icon;
@@ -346,19 +341,13 @@ class IncidentPriorityBadge extends StatelessWidget {
   }
 }
 
-Color _priorityColor(IncidentPriority? priority, Brightness brightness) {
-  final dark = brightness == Brightness.dark;
-  return switch ((priority, dark)) {
-    (IncidentPriority.low, true) => const Color(0xFF81C784),
-    (IncidentPriority.medium, true) => const Color(0xFFFFCC80),
-    (IncidentPriority.high, true) => const Color(0xFFEF9A9A),
-    (null, true) => const Color(0xFFB3BAC5),
-    (IncidentPriority.low, false) => const Color(0xFF2E7D32),
-    (IncidentPriority.medium, false) => const Color(0xFF9A6700),
-    (IncidentPriority.high, false) => const Color(0xFFC62828),
-    (null, false) => const Color(0xFF667085),
-  };
-}
+Color _priorityColor(IncidentPriority? priority, Brightness brightness) =>
+    switch (priority) {
+      IncidentPriority.low => CampusPalette.statusResolved(brightness),
+      IncidentPriority.medium => CampusPalette.statusReview(brightness),
+      IncidentPriority.high => CampusPalette.statusCritical(brightness),
+      null => CampusPalette.statusNeutral(brightness),
+    };
 
 /// Formats the local date and time shown in incident queues.
 String formatIncidentQueueDate(DateTime value) {

@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/theme/campus_palette.dart';
 import '../../users/models/user_profile.dart';
 import '../../users/models/user_role.dart';
 import '../../auth/controllers/session_controller.dart';
@@ -39,7 +40,7 @@ class _NotificationBellState extends State<NotificationBell> {
       icon: Badge(
         key: const ValueKey('notification-unread-dot'),
         isLabelVisible: _controller.unread > 0,
-        backgroundColor: const Color(0xFFD32F2F),
+        backgroundColor: CampusPalette.cyan,
         child: const Icon(Icons.notifications_outlined),
       ),
     ),
@@ -140,8 +141,10 @@ class _NotificationBellState extends State<NotificationBell> {
                                     ),
                                     isThreeLine: true,
                                     trailing: _controller.isUnread(entry)
-                                        ? const Badge(
-                                            backgroundColor: Color(0xFFD32F2F),
+                                        ? Badge(
+                                            backgroundColor: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
                                           )
                                         : null,
                                     onTap: () {
