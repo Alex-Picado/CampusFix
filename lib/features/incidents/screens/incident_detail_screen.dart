@@ -10,10 +10,13 @@ import '../../users/repositories/user_repository.dart';
 import '../controllers/incident_workflow_controller.dart';
 import '../controllers/incident_detail_controller.dart';
 import '../models/incident_history_action.dart';
+import '../models/incident_history_event.dart';
 import '../models/incident_status.dart';
 import '../presentation/incident_status_labels.dart';
 import '../repositories/incident_repository.dart';
 import '../repositories/evidence_repository.dart';
+import '../widgets/administrative_incident_record.dart';
+import '../widgets/administrative_incident_summary.dart';
 import '../widgets/evidence_widgets.dart';
 import '../widgets/incident_detail_cards.dart';
 import '../widgets/incident_workflow_panel.dart';
@@ -67,6 +70,9 @@ class _DetailView extends StatefulWidget {
 }
 
 class _DetailViewState extends State<_DetailView> {
+  final _adminSummaryKey = GlobalKey();
+  final _adminWorkflowKey = GlobalKey();
+  final _adminRecordKey = GlobalKey();
   bool _reporting = false;
   @override
   Widget build(BuildContext context) {
@@ -114,6 +120,10 @@ class _DetailViewState extends State<_DetailView> {
         : id == incident.createdByUserId
         ? 'Reportante'
         : 'Equipo de atención';
+    if (profile.role.isAdministrative) {
+      return _administrativeDetail(controller, person);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -126,11 +136,6 @@ class _DetailViewState extends State<_DetailView> {
               description: incident.title,
             ),
             const SizedBox(height: 20),
-            if (profile.role == UserRole.administrator)
-              IncidentWorkflowPanel(
-                incidentId: incident.id,
-                administrativeActions: true,
-              ),
             SectionCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,16 +309,9 @@ class _DetailViewState extends State<_DetailView> {
           context,
           'Fotografías',
           controller.loadingSections.contains('evidence'),
-          [
-            if (controller.evidenceRepository == null)
-              const PhotoAvailabilityNotice()
-            else if (controller.evidence.isEmpty)
-              const Text('No hay fotografías asociadas.')
-            else
-              EvidenceGallery(uid: profile.id, evidence: controller.evidence),
-          ],
+          [IncidentPhotoContent(controller: controller)],
         ),
-        if (profile.role.name == 'reporter' &&
+        if (profile.role == UserRole.reporter &&
             incident.createdByUserId == profile.id)
           ReportPhotoUpload(incidentId: incident.id),
         _section(
@@ -321,52 +319,11 @@ class _DetailViewState extends State<_DetailView> {
           'Avances y comentarios',
           controller.loadingSections.contains('progress'),
           [
-            if (controller.progress.isEmpty)
-              const Text('Todavía no hay avances registrados.'),
-            for (final entry in controller.progress)
-              Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    left: BorderSide(
-                      color: Theme.of(context).colorScheme.primary,
-                      width: 3,
-                    ),
-                  ),
-                  color: Theme.of(context).colorScheme.primaryContainer
-                      .withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Avance ${controller.progress.indexOf(entry) + 1} · Técnico: ${person(entry.authorUserId)}',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _date(entry.createdAt),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 12),
-                    SelectableText(entry.description),
-                    if (controller.evidence.any(
-                      (photo) => photo.progressId == entry.id,
-                    ))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: EvidenceGallery(
-                          uid: profile.id,
-                          evidence: controller.evidence
-                              .where((photo) => photo.progressId == entry.id)
-                              .toList(),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+            IncidentProgressEntries(
+              controller: controller,
+              person: person,
+              formatDate: _date,
+            ),
           ],
         ),
         if (controller.canAddProgress || controller.frozen) ...[
@@ -426,11 +383,7 @@ class _DetailViewState extends State<_DetailView> {
               IncidentHistoryCard(
                 key: ValueKey('history-event-${event.id}'),
                 event: event,
-                title:
-                    event.action == IncidentHistoryAction.assignmentDeclined &&
-                        event.toTechnicianId != null
-                    ? 'Asignación transferida al siguiente técnico'
-                    : _action(event.action),
+                title: _historyTitle(event),
                 timestamp: _date(event.createdAt),
                 person: person,
                 categoryName:
@@ -443,6 +396,89 @@ class _DetailViewState extends State<_DetailView> {
       ],
     );
   }
+
+  Widget _administrativeDetail(
+    IncidentDetailController controller,
+    String Function(String) person,
+  ) {
+    final incident = controller.incident!;
+    final summary = AdministrativeIncidentSummary(
+      key: _adminSummaryKey,
+      controller: controller,
+      person: person,
+      formatDate: _date,
+      reportActions: IncidentWorkflowPanel(
+        incidentId: incident.id,
+        administrativeActions: true,
+      ),
+    );
+    final workflow = KeyedSubtree(
+      key: _adminWorkflowKey,
+      child: IncidentWorkflowPanel(
+        key: const ValueKey('detail-workflow-panel'),
+        incidentId: incident.id,
+        administrativeApprovals: switch (incident.status) {
+          IncidentStatus.resolved ||
+          IncidentStatus.closed => IncidentClosureApprovals(incident: incident),
+          _ => null,
+        },
+      ),
+    );
+    final record = AdministrativeIncidentRecord(
+      key: _adminRecordKey,
+      controller: controller,
+      person: person,
+      formatDate: _date,
+      actionLabel: _historyTitle,
+    );
+    const gap = 18.0;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1132),
+        child: LayoutBuilder(
+          key: const ValueKey('incident-detail-page'),
+          builder: (context, constraints) => KeyedSubtree(
+            key: const ValueKey('administrative-incident-detail'),
+            child: constraints.maxWidth < 864
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      summary,
+                      const SizedBox(height: gap),
+                      workflow,
+                      const SizedBox(height: gap),
+                      record,
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            summary,
+                            const SizedBox(height: gap),
+                            record,
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: gap),
+                      SizedBox(width: 380, child: workflow),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _historyTitle(IncidentHistoryEvent event) =>
+      event.action == IncidentHistoryAction.assignmentDeclined &&
+          event.toTechnicianId != null
+      ? 'Asignación transferida al siguiente técnico'
+      : _action(event.action);
 
   Widget _section(
     BuildContext context,

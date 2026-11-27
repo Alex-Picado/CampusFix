@@ -34,6 +34,9 @@ class SessionGate extends StatelessWidget {
       case SessionStatus.authenticated:
         final profile = session.profile;
         if (profile != null) {
+          final detailWidth = MediaQuery.sizeOf(context).width;
+          final compactDetail =
+              profile.role.isAdministrative && detailWidth < 600;
           return ChangeNotifierProvider<ProfileController>(
             key: ValueKey(profile.id),
             create: (context) => ProfileController(
@@ -44,7 +47,11 @@ class SessionGate extends StatelessWidget {
                 ? CampusShell(profile: profile)
                 : Scaffold(
                     appBar: AppBar(
-                      title: const Text('Seguimiento de incidencia'),
+                      title: Text(
+                        compactDetail && detailWidth < 420
+                            ? 'Seguimiento'
+                            : 'Seguimiento de incidencia',
+                      ),
                       actions: [
                         NotificationBell(
                           key: ValueKey(
@@ -66,7 +73,14 @@ class SessionGate extends StatelessWidget {
                       ),
                     ),
                     body: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
+                      padding: profile.role.isAdministrative
+                          ? EdgeInsets.fromLTRB(
+                              compactDetail ? 14 : 24,
+                              compactDetail ? 16 : 22,
+                              compactDetail ? 14 : 24,
+                              40,
+                            )
+                          : const EdgeInsets.all(24),
                       child: IncidentDetailScreen(incidentId: incidentId!),
                     ),
                   ),

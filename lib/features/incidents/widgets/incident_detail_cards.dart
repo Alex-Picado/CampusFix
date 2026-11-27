@@ -104,16 +104,15 @@ class IncidentNarrative extends StatelessWidget {
   }
 }
 
-/// Separates each immutable audit event with its own heading and surface.
-///
-/// Receives authorized display names and a formatted timestamp from the detail.
-/// Stored events, state transitions and their chronological order are preserved.
+/// Presents an immutable audit event as a card or as part of a timeline.
 class IncidentHistoryCard extends StatelessWidget {
   final IncidentHistoryEvent event;
   final String title;
   final String timestamp;
   final String Function(String) person;
   final String? categoryName;
+  final bool inTimeline;
+  final bool showTimelineConnector;
 
   const IncidentHistoryCard({
     super.key,
@@ -122,6 +121,8 @@ class IncidentHistoryCard extends StatelessWidget {
     required this.timestamp,
     required this.person,
     this.categoryName,
+    this.inTimeline = false,
+    this.showTimelineConnector = false,
   });
 
   @override
@@ -148,91 +149,113 @@ class IncidentHistoryCard extends StatelessWidget {
       ),
       _ => (Icons.history, theme.colorScheme.primary),
     };
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(12),
+    final marker = CircleAvatar(
+      radius: inTimeline ? 16 : null,
+      backgroundColor: color.withValues(alpha: 0.12),
+      child: Icon(icon, color: color, size: inTimeline ? 18 : null),
+    );
+    final heading = Text(
+      title,
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: color,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    );
+    final date = Text(
+      timestamp,
+      style: inTimeline
+          ? theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            )
+          : theme.textTheme.bodySmall,
+    );
+    final fields = [
+      IncidentInfoField(
+        label: 'Por',
+        value: person(event.actorUserId),
+        icon: Icons.person_outline,
+      ),
+      if (event.toTechnicianId != null)
+        IncidentInfoField(
+          label: 'Responsable',
+          value: person(event.toTechnicianId!),
+          icon: Icons.engineering_outlined,
+        ),
+      if (event.details?['categoryId'] != null)
+        IncidentInfoField(
+          label: 'Categoría',
+          value: categoryName ?? event.details!['categoryId'].toString(),
+          icon: Icons.category_outlined,
+        ),
+      if (event.details?['priority'] != null)
+        IncidentInfoField(
+          label: 'Prioridad',
+          value: event.details!['priority'].toString(),
+          icon: Icons.flag_outlined,
+        ),
+      if (event.fromTechnicianId != null &&
+          event.fromTechnicianId != event.toTechnicianId)
+        IncidentInfoField(
+          label: 'Responsable anterior',
+          value: person(event.fromTechnicianId!),
+          icon: Icons.person_outline,
+        ),
+      if (event.toTechnicianId == null && event.fromTechnicianId != null)
+        const IncidentInfoField(
+          label: 'Responsable actual',
+          value: 'Sin asignar',
+          icon: Icons.person_outline,
+        ),
+    ];
+    final content = Column(
+      crossAxisAlignment: inTimeline
+          ? CrossAxisAlignment.stretch
+          : CrossAxisAlignment.start,
+      children: [
+        if (inTimeline) ...[
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 2,
+            children: [heading, date],
+          ),
+          const SizedBox(height: 4),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 12.0;
+              final width = constraints.maxWidth >= 390
+                  ? (constraints.maxWidth - gap) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: gap,
+                children: [
+                  for (final field in fields)
+                    SizedBox(width: width, child: field),
+                ],
+              );
+            },
+          ),
+        ] else ...[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                backgroundColor: color.withValues(alpha: 0.12),
-                child: Icon(icon, color: color),
-              ),
+              marker,
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: color,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(timestamp, style: theme.textTheme.bodySmall),
-                  ],
+                  children: [heading, const SizedBox(height: 6), date],
                 ),
               ),
             ],
           ),
           const Divider(height: 28),
-          Wrap(
-            spacing: 20,
-            runSpacing: 4,
-            children: [
-              IncidentInfoField(
-                label: 'Por',
-                value: person(event.actorUserId),
-                icon: Icons.person_outline,
-              ),
-              if (event.toTechnicianId != null)
-                IncidentInfoField(
-                  label: 'Responsable',
-                  value: person(event.toTechnicianId!),
-                  icon: Icons.engineering_outlined,
-                ),
-              if (event.details?['categoryId'] != null)
-                IncidentInfoField(
-                  label: 'Categoría',
-                  value:
-                      categoryName ?? event.details!['categoryId'].toString(),
-                  icon: Icons.category_outlined,
-                ),
-              if (event.details?['priority'] != null)
-                IncidentInfoField(
-                  label: 'Prioridad',
-                  value: event.details!['priority'].toString(),
-                  icon: Icons.flag_outlined,
-                ),
-              if (event.fromTechnicianId != null &&
-                  event.fromTechnicianId != event.toTechnicianId)
-                IncidentInfoField(
-                  label: 'Responsable anterior',
-                  value: person(event.fromTechnicianId!),
-                  icon: Icons.person_outline,
-                ),
-              if (event.toTechnicianId == null &&
-                  event.fromTechnicianId != null)
-                const IncidentInfoField(
-                  label: 'Responsable actual',
-                  value: 'Sin asignar',
-                  icon: Icons.person_outline,
-                ),
-            ],
-          ),
-          if (event.fromStatus != null || event.toStatus != null) ...[
-            const SizedBox(height: 12),
+          Wrap(spacing: 20, runSpacing: 4, children: fields),
+        ],
+        if (event.fromStatus != null || event.toStatus != null) ...[
+          SizedBox(height: inTimeline ? 4 : 12),
+          if (!inTimeline) ...[
             Text(
               'Cambio de estado',
               style: theme.textTheme.labelLarge?.copyWith(
@@ -240,7 +263,10 @@ class IncidentHistoryCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Wrap(
+          ],
+          Semantics(
+            label: inTimeline ? 'Cambio de estado' : null,
+            child: Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: 8,
               runSpacing: 4,
@@ -253,29 +279,63 @@ class IncidentHistoryCard extends StatelessWidget {
                 ),
               ],
             ),
-          ],
-          if (event.previousResolutionDescription != null) ...[
-            const SizedBox(height: 16),
-            IncidentNarrative(
-              title: 'Solución anterior',
-              description: event.previousResolutionDescription!,
-            ),
-          ],
-          if (event.reason != null) ...[
-            const SizedBox(height: 16),
-            IncidentNarrative(
-              title: switch (event.action) {
-                IncidentHistoryAction.resolved => 'Solución del técnico',
-                IncidentHistoryAction.progressAdded => 'Descripción del avance',
-                _ => 'Detalle del evento',
-              },
-              description: event.reason!,
-              icon: icon,
-              accent: color,
-            ),
-          ],
+          ),
         ],
+        if (event.previousResolutionDescription != null) ...[
+          const SizedBox(height: 16),
+          IncidentNarrative(
+            title: 'Solución anterior',
+            description: event.previousResolutionDescription!,
+          ),
+        ],
+        if (event.reason != null) ...[
+          SizedBox(height: inTimeline ? 8 : 16),
+          IncidentNarrative(
+            title: switch (event.action) {
+              IncidentHistoryAction.resolved => 'Solución del técnico',
+              IncidentHistoryAction.progressAdded => 'Descripción del avance',
+              _ => 'Detalle del evento',
+            },
+            description: event.reason!,
+            icon: icon,
+            accent: color,
+          ),
+        ],
+      ],
+    );
+    if (inTimeline) {
+      return Stack(
+        children: [
+          if (showTimelineConnector)
+            PositionedDirectional(
+              start: 15,
+              top: 32,
+              bottom: 0,
+              width: 2,
+              child: ColoredBox(color: theme.colorScheme.outlineVariant),
+            ),
+          PositionedDirectional(start: 0, top: 0, child: marker),
+          Padding(
+            padding: EdgeInsetsDirectional.only(
+              start: 44,
+              top: 3,
+              bottom: showTimelineConnector ? 22 : 3,
+            ),
+            child: content,
+          ),
+        ],
+      );
+    }
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(12),
       ),
+      child: content,
     );
   }
 }

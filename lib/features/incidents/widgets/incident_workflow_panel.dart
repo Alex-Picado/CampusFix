@@ -19,11 +19,13 @@ class IncidentWorkflowPanel extends StatelessWidget {
   final String incidentId;
   final bool blocked;
   final bool administrativeActions;
+  final Widget? administrativeApprovals;
   const IncidentWorkflowPanel({
     super.key,
     required this.incidentId,
     this.blocked = false,
     this.administrativeActions = false,
+    this.administrativeApprovals,
   });
   @override
   Widget build(BuildContext context) {
@@ -35,6 +37,7 @@ class IncidentWorkflowPanel extends StatelessWidget {
     return _WorkflowForm(
       blocked: blocked,
       administrativeActions: administrativeActions,
+      administrativeApprovals: administrativeApprovals,
     );
   }
 }
@@ -42,9 +45,11 @@ class IncidentWorkflowPanel extends StatelessWidget {
 class _WorkflowForm extends StatefulWidget {
   final bool blocked;
   final bool administrativeActions;
+  final Widget? administrativeApprovals;
   const _WorkflowForm({
     required this.blocked,
     required this.administrativeActions,
+    this.administrativeApprovals,
   });
   @override
   State<_WorkflowForm> createState() => _WorkflowFormState();
@@ -119,7 +124,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
     final actions = allActions
         .where(
           (action) =>
-              controller.role != UserRole.administrator ||
+              !controller.role.isAdministrative ||
               widget.administrativeActions == destructive.contains(action),
         )
         .toList();
@@ -138,8 +143,7 @@ class _WorkflowFormState extends State<_WorkflowForm> {
       return const SizedBox.shrink();
     }
     final administrator =
-        controller.role == UserRole.administrator &&
-        !widget.administrativeActions;
+        controller.role.isAdministrative && !widget.administrativeActions;
     final incident = controller.incident;
     final status = controller.pending?.expectedStatus ?? incident?.status;
     final step = administrator
@@ -158,11 +162,11 @@ class _WorkflowFormState extends State<_WorkflowForm> {
     final primary = actions.contains(preferredAction) ? preferredAction : null;
     final ownsPending =
         controller.pending != null &&
-        (controller.role != UserRole.administrator ||
+        (!controller.role.isAdministrative ||
             widget.administrativeActions ==
                 destructive.contains(controller.pending!.action));
     final ownsFeedback =
-        controller.role != UserRole.administrator ||
+        !controller.role.isAdministrative ||
         widget.administrativeActions ==
             destructive.contains(controller.selectedAction);
     final action = ownsPending
@@ -337,7 +341,13 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             ),
           ),
           const SizedBox(height: 6),
-          Text(step.instructions(status)),
+          Text(
+            step.instructions(
+              status,
+              adminApproved: incident?.adminApproved == true,
+              reporterApproved: incident?.reporterApproved == true,
+            ),
+          ),
           const SizedBox(height: 12),
           if (controller.awaitingUpdate)
             const Text('Actualizando el estado de la incidencia…'),
@@ -555,6 +565,8 @@ class _WorkflowFormState extends State<_WorkflowForm> {
                     ? 'Motivo para cerrar la solicitud'
                     : action == IncidentHistoryAction.assignmentDeclined
                     ? 'Motivo para rechazar la asignación'
+                    : action == IncidentHistoryAction.reopened
+                    ? 'Motivo de la reapertura'
                     : 'Motivo obligatorio',
               ),
             ),
@@ -596,82 +608,122 @@ class _WorkflowFormState extends State<_WorkflowForm> {
             ),
           ),
         const SizedBox(height: 12),
-        if (buttons.isNotEmpty)
+        if (administrator && buttons.isNotEmpty)
+          SizedBox(width: double.infinity, child: buttons.single)
+        else if (buttons.isNotEmpty)
           Wrap(spacing: 12, runSpacing: 12, children: buttons),
       ],
     );
+    final theme = Theme.of(context);
+    final notices = <Widget>[
+      if (widget.blocked)
+        const Text(
+          'Terminá de guardar el avance pendiente antes de resolver la incidencia.',
+        ),
+      if (!widget.administrativeActions &&
+          status == IncidentStatus.resolved &&
+          incident?.technicianApproved == false)
+        const Text(
+          'Esta solución anterior todavía no tiene confirmación del técnico. Administración debe reabrirla para registrar una solución con el nuevo flujo de conformidad.',
+        ),
+      if (controller.loadingSources.isNotEmpty) const LinearProgressIndicator(),
+      if (controller.readError != null) ...[
+        Text(controller.readError!),
+        TextButton(
+          onPressed: controller.start,
+          child: const Text('Reintentar lectura'),
+        ),
+      ],
+    ];
+    if (step != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Flujo de atención', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 12),
+                _WorkflowSteps(
+                  current: status == null ? null : step,
+                  classified:
+                      incident?.priority != null &&
+                      step != _AdministratorStep.classification,
+                  assigned:
+                      incident?.assignedTechnicianId != null &&
+                      step == _AdministratorStep.followUp,
+                  finished:
+                      status == IncidentStatus.closed ||
+                      status == IncidentStatus.cancelled ||
+                      status == IncidentStatus.rejected,
+                ),
+                if (widget.administrativeApprovals != null) ...[
+                  const Divider(height: 28),
+                  widget.administrativeApprovals!,
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...notices,
+                if (notices.isNotEmpty) const SizedBox(height: 12),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  layoutBuilder: (current, previous) => Stack(
+                    alignment: Alignment.topLeft,
+                    children: [
+                      for (final child in previous)
+                        ExcludeFocus(
+                          child: ExcludeSemantics(
+                            child: IgnorePointer(child: child),
+                          ),
+                        ),
+                      ?current,
+                    ],
+                  ),
+                  child: form,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    if (widget.administrativeActions) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 28),
+          Text('Acciones del reporte', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 12),
+          ...notices,
+          form,
+        ],
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: SectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.administrativeActions
-                  ? 'Acciones del reporte'
-                  : switch (controller.role) {
-                      UserRole.administrator || UserRole.superAdministrator =>
-                        'Flujo de atención',
-                      UserRole.reporter => 'Revisar la solución',
-                      UserRole.technician =>
-                        status == IncidentStatus.inProgress
-                            ? 'Atención y resolución'
-                            : 'Atención y gestión',
-                    },
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text(switch (controller.role) {
+              UserRole.administrator ||
+              UserRole.superAdministrator => 'Flujo de atención',
+              UserRole.reporter => 'Revisar la solución',
+              UserRole.technician =>
+                status == IncidentStatus.inProgress
+                    ? 'Atención y resolución'
+                    : 'Atención y gestión',
+            }, style: theme.textTheme.titleMedium),
             const SizedBox(height: 12),
-            if (widget.blocked)
-              const Text(
-                'Terminá de guardar el avance pendiente antes de resolver la incidencia.',
-              ),
-            if (status == IncidentStatus.resolved &&
-                incident?.technicianApproved == false)
-              const Text(
-                'Esta solución anterior todavía no tiene confirmación del técnico. Administración debe reabrirla para registrar una solución con el nuevo flujo de conformidad.',
-              ),
-            if (controller.loadingSources.isNotEmpty)
-              const LinearProgressIndicator(),
-            if (controller.readError != null) ...[
-              Text(controller.readError!),
-              TextButton(
-                onPressed: controller.start,
-                child: const Text('Reintentar lectura'),
-              ),
-            ],
-            if (step != null) ...[
-              _WorkflowSteps(
-                current: status == null ? null : step,
-                classified:
-                    incident?.priority != null &&
-                    step != _AdministratorStep.classification,
-                assigned:
-                    incident?.assignedTechnicianId != null &&
-                    step == _AdministratorStep.followUp,
-                finished:
-                    status == IncidentStatus.closed ||
-                    status == IncidentStatus.cancelled ||
-                    status == IncidentStatus.rejected,
-              ),
-              const SizedBox(height: 16),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                layoutBuilder: (current, previous) => Stack(
-                  alignment: Alignment.topLeft,
-                  children: [
-                    for (final child in previous)
-                      ExcludeFocus(
-                        child: ExcludeSemantics(
-                          child: IgnorePointer(child: child),
-                        ),
-                      ),
-                    ?current,
-                  ],
-                ),
-                child: form,
-              ),
-            ] else
-              form,
+            ...notices,
+            form,
           ],
         ),
       ),
@@ -708,7 +760,11 @@ enum _AdministratorStep {
     return controller.incident == null ? classification : followUp;
   }
 
-  String instructions(IncidentStatus status) => switch (this) {
+  String instructions(
+    IncidentStatus status, {
+    required bool adminApproved,
+    required bool reporterApproved,
+  }) => switch (this) {
     classification =>
       'Confirmá la categoría y la prioridad para pasar a la asignación.',
     assignment => 'Seleccioná el técnico que se encargará de la incidencia.',
@@ -716,6 +772,9 @@ enum _AdministratorStep {
       IncidentStatus.assigned =>
         'El técnico asignado aún no inicia la atención.',
       IncidentStatus.inProgress => 'El técnico está atendiendo la incidencia. Podrás cerrarla cuando registre una solución.',
+      IncidentStatus.resolved when adminApproved && !reporterApproved => 'Administración ya aprobó el cierre. Falta que el reportante acepte la solución.',
+      IncidentStatus.resolved when reporterApproved && !adminApproved =>
+        'El reportante aceptó la solución. Revisala y aprobá el cierre.',
       IncidentStatus.resolved => 'Revisá la solución y aprobá el cierre. Solo se cerrará cuando también la acepte el reportante.',
       _ => status.administratorGuidance,
     },

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:campusfix/app/providers/app_providers.dart';
 import 'package:campusfix/core/widgets/section_card.dart';
+import 'package:campusfix/features/incidents/widgets/administrative_incident_summary.dart';
 import 'package:campusfix/features/incidents/widgets/workflow_action_option.dart';
 import 'package:campusfix/features/incidents/models/incident.dart';
 import 'package:campusfix/features/incidents/models/incident_history_action.dart';
@@ -22,6 +23,135 @@ import 'support/report_repositories.dart';
 import 'support/test_repositories.dart';
 
 void main() {
+  testWidgets(
+    'Administrative detail switches records and reverses chronological history',
+    (tester) async {
+      final app = await _mount(tester);
+      final createdAt = app.reports.incident.createdAt;
+      app.reports.history.addAll([
+        IncidentHistoryEvent(
+          id: 'created',
+          actorUserId: 'owner',
+          createdAt: createdAt,
+          action: IncidentHistoryAction.created,
+          toStatus: IncidentStatus.reported,
+        ),
+        IncidentHistoryEvent(
+          id: 'classified',
+          actorUserId: 'admin',
+          createdAt: createdAt.add(const Duration(minutes: 1)),
+          action: IncidentHistoryAction.classified,
+          fromStatus: IncidentStatus.reported,
+          toStatus: IncidentStatus.underReview,
+        ),
+      ]);
+      app.reports.progress.add(
+        IncidentProgress(
+          id: 'inspection',
+          authorUserId: 'tech',
+          createdAt: createdAt.add(const Duration(minutes: 2)),
+          description: 'El técnico inspeccionó el aula.',
+        ),
+      );
+
+      await _tapKey(tester, 'detail-case');
+      final reported = find.byKey(const ValueKey('history-event-created'));
+      final classified = find.byKey(const ValueKey('history-event-classified'));
+      final record = find.byKey(
+        const ValueKey('administrative-incident-record'),
+      );
+      expect(record, findsOneWidget);
+      expect(
+        tester.getTopLeft(reported).dy,
+        lessThan(tester.getTopLeft(classified).dy),
+      );
+
+      await _tapKey(tester, 'incident-history-sort');
+      expect(
+        tester.getTopLeft(classified).dy,
+        lessThan(tester.getTopLeft(reported).dy),
+      );
+
+      await _tapKey(tester, 'incident-record-progress');
+      expect(find.text('El técnico inspeccionó el aula.'), findsOneWidget);
+      expect(reported, findsNothing);
+      expect(find.byKey(const ValueKey('incident-history-sort')), findsNothing);
+
+      await _tapKey(tester, 'incident-record-photos');
+      expect(
+        find.textContaining('Las fotografías están disponibles'),
+        findsOneWidget,
+      );
+      expect(find.text('El técnico inspeccionó el aula.'), findsNothing);
+
+      await _tapKey(tester, 'incident-record-history');
+      expect(
+        tester.getTopLeft(classified).dy,
+        lessThan(tester.getTopLeft(reported).dy),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Administrative detail stacks on a phone and keeps reopening available to both admin roles',
+    (tester) async {
+      final app = await _mount(tester);
+      app.reports.incident = app.reports.incident.copyWith(
+        status: IncidentStatus.resolved,
+        priority: IncidentPriority.high,
+        assignedTechnicianId: 'tech',
+        resolutionDescription: 'Se reemplazó la luminaria.',
+        technicianApproved: true,
+        adminApproved: true,
+      );
+      app.reports.changes.add(null);
+      await tester.pumpAndSettle();
+      await _tapKey(tester, 'detail-case');
+
+      final detail = find.byKey(
+        const ValueKey('administrative-incident-detail'),
+      );
+      final summary = find.byType(AdministrativeIncidentSummary);
+      final workflow = find.byKey(const ValueKey('detail-workflow-panel'));
+      final record = find.byKey(
+        const ValueKey('administrative-incident-record'),
+      );
+      expect(detail, findsOneWidget);
+      expect(
+        tester.getRect(workflow).left,
+        greaterThan(tester.getRect(summary).right),
+      );
+
+      tester.view.physicalSize = const Size(360, 800);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(workflow).top,
+        greaterThanOrEqualTo(tester.getRect(summary).bottom),
+      );
+      expect(
+        tester.getRect(record).top,
+        greaterThanOrEqualTo(tester.getRect(workflow).bottom),
+      );
+      expect(tester.getRect(workflow).right, lessThanOrEqualTo(360));
+      expect(tester.getRect(record).right, lessThanOrEqualTo(360));
+
+      for (final uid in ['admin', 'super-admin']) {
+        if (app.auth.currentUserId != uid) {
+          app.auth.setUser(uid);
+          await tester.pumpAndSettle();
+        }
+        expect(detail, findsOneWidget);
+        expect(find.byKey(const ValueKey('workflow-reason')), findsNothing);
+        await _tapKey(tester, 'workflow-option-reopened');
+        expect(find.byKey(const ValueKey('workflow-reason')), findsOneWidget);
+        expect(find.byKey(const ValueKey('workflow-save')), findsOneWidget);
+        expect(app.reports.submissions, isEmpty);
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Reporters cancel with a reason, then remove their report while administrators retain its audit',
     (tester) async {
@@ -819,6 +949,7 @@ class _Reports extends Fake implements IncidentRepository {
   final TestUserRepository users;
   final changes = StreamController<void>.broadcast();
   final history = <IncidentHistoryEvent>[];
+  final progress = <IncidentProgress>[];
   final submissions = <String>[];
   Completer<void>? blocker;
   Object? failure;
@@ -871,7 +1002,7 @@ class _Reports extends Fake implements IncidentRepository {
   }) => watch(() => List.of(history));
   @override
   Stream<List<IncidentProgress>> watchProgress({required String incidentId}) =>
-      watch(() => const []);
+      watch(() => List.of(progress));
   @override
   Future<void> applyWorkflow({
     required String incidentId,
